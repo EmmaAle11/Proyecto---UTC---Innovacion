@@ -1,0 +1,17 @@
+# Dependencias
+node_modules/
+# Builds
+dist/
+build/
+.expo/
+web-build/
+# Entorno / secretos (rules §17)
+.env
+.env.local
+.env.*.local
+# Logs y cobertura
+*.log
+coverage/
+# Sistema
+.DS_Store
+Thumbs.db
