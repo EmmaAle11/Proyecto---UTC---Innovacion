@@ -1,0 +1,25 @@
+<!-- @dsCard group="Spacing" viewport="700x180" name="Sombras / elevación" subtitle="xs → xl + glow de acción naranja" -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { margin: 0; padding: 26px; background: var(--surface-card); font-family: var(--font-body); }
+  .row { display: flex; gap: 26px; align-items: center; }
+  .item { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .sq { width: 76px; height: 76px; border-radius: var(--radius-md); background: #fff; }
+  .lab { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div class="item"><span class="sq" style="box-shadow:var(--shadow-xs)"></span><span class="lab">xs</span></div>
+    <div class="item"><span class="sq" style="box-shadow:var(--shadow-sm)"></span><span class="lab">sm</span></div>
+    <div class="item"><span class="sq" style="box-shadow:var(--shadow-md)"></span><span class="lab">md</span></div>
+    <div class="item"><span class="sq" style="box-shadow:var(--shadow-lg)"></span><span class="lab">lg</span></div>
+    <div class="item"><span class="sq" style="box-shadow:var(--shadow-xl)"></span><span class="lab">xl</span></div>
+    <div class="item"><span class="sq" style="box-shadow:var(--shadow-primary); background:var(--naranja-500)"></span><span class="lab">primary</span></div>
+  </div>
+</body>
+</html>

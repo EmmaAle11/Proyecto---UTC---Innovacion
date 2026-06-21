@@ -1,0 +1,24 @@
+<!-- @dsCard group="Type" viewport="700x230" name="Escala tipográfica" subtitle="2xs 11 → 5xl 60 · líneas y tracking" -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { margin: 0; padding: 22px; background: var(--surface-card); font-family: var(--font-body); }
+  .line { display: flex; align-items: baseline; gap: 14px; padding: 3px 0; border-bottom: 1px dashed var(--border-subtle); }
+  .line:last-child { border: 0; }
+  .spec { font-family: var(--font-mono); font-size: 10px; color: var(--text-subtle); width: 92px; flex: none; }
+  .sample { font-family: var(--font-display); font-weight: 700; color: var(--text-heading); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style>
+</head>
+<body>
+  <div class="line"><span class="spec">5xl · 60</span><span class="sample" style="font-size:34px">Sazón</span></div>
+  <div class="line"><span class="spec">3xl · 36</span><span class="sample" style="font-size:28px">Antojo resuelto</span></div>
+  <div class="line"><span class="spec">2xl · 28</span><span class="sample" style="font-size:23px">Quesadilla de tinga</span></div>
+  <div class="line"><span class="spec">xl · 22</span><span class="sample" style="font-size:20px">Papas preparadas con queso</span></div>
+  <div class="line"><span class="spec">lg · 18</span><span class="sample" style="font-size:17px; font-weight:500">Agua de jamaica natural fría</span></div>
+  <div class="line"><span class="spec">md · 16</span><span class="sample" style="font-size:15px; font-weight:400; font-family:var(--font-body)">Texto de cuerpo estándar de la interfaz</span></div>
+  <div class="line"><span class="spec">sm · 14</span><span class="sample" style="font-size:13px; font-weight:400; font-family:var(--font-body); color:var(--text-muted)">Texto secundario y de apoyo</span></div>
+</body>
+</html>

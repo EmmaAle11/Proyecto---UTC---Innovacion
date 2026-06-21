@@ -1,0 +1,35 @@
+<!-- @dsCard group="Brand" viewport="700x210" name="Voz y tono" subtitle="Cercano, claro, con sabor — tuteo en español" -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { margin: 0; padding: 22px; background: var(--surface-card); font-family: var(--font-body); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .col h4 { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; margin: 0 0 10px; }
+  .yes h4 { color: var(--lima-600); }
+  .no h4 { color: var(--rojo-500); }
+  .item { display: flex; gap: 8px; font-size: 13.5px; line-height: 1.4; margin-bottom: 8px; color: var(--gris-700); }
+  .mk { font-weight: 700; flex: none; }
+  .yes .mk { color: var(--lima-500); }
+  .no .mk { color: var(--rojo-500); }
+</style>
+</head>
+<body>
+  <div class="grid">
+    <div class="col yes">
+      <h4>Sí ✓</h4>
+      <div class="item"><span class="mk">✓</span>"Tu pedido está listo, pásale a recogerlo."</div>
+      <div class="item"><span class="mk">✓</span>"Te avisamos cuando esté en el mostrador."</div>
+      <div class="item"><span class="mk">✓</span>"Recoge en 10–20 min para que no se enfríe."</div>
+    </div>
+    <div class="col no">
+      <h4>No ✕</h4>
+      <div class="item"><span class="mk">✕</span>"Su orden ha sido procesada exitosamente."</div>
+      <div class="item"><span class="mk">✕</span>"Notificación: estado del pedido actualizado."</div>
+      <div class="item"><span class="mk">✕</span>"Diríjase al punto de entrega designado."</div>
+    </div>
+  </div>
+</body>
+</html>

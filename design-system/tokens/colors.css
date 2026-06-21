@@ -1,0 +1,112 @@
+/* ============================================================
+   UTC Pick Sazón · Color tokens
+   Institutional palette: Azul #021E5E · Naranja #E34100 · Blanco
+   ============================================================ */
+:root {
+  /* ---- Naranja institucional (primary action) ---- */
+  --naranja-50:  #FFF1EB;
+  --naranja-100: #FFDDCF;
+  --naranja-200: #FFB89E;
+  --naranja-300: #FB8D63;
+  --naranja-400: #F26336;
+  --naranja-500: #E34100; /* naranja institucional */
+  --naranja-600: #C23500;
+  --naranja-700: #9C2B00;
+  --naranja-800: #762200;
+  --naranja-900: #511800;
+
+  /* ---- Azul institucional (identity / ink) ---- */
+  --azul-50:  #EDF1FA;
+  --azul-100: #D4DCF1;
+  --azul-200: #A6B6E0;
+  --azul-300: #6982C9;
+  --azul-400: #3358B8;
+  --azul-500: #1A4099;
+  --azul-600: #0A2E7A;
+  --azul-700: #021E5E; /* azul institucional */
+  --azul-800: #021642;
+  --azul-900: #010E2E;
+
+  /* ---- Gris neutro (cool, anchored to navy) ---- */
+  --gris-50:  #F6F7F9;
+  --gris-100: #EDEFF3;
+  --gris-200: #DEE2EA;
+  --gris-300: #C7CDD9;
+  --gris-400: #9BA4B5;
+  --gris-500: #6C7689;
+  --gris-600: #4A5468;
+  --gris-700: #353D4E;
+  --gris-800: #232A38;
+  --gris-900: #141926;
+
+  /* ---- Sabor accents (food states) ---- */
+  --mango-50:  #FFF7E6;
+  --mango-100: #FFE9B8;
+  --mango-400: #F2A900; /* "por preparar" amber */
+  --mango-600: #B07700;
+
+  --lima-50:  #EAF7EE;
+  --lima-100: #C8ECD3;
+  --lima-500: #15915B; /* "listo para recoger" green */
+  --lima-600: #0F7549;
+
+  --rojo-50:  #FDECEC;
+  --rojo-500: #D7263D; /* danger */
+  --rojo-600: #B01B30;
+
+  --blanco: #FFFFFF;
+
+  /* ============================================================
+     SEMANTIC ALIASES — use these in components
+     ============================================================ */
+  /* Brand */
+  --color-primary:          var(--naranja-500);
+  --color-primary-hover:    var(--naranja-600);
+  --color-primary-active:   var(--naranja-700);
+  --color-primary-soft:     var(--naranja-50);
+  --color-on-primary:       var(--blanco);
+
+  --color-institutional:    var(--azul-700);
+  --color-institutional-soft: var(--azul-50);
+  --color-on-institutional: var(--blanco);
+
+  /* Text */
+  --text-heading:  var(--azul-700);
+  --text-body:     var(--gris-800);
+  --text-muted:    var(--gris-500);
+  --text-subtle:   var(--gris-400);
+  --text-on-dark:  var(--blanco);
+  --text-link:     var(--naranja-600);
+
+  /* Surfaces */
+  --surface-page:    var(--gris-50);
+  --surface-card:    var(--blanco);
+  --surface-sunken:  var(--gris-100);
+  --surface-inverse: var(--azul-700);
+  --surface-overlay: rgba(2, 22, 66, 0.55);
+
+  /* Borders */
+  --border-subtle:  var(--gris-200);
+  --border-default: var(--gris-300);
+  --border-strong:  var(--gris-400);
+  --border-focus:   var(--naranja-500);
+
+  /* Food-state semantics */
+  --state-cooking-bg: var(--mango-50);
+  --state-cooking-fg: var(--mango-600);
+  --state-cooking-dot: var(--mango-400);
+
+  --state-ready-bg: var(--lima-50);
+  --state-ready-fg: var(--lima-600);
+  --state-ready-dot: var(--lima-500);
+
+  --state-reoffer-bg: var(--naranja-50);
+  --state-reoffer-fg: var(--naranja-700);
+  --state-reoffer-dot: var(--naranja-500);
+
+  /* Status */
+  --color-success: var(--lima-500);
+  --color-warning: var(--mango-400);
+  --color-danger:  var(--rojo-500);
+  --color-info:    var(--azul-500);
+}

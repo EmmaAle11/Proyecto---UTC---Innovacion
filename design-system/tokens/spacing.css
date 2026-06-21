@@ -1,0 +1,58 @@
+/* ============================================================
+   UTC Pick Sazón · Spacing, radii, shadows, borders, motion
+   ============================================================ */
+:root {
+  /* ---- Spacing scale (4px base) ---- */
+  --space-0:  0;
+  --space-1:  0.25rem;  /* 4 */
+  --space-2:  0.5rem;   /* 8 */
+  --space-3:  0.75rem;  /* 12 */
+  --space-4:  1rem;     /* 16 */
+  --space-5:  1.25rem;  /* 20 */
+  --space-6:  1.5rem;   /* 24 */
+  --space-8:  2rem;     /* 32 */
+  --space-10: 2.5rem;   /* 40 */
+  --space-12: 3rem;     /* 48 */
+  --space-16: 4rem;     /* 64 */
+  --space-20: 5rem;     /* 80 */
+
+  /* ---- Radii (friendly, generous) ---- */
+  --radius-xs:   6px;
+  --radius-sm:   10px;
+  --radius-md:   14px;
+  --radius-lg:   18px;
+  --radius-xl:   24px;
+  --radius-2xl:  32px;
+  --radius-card: 20px;
+  --radius-pill: 999px;
+
+  /* ---- Borders ---- */
+  --border-width:      1px;
+  --border-width-thick: 2px;
+
+  /* ---- Shadows (soft, warm-neutral; navy-tinted) ---- */
+  --shadow-xs:  0 1px 2px rgba(2, 22, 66, 0.06);
+  --shadow-sm:  0 2px 6px rgba(2, 22, 66, 0.08);
+  --shadow-md:  0 6px 16px rgba(2, 22, 66, 0.10);
+  --shadow-lg:  0 14px 32px rgba(2, 22, 66, 0.12);
+  --shadow-xl:  0 24px 56px rgba(2, 22, 66, 0.16);
+  --shadow-primary: 0 8px 20px rgba(227, 65, 0, 0.28); /* orange CTA glow */
+  --shadow-inset: inset 0 1px 2px rgba(2, 22, 66, 0.08);
+
+  /* ---- Focus ring ---- */
+  --ring-primary: 0 0 0 3px rgba(227, 65, 0, 0.28);
+  --ring-info:    0 0 0 3px rgba(26, 64, 153, 0.28);
+
+  /* ---- Motion ---- */
+  --ease-standard: cubic-bezier(0.2, 0.6, 0.2, 1); /* @kind other */
+  --ease-out:      cubic-bezier(0.16, 1, 0.3, 1);  /* @kind other */
+  --ease-bounce:   cubic-bezier(0.34, 1.56, 0.64, 1); /* @kind other */
+  --dur-fast:   120ms; /* @kind other */
+  --dur-base:   200ms; /* @kind other */
+  --dur-slow:   320ms; /* @kind other */
+
+  /* ---- Layout ---- */
+  --app-max-width: 430px;   /* mobile canvas */
+  --content-max:   1120px;
+  --tap-min:       44px;    /* min hit target */
+}

@@ -1,0 +1,26 @@
+<!-- @dsCard group="Spacing" viewport="700x170" name="Radios de esquina" subtitle="xs 6 → pill · tarjetas 20px" -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { margin: 0; padding: 22px; background: var(--surface-card); font-family: var(--font-body); }
+  .row { display: flex; gap: 18px; align-items: flex-end; }
+  .item { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .sq { width: 72px; height: 72px; background: var(--azul-50); border: 2px solid var(--azul-300); }
+  .lab { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div class="item"><span class="sq" style="border-radius:var(--radius-xs)"></span><span class="lab">xs · 6</span></div>
+    <div class="item"><span class="sq" style="border-radius:var(--radius-sm)"></span><span class="lab">sm · 10</span></div>
+    <div class="item"><span class="sq" style="border-radius:var(--radius-md)"></span><span class="lab">md · 14</span></div>
+    <div class="item"><span class="sq" style="border-radius:var(--radius-lg)"></span><span class="lab">lg · 18</span></div>
+    <div class="item"><span class="sq" style="border-radius:var(--radius-card)"></span><span class="lab">card · 20</span></div>
+    <div class="item"><span class="sq" style="border-radius:var(--radius-xl)"></span><span class="lab">xl · 24</span></div>
+    <div class="item"><span class="sq" style="border-radius:var(--radius-pill)"></span><span class="lab">pill</span></div>
+  </div>
+</body>
+</html>

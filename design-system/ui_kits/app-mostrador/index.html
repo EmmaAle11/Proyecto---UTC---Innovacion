@@ -1,0 +1,70 @@
+<!-- @dsCard group="App móvil" viewport="430x780" name="Propuesta B · Mostrador" subtitle="Naranja, tab bar inferior, feed + rail 'listos ahora'" -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UTC Pick Sazón · Propuesta B (Mostrador)</title>
+<link rel="stylesheet" href="../../styles.css">
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--surface-page); display: flex; align-items: center; justify-content: center; padding: 24px; font-family: var(--font-body); }
+  .noscroll::-webkit-scrollbar { display: none; }
+  .noscroll { scrollbar-width: none; }
+  ::-webkit-scrollbar { width: 0; height: 0; }
+  i[data-lucide] { width: 100%; height: 100%; stroke-width: 2; }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script type="text/babel" data-presets="react" src="../app/ui.jsx"></script>
+  <script type="text/babel" data-presets="react" src="../app/screens.jsx"></script>
+  <script type="text/babel" data-presets="react" src="screensB.jsx"></script>
+  <script type="text/babel" data-presets="react">
+    function AppB() {
+      const [screen, setScreen] = useState('login');
+      const [tab, setTab] = useState('inicio');
+      const [cat, setCat] = useState('Todo');
+      const [item, setItem] = useState(null);
+      const [cart, setCart] = useState([]);
+      const [hasActive, setHasActive] = useState(false);
+
+      const addToCart = (m, qty) => {
+        setCart(prev => {
+          const ex = prev.find(c => c.id === m.id);
+          if (ex) return prev.map(c => c.id === m.id ? { ...c, qty: c.qty + qty } : c);
+          return [...prev, { ...m, qty }];
+        });
+        setScreen('main'); setTab('inicio');
+      };
+      const setQty = (id, v) => setCart(prev => v <= 0 ? prev.filter(c => c.id !== id) : prev.map(c => c.id === id ? { ...c, qty: v } : c));
+      const count = cart.reduce((s, c) => s + c.qty, 0);
+      const total = cart.reduce((s, c) => s + c.price * c.qty, 0);
+
+      let view;
+      if (screen === 'login') view = <LoginB onLogin={() => setScreen('main')} />;
+      else if (screen === 'product') view = <Product item={item} onBack={() => setScreen('main')} onAdd={addToCart} />;
+      else if (screen === 'cart') view = <Cart cart={cart} setQty={setQty} onBack={() => setScreen('main')} onPay={() => { setHasActive(true); setScreen('tracking'); }} />;
+      else if (screen === 'tracking') view = <Tracking total={total} onHome={() => { setCart([]); setScreen('main'); setTab('pedidos'); }} />;
+      else {
+        // main tabbed
+        let body;
+        if (tab === 'inicio') body = <HomeB cat={cat} setCat={setCat} cartCount={count} onOpen={(m) => { setItem(m); setScreen('product'); }} onCart={() => setScreen('cart')} />;
+        else if (tab === 'pedidos') body = <PedidosB hasActive={hasActive} onTrack={() => setScreen('tracking')} />;
+        else body = <PerfilB />;
+        view = <React.Fragment>{body}<TabBar tab={tab} setTab={setTab} /></React.Fragment>;
+      }
+      return <Phone>{view}</Phone>;
+    }
+    const start = () => {
+      if (!window.LoginB || !window.Product) return setTimeout(start, 40);
+      ReactDOM.createRoot(document.getElementById('root')).render(<AppB />);
+    };
+    start();
+  </script>
+</body>
+</html>
