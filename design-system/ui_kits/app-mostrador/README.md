@@ -14,7 +14,7 @@ Dirección **alterna** de la app, para comparar contra la Propuesta A (Mosaico).
 Comparten pantallas de **Producto**, **Carrito/Checkout** (Outlook + Mercado Pago, PayPal, TDC, TDD, efectivo) y **Seguimiento**, reutilizando los mismos componentes.
 
 ## Archivos
-- `index.html` — monta React + Babel + Lucide, reutiliza `../app/ui.jsx` y `../app/screens.jsx`, carga `screensB.jsx` y gestiona tabs + navegación.
+- `index.html` — monta React + Babel + Lucide, incluye `ui.jsx` y `screens.jsx` propios (autocontenido), carga `screensB.jsx` y gestiona tabs + navegación.
 - `screensB.jsx` — `TabBar`, `LoginB`, `HomeB` (rail + feed), `PedidosB`, `PerfilB`.
 
 ## Recorrido
