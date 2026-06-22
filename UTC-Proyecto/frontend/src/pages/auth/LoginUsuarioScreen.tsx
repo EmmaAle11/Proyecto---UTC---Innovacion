@@ -67,8 +67,8 @@ export function LoginUsuarioScreen({ navigation }: Props) {
             lastName: lastName.trim(),
           })
         : await loginCliente(mail, password);
+      // setSession cambia el navegador a Main (guard de sesión, ver RootNavigator).
       setSession({ accessToken: res.access_token, refreshToken: res.refresh_token, email: mail });
-      navigation.navigate('Main');
     } catch (e) {
       setError(
         e instanceof ApiError ? e.message : 'No se pudo conectar con el servidor. Revisa tu red.',

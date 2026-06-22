@@ -11,7 +11,11 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
-  app.enableCors(); // la app Expo (otro origen) consume el backend
+  // CORS: por defecto refleja cualquier origen (dev); en prod fija CORS_ORIGIN (lista por comas).
+  const corsOrigin = process.env.CORS_ORIGIN;
+  app.enableCors({
+    origin: corsOrigin ? corsOrigin.split(',').map((o) => o.trim()) : true,
+  });
   await app.listen(process.env.PORT ?? 3000);
 }
 void bootstrap();

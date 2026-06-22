@@ -93,7 +93,7 @@ export class KeycloakAdminService {
    * Atómico: si falla la asignación de rol tras crear, borra el usuario (compensación)
    * para no dejar cuentas huérfanas sin rol.
    */
-  async createUser(input: NewUser): Promise<void> {
+  async createUser(input: NewUser): Promise<string> {
     const token = await this.serviceToken();
     const createRes = await this.safeFetch(this.adminUrl('/users'), {
       method: 'POST',
@@ -130,6 +130,13 @@ export class KeycloakAdminService {
       await this.deleteUser(token, userId);
       throw err;
     }
+    return userId;
+  }
+
+  /** Borra un usuario por id (compensación desde la capa de aplicación). */
+  async removeUser(userId: string): Promise<void> {
+    const token = await this.serviceToken();
+    await this.deleteUser(token, userId);
   }
 
   private async findUserId(token: string, email: string): Promise<string> {

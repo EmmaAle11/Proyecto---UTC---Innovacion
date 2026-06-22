@@ -15,7 +15,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
         password: config.get<string>('DB_PASSWORD', ''),
         database: config.get<string>('DB_NAME', 'utc_food'),
         uuidExtension: 'pgcrypto', // gen_random_uuid() (pgcrypto), coherente con las migraciones
-        autoLoadEntities: true,
+        entities: [__dirname + '/entities/*.entity.{ts,js}'],
         synchronize: false, // rules §11: nada de synchronize para cambios de esquema
         migrations: [__dirname + '/migrations/*.{ts,js}'],
         migrationsRun: false, // las corre el CLI (npm run migration:run), no el arranque

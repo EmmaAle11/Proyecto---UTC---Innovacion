@@ -6,6 +6,9 @@ import Constants from 'expo-constants';
 const BACKEND_PORT = 3001;
 
 function resolveBaseUrl(): string {
+  // Override por entorno: define expo.extra.apiUrl en app.json / EAS (https://… en prod).
+  const extra = Constants.expoConfig?.extra as { apiUrl?: string } | undefined;
+  if (extra?.apiUrl) return extra.apiUrl;
   const hostUri = Constants.expoConfig?.hostUri; // p.ej. "192.168.1.5:8081"
   const host = hostUri?.split(':')[0];
   return host ? `http://${host}:${BACKEND_PORT}` : `http://localhost:${BACKEND_PORT}`;

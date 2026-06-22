@@ -5,11 +5,13 @@ import { ArrowLeft, Mail, Lock, Eye, EyeOff, ShieldCheck, LogIn, CircleAlert } f
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../app/navigation/types';
 import { LogoSymbol } from '../../shared/ui/LogoSymbol';
+import { useSessionStore } from '../../features/auth/model/session.store';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LoginAdmin'>;
 
 /** Login del administrador: correo + contraseña contra Keycloak (de design-system login-admin.html). */
 export function LoginAdminScreen({ navigation }: Props) {
+  const setSession = useSessionStore((s) => s.setSession);
   const [email, setEmail] = useState('');
   const [pass, setPass] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -27,7 +29,8 @@ export function LoginAdminScreen({ navigation }: Props) {
     // Mock: en Fase 1 esto valida contra Keycloak (credenciales locales + MFA).
     setTimeout(() => {
       setLoading(false);
-      navigation.navigate('Main');
+      // Mock: marca una sesión (placeholder) → el navegador cambia a Main. Auth admin real: paso futuro.
+      setSession({ accessToken: 'mock-admin', refreshToken: '', email: email.trim().toLowerCase() });
     }, 1500);
   };
 

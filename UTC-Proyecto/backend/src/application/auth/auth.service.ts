@@ -1,24 +1,51 @@
 import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import {
   KeycloakAdminService,
   Tokens,
 } from '../../infrastructure/keycloak/keycloak-admin.service';
+import { UserProfileEntity } from '../../infrastructure/database/entities/user-profile.entity';
+import { UserRole } from '../../infrastructure/database/entities/enums';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
-/** Orquesta el registro y login del cliente contra Keycloak (ver D-014). */
+/** Orquesta el registro y login del cliente contra Keycloak + perfil local (ver D-014). */
 @Injectable()
 export class AuthService {
-  constructor(private readonly keycloak: KeycloakAdminService) {}
+  constructor(
+    private readonly keycloak: KeycloakAdminService,
+    @InjectRepository(UserProfileEntity)
+    private readonly profiles: Repository<UserProfileEntity>,
+  ) {}
 
-  /** Crea la cuenta (dominio @utc.edu.mx validado en el DTO) y devuelve tokens (auto-login). */
+  /**
+   * Crea la cuenta en Keycloak (dominio @utc.edu.mx validado en el DTO), inserta el
+   * perfil local (orders lo requiere) y devuelve tokens (auto-login). Atómico: si falla
+   * el perfil local, deshace el usuario de Keycloak.
+   */
   async register(dto: RegisterDto): Promise<{ message: string } & Tokens> {
-    await this.keycloak.createUser({
+    const keycloakId = await this.keycloak.createUser({
       email: dto.email,
       password: dto.password,
       firstName: dto.firstName,
       lastName: dto.lastName,
     });
+    try {
+      await this.profiles.save(
+        this.profiles.create({
+          keycloakId,
+          email: dto.email,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          role: UserRole.USER,
+        }),
+      );
+    } catch (err) {
+      // Compensación: si falla el perfil local, deshacer el usuario de Keycloak.
+      await this.keycloak.removeUser(keycloakId);
+      throw err;
+    }
     const tokens = await this.keycloak.login(dto.email, dto.password);
     return { message: 'Cuenta creada', ...tokens };
   }
