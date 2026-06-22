@@ -1,0 +1,32 @@
+{
+  "realm": "utc-food",
+  "enabled": true,
+  "roles": {
+    "realm": [
+      { "name": "admin", "description": "Administrador de la cooperativa" },
+      { "name": "user", "description": "Estudiante/usuario consumidor" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "mobile-app",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["*"],
+      "webOrigins": ["*"]
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "email": "admin@picksazon.app",
+      "firstName": "Administrador",
+      "lastName": "Cooperativa UTC",
+      "enabled": true,
+      "emailVerified": true,
+      "realmRoles": ["admin"]
+    }
+  ]
+}
