@@ -46,3 +46,18 @@ Registro único y canónico de decisiones (estilo ADR ligero). Para añadir una 
 - Fecha: 2026-06-21 · Estado: vigente
 - Contexto: `Diseño interno/` tenía espacio y acento (problemático para tooling, CLI y URLs).
 - Decisión: `rules.md` se reubicó a `docs/superpowers/priority/rules.md` y se eliminó `Diseño interno/`. El `README.md` raíz se eliminó intencionalmente (se recreará en Fase 0 Task 8).
+
+## D-010 · Autenticación por rol (usuario SSO Microsoft vía Keycloak; admin local + MFA)
+- Fecha: 2026-06-22 · Estado: vigente
+- Contexto: dos prototipos de login en `design-system/ui_kits/login/` — usuario (botón "Iniciar sesión con Outlook", sin contraseña propia) y admin (correo+contraseña, azul institucional, "Acceso restringido").
+- Decisión:
+  - **Usuario (`user`)**: SSO con Microsoft/Outlook institucional, **federado dentro de Keycloak** (Identity Brokering: Microsoft Entra ID como IdP del realm `utc-food`). La app nunca recibe la contraseña del usuario.
+  - **Admin (`admin`)**: credenciales **locales en Keycloak** + **MFA** (rules §6).
+  - **Keycloak es siempre el emisor de tokens (broker).** La app y el backend validan únicamente JWT de Keycloak; agregar Microsoft después es configuración de Keycloak, sin tocar app ni backend.
+- Implicación / desbloqueo: se puede **desarrollar ya** con usuarios locales de Keycloak (demo escolar). La federación Microsoft real es un paso posterior que requiere un **app registration en Entra ID + admin consent** del tenant institucional — **no requiere DNS**. Mientras tanto, el botón "Outlook" apunta a Keycloak. (Ver D-011 sobre permisos.)
+
+## D-011 · Dominio institucional e identidad
+- Fecha: 2026-06-22 · Estado: vigente
+- Contexto: BR-002 de rules.md indicaba `@email.utc.edu.ec` (plantilla Ecuador), pero el proyecto es de la UTC de **México**.
+- Decisión: el dominio institucional es **`utc.edu.mx`**. Se corrige BR-002. **Formato exacto del correo: NO VERIFICADO** — el usuario indicó `edu.utc.mx`; falta evidencia del formato real (p. ej. `@utc.edu.mx`); confirmar antes de validar correos en backend.
+- Permisos: el equipo **no controla DNS ni el tenant** institucional. Esto **no bloquea** el desarrollo (Keycloak local con usuarios de prueba). Solo condiciona la federación Microsoft real (app registration + admin consent del tenant UTC), no el resto del proyecto.

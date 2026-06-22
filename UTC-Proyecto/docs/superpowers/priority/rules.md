@@ -752,6 +752,38 @@ omitir la regresión por prisa
 cerrar la tarea sin reportar el nivel de confianza final
 ```
 
+# 23. REGLA DE ORO — GIT LO EJECUTA EL USUARIO (commit y push manuales)
+
+El historial de git es responsabilidad del **usuario** (aprendizaje de GitHub y control humano del repositorio). Claude Code prepara, propone y se detiene.
+
+Claude Code **NO ejecuta**:
+
+```txt
+git commit
+git push
+git merge / git rebase sobre ramas publicadas
+```
+
+Claude Code **SÍ puede** (para dejar el terreno listo):
+
+```txt
+git status
+git diff / git diff --cached
+git add explícito
+proponer el mensaje de commit completo (incluido el footer Co-Authored-By)
+```
+
+Flujo obligatorio:
+
+```txt
+1. Claude realiza los cambios y los deja staged.
+2. Claude muestra git status/diff y PROPONE los comandos de commit + push.
+3. Claude SE DETIENE.
+4. El usuario ejecuta `git commit` y `git push` a mano (push a main).
+```
+
+Excepción única: el usuario pide explícitamente en ese momento "hazlo tú / haz el commit". Sin esa orden explícita, Claude no comitea ni pushea.
+
 ---
 ---
 
@@ -789,10 +821,10 @@ Los usuarios deben autenticarse mediante correo institucional UTC.
 Formato esperado:
 
 ```txt
-@email.utc.edu.ec
+@utc.edu.mx
 ```
 
-o el dominio oficial definido por la universidad.
+Dominio institucional UTC (México). El **formato exacto del correo está por confirmar** (NO VERIFICADO); ver `docs/decisiones.md` (D-011). Vale cualquier subdominio institucional oficial que defina la universidad.
 
 Reglas:
 
