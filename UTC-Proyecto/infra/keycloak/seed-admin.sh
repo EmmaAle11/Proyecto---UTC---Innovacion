@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Seed del administrador en Keycloak (realm utc-food) con credenciales LOCALES (sin Microsoft).
+# Seed de Keycloak (realm utc-food): admin local (sin Microsoft) + client service-account 'backend-svc'.
 # Idempotente: re-ejecutar es seguro. Lee secretos de infra/.env (NO en git, rules §17).
-# Ver docs/decisiones.md (D-013) y rules.md §6.
+# Ver docs/decisiones.md (D-013, D-014) y rules.md §6.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,6 +18,7 @@ set -a; . "$ENV_FILE"; set +a
 : "${ADMIN_SEED_USERNAME:?falta ADMIN_SEED_USERNAME en .env}"
 : "${ADMIN_SEED_EMAIL:?falta ADMIN_SEED_EMAIL en .env}"
 : "${ADMIN_SEED_PASSWORD:?falta ADMIN_SEED_PASSWORD en .env}"
+: "${BACKEND_CLIENT_SECRET:?falta BACKEND_CLIENT_SECRET en .env}"
 # Keycloak (User Profile + VERIFY_PROFILE) exige firstName/lastName, o el login falla
 # con "Account is not fully set up". Defaults razonables; se pueden sobreescribir en .env.
 ADMIN_SEED_FIRSTNAME="${ADMIN_SEED_FIRSTNAME:-Administrador}"
@@ -60,5 +61,23 @@ kc set-password -r "$REALM" --username "$ADMIN_SEED_USERNAME" \
 echo "→ Asignando rol realm 'admin'…"
 kc add-roles -r "$REALM" --uusername "$ADMIN_SEED_USERNAME" --rolename admin >/dev/null
 
-echo "✓ Admin '$ADMIN_SEED_USERNAME' <$ADMIN_SEED_EMAIL> listo en realm '$REALM' con rol 'admin'."
-echo "  Login: correo + contraseña (locales). Sin Microsoft."
+# ── Client service-account para el backend (crea usuarios vía Admin API) ──
+echo "→ Provisionando client 'backend-svc' (service account)…"
+CLIENT_ID="$(kc get clients -r "$REALM" -q clientId=backend-svc --fields id --format csv --noquotes 2>/dev/null | tr -d '\r' | head -n1 || true)"
+if [ -z "$CLIENT_ID" ]; then
+  kc create clients -r "$REALM" \
+    -s clientId=backend-svc -s enabled=true -s publicClient=false \
+    -s serviceAccountsEnabled=true -s standardFlowEnabled=false \
+    -s directAccessGrantsEnabled=false -s secret="$BACKEND_CLIENT_SECRET" >/dev/null
+else
+  kc update "clients/$CLIENT_ID" -r "$REALM" \
+    -s enabled=true -s serviceAccountsEnabled=true -s secret="$BACKEND_CLIENT_SECRET" >/dev/null
+fi
+
+echo "→ Asignando roles 'manage-users' + 'view-realm' (realm-management) al service-account…"
+# manage-users: crear/editar usuarios; view-realm: leer roles del realm para asignarlos.
+kc add-roles -r "$REALM" --uusername service-account-backend-svc \
+  --cclientid realm-management --rolename manage-users --rolename view-realm >/dev/null
+
+echo "✓ Admin '$ADMIN_SEED_USERNAME' <$ADMIN_SEED_EMAIL> y client 'backend-svc' listos en realm '$REALM'."
+echo "  Admin: correo + contraseña locales (rol admin). backend-svc: service-account con manage-users."
