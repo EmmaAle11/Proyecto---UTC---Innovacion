@@ -8,7 +8,7 @@ Referencia de marca de **UTC Pick Sazón** (app de pedidos Pick Up de la coopera
 ## Contenido
 - `tokens/` — colores, tipografía, espaciado, base (variables CSS). **Se portan** al theme de `frontend/` (NativeWind).
 - `styles.css` — punto de entrada que importa los tokens (lo usan el prototipo y el reporte técnico).
-- `assets/` — logos (`logo-mark.svg`, `logo-wordmark.svg`).
+- `assets/` — logo de marca (`logo.png`: ilustración perro+taco + wordmark "UTC Pick Sazón"). De aquí se derivan los íconos de la app (icon/splash/favicon/adaptive) y los recortes `logo-lockup.png` (header) y `logo-symbol.png` (símbolo) en `frontend/assets`.
 - `components/` — por familia (core/forms/commerce): contrato `*.d.ts` + intención `*.prompt.md` de cada componente. **No** hay código ejecutable: los componentes se **reimplementan** en React Native en `frontend/src/shared/ui`.
 - `ui_kits/app-mostrador/` — prototipo navegable (HTML) de la **Propuesta B "Mostrador"** (la elegida). Autocontenido; sírvelo por HTTP (no `file://`).
 
