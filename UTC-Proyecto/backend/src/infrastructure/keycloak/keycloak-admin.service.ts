@@ -2,6 +2,7 @@ import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -27,8 +28,8 @@ export interface Tokens {
 
 /**
  * Acceso de bajo nivel a Keycloak (token endpoint + Admin API) vía `fetch` global.
- * Usa el client service-account `backend-svc` (rol manage-users) para crear usuarios,
- * y el client público `mobile-app` para el login (password grant). Ver D-014.
+ * Usa el client service-account `backend-svc` (manage-users + view-realm) para crear
+ * usuarios, y el client público `mobile-app` para el login (password grant). Ver D-014.
  */
 @Injectable()
 export class KeycloakAdminService {
@@ -43,7 +44,9 @@ export class KeycloakAdminService {
     this.realm = config.getOrThrow<string>('KEYCLOAK_REALM');
     this.appClientId = config.getOrThrow<string>('KEYCLOAK_CLIENT_ID');
     this.svcClientId = config.getOrThrow<string>('KEYCLOAK_BACKEND_CLIENT_ID');
-    this.svcSecret = config.getOrThrow<string>('KEYCLOAK_BACKEND_CLIENT_SECRET');
+    this.svcSecret = config.getOrThrow<string>(
+      'KEYCLOAK_BACKEND_CLIENT_SECRET',
+    );
   }
 
   private tokenUrl(): string {
@@ -54,9 +57,20 @@ export class KeycloakAdminService {
     return `${this.baseUrl}/admin/realms/${this.realm}${path}`;
   }
 
+  /** `fetch` envuelto: mapea errores de red (Keycloak caído, DNS) a 503 con mensaje claro. */
+  private async safeFetch(url: string, init?: RequestInit): Promise<Response> {
+    try {
+      return await fetch(url, init);
+    } catch {
+      throw new ServiceUnavailableException(
+        'No se pudo conectar con el servicio de autenticación',
+      );
+    }
+  }
+
   /** Token de servicio (client_credentials de backend-svc) para la Admin API. */
   private async serviceToken(): Promise<string> {
-    const res = await fetch(this.tokenUrl(), {
+    const res = await this.safeFetch(this.tokenUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -66,18 +80,27 @@ export class KeycloakAdminService {
       }),
     });
     if (!res.ok) {
-      throw new InternalServerErrorException('No se pudo autenticar el backend con Keycloak');
+      throw new InternalServerErrorException(
+        'No se pudo autenticar el backend con Keycloak',
+      );
     }
     const data = (await res.json()) as TokenResponse;
     return data.access_token;
   }
 
-  /** Crea el usuario (contraseña permanente) y le asigna el rol realm `user`. */
+  /**
+   * Crea el usuario (contraseña permanente) y le asigna el rol realm `user`.
+   * Atómico: si falla la asignación de rol tras crear, borra el usuario (compensación)
+   * para no dejar cuentas huérfanas sin rol.
+   */
   async createUser(input: NewUser): Promise<void> {
     const token = await this.serviceToken();
-    const createRes = await fetch(this.adminUrl('/users'), {
+    const createRes = await this.safeFetch(this.adminUrl('/users'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify({
         username: input.email,
         email: input.email,
@@ -85,52 +108,92 @@ export class KeycloakAdminService {
         lastName: input.lastName,
         enabled: true,
         emailVerified: true,
-        credentials: [{ type: 'password', value: input.password, temporary: false }],
+        credentials: [
+          { type: 'password', value: input.password, temporary: false },
+        ],
       }),
     });
     if (createRes.status === 409) {
       throw new ConflictException('Ya existe una cuenta con ese correo');
     }
     if (!createRes.ok) {
-      throw new InternalServerErrorException('No se pudo crear la cuenta en Keycloak');
+      throw new InternalServerErrorException(
+        'No se pudo crear la cuenta en Keycloak',
+      );
     }
+
     const userId = await this.findUserId(token, input.email);
-    await this.assignRealmRole(token, userId, 'user');
+    try {
+      await this.assignRealmRole(token, userId, 'user');
+    } catch (err) {
+      // Compensación: deshacer el usuario creado para no dejarlo sin rol.
+      await this.deleteUser(token, userId);
+      throw err;
+    }
   }
 
   private async findUserId(token: string, email: string): Promise<string> {
-    const res = await fetch(
+    const res = await this.safeFetch(
       this.adminUrl(`/users?exact=true&username=${encodeURIComponent(email)}`),
       { headers: { Authorization: `Bearer ${token}` } },
     );
+    if (!res.ok) {
+      throw new InternalServerErrorException(
+        'No se pudo consultar el usuario en Keycloak',
+      );
+    }
     const users = (await res.json()) as Array<{ id: string }>;
     if (!Array.isArray(users) || users.length === 0) {
-      throw new InternalServerErrorException('Usuario creado pero no encontrado');
+      throw new InternalServerErrorException(
+        'Usuario creado pero no encontrado',
+      );
     }
     return users[0].id;
   }
 
-  private async assignRealmRole(token: string, userId: string, roleName: string): Promise<void> {
-    const roleRes = await fetch(this.adminUrl(`/roles/${roleName}`), {
+  private async assignRealmRole(
+    token: string,
+    userId: string,
+    roleName: string,
+  ): Promise<void> {
+    const roleRes = await this.safeFetch(this.adminUrl(`/roles/${roleName}`), {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!roleRes.ok) {
       throw new InternalServerErrorException(`Rol '${roleName}' no encontrado`);
     }
     const role = (await roleRes.json()) as { id: string; name: string };
-    const res = await fetch(this.adminUrl(`/users/${userId}/role-mappings/realm`), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify([{ id: role.id, name: role.name }]),
-    });
+    const res = await this.safeFetch(
+      this.adminUrl(`/users/${userId}/role-mappings/realm`),
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify([{ id: role.id, name: role.name }]),
+      },
+    );
     if (!res.ok) {
       throw new InternalServerErrorException('No se pudo asignar el rol');
     }
   }
 
+  /** Borra un usuario (compensación de registro). Best-effort: no propaga errores de limpieza. */
+  private async deleteUser(token: string, userId: string): Promise<void> {
+    try {
+      await this.safeFetch(this.adminUrl(`/users/${userId}`), {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch {
+      // Si la compensación falla, igual se relanza el error original del registro.
+    }
+  }
+
   /** Login del usuario: password grant contra el client público de la app. */
   async login(email: string, password: string): Promise<Tokens> {
-    const res = await fetch(this.tokenUrl(), {
+    const res = await this.safeFetch(this.tokenUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({

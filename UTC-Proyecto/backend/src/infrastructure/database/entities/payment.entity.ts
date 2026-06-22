@@ -19,7 +19,10 @@ export class PaymentEntity {
   id: string;
 
   // OneToOne + JoinColumn → columna order_id UNIQUE (un pago por pedido).
-  @OneToOne(() => OrderEntity, (order) => order.payment, { onDelete: 'CASCADE', nullable: false })
+  @OneToOne(() => OrderEntity, (order) => order.payment, {
+    onDelete: 'CASCADE',
+    nullable: false,
+  })
   @JoinColumn({ name: 'order_id' })
   order: OrderEntity;
 

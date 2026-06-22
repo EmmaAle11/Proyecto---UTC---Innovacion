@@ -1,11 +1,23 @@
-import { IsEmail, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { Transform } from 'class-transformer';
+import {
+  IsEmail,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 // BR-002 / D-011: correo institucional. El admin es aparte (no usa este endpoint).
 const UTC_DOMAIN = /@utc\.edu\.mx$/i;
 
 export class RegisterDto {
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
   @IsEmail({}, { message: 'Correo inválido' })
-  @Matches(UTC_DOMAIN, { message: 'Debe ser un correo institucional @utc.edu.mx' })
+  @Matches(UTC_DOMAIN, {
+    message: 'Debe ser un correo institucional @utc.edu.mx',
+  })
   email: string;
 
   @IsString()

@@ -23,15 +23,29 @@ describe('AuthController', () => {
       firstName: 'Ana',
       lastName: 'García',
     };
-    auth.register.mockResolvedValue({ message: 'Cuenta creada', access_token: 't' });
-    await expect(controller.register(dto)).resolves.toMatchObject({ message: 'Cuenta creada' });
+    auth.register.mockResolvedValue({
+      message: 'Cuenta creada',
+      access_token: 't',
+    });
+    await expect(controller.register(dto)).resolves.toMatchObject({
+      message: 'Cuenta creada',
+    });
     expect(auth.register).toHaveBeenCalledWith(dto);
   });
 
   it('login delega en AuthService', async () => {
-    const dto: LoginDto = { email: 'alguien@utc.edu.mx', password: 'contrasena8' };
-    auth.login.mockResolvedValue({ access_token: 't', refresh_token: 'r', expires_in: 300 });
-    await expect(controller.login(dto)).resolves.toMatchObject({ access_token: 't' });
+    const dto: LoginDto = {
+      email: 'alguien@utc.edu.mx',
+      password: 'contrasena8',
+    };
+    auth.login.mockResolvedValue({
+      access_token: 't',
+      refresh_token: 'r',
+      expires_in: 300,
+    });
+    await expect(controller.login(dto)).resolves.toMatchObject({
+      access_token: 't',
+    });
     expect(auth.login).toHaveBeenCalledWith(dto);
   });
 });

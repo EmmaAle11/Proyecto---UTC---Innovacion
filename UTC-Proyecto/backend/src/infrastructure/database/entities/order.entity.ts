@@ -32,7 +32,12 @@ export class OrderEntity {
   @Column({ type: 'enum', enum: OrderStatus, default: OrderStatus.PENDING })
   status: OrderStatus;
 
-  @Column('numeric', { name: 'total_amount', precision: 10, scale: 2, default: 0 })
+  @Column('numeric', {
+    name: 'total_amount',
+    precision: 10,
+    scale: 2,
+    default: 0,
+  })
   totalAmount: string;
 
   @Column('timestamptz', { name: 'accepted_at', nullable: true })

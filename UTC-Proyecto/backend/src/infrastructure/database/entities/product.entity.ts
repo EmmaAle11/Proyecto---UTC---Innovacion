@@ -51,14 +51,23 @@ export class ProductEntity {
   @Column('int', { name: 'max_stock', nullable: true })
   maxStock: number | null;
 
-  @Column({ type: 'enum', enum: ProductStatus, default: ProductStatus.NO_DISPONIBLE })
+  @Column({
+    type: 'enum',
+    enum: ProductStatus,
+    default: ProductStatus.NO_DISPONIBLE,
+  })
   status: ProductStatus;
 
   @Column('boolean', { name: 'is_available', default: true })
   isAvailable: boolean;
 
   // reoferta / "Pon tu precio" (círculo de innovación §12).
-  @Column('numeric', { name: 'reoffer_price', precision: 10, scale: 2, nullable: true })
+  @Column('numeric', {
+    name: 'reoffer_price',
+    precision: 10,
+    scale: 2,
+    nullable: true,
+  })
   reofferPrice: string | null;
 
   @OneToMany(() => OrderItemEntity, (item) => item.product)
