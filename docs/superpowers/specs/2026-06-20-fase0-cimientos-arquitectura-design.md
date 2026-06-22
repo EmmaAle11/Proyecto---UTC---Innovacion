@@ -1,7 +1,7 @@
 # Fase 0 — Cimientos, organización y arquitectura · UTC Pick Sazón
 
 **Fecha:** 2026-06-20
-**Estado:** En revisión — actualizado: **infraestructura cambiada a Docker** (antes nativo). Reglas obligatorias en `Diseño interno/rules.md`.
+**Estado:** En revisión — actualizado: **infraestructura cambiada a Docker** (antes nativo). Reglas obligatorias en `docs/superpowers/priority/rules.md`.
 **Proyecto:** UTC Pick Sazón — app de pedidos Pick Up para la cooperativa de la Universidad Técnica de Cotopaxi (dark kitchen, recoger en tienda, sin envíos).
 
 ---
@@ -32,6 +32,8 @@ El import de Claude Design (`design-system/`) es un **design system para web**, 
 ---
 
 ## 3. Decisiones confirmadas
+
+> Registro vivo y canónico de decisiones: `docs/decisiones.md` (esta tabla queda como contexto de Fase 0).
 
 | Tema | Decisión |
 |---|---|
@@ -122,7 +124,7 @@ Proyecto---UTC---Innovacion/
 
 **Ventana de recogida:** **20 minutos** (decisión del usuario 2026-06-20). `rules.md` §10 actualizado a 20 min para no contradecir.
 
-**Nomenclatura y reglas de negocio (autoridad: `Diseño interno/rules.md`, incl. BR-001…BR-015):**
+**Nomenclatura y reglas de negocio (autoridad: `docs/superpowers/priority/rules.md`, incl. BR-001…BR-015):**
 - **Estados del pedido (§10 / BR-004, enum):** `pending` → `preparing` → `ready` → `picked_up` / `not_picked_up` / `cancelled`. Transiciones válidas BR-004: `pending→preparing`, `preparing→ready`, `ready→picked_up`, `ready→not_picked_up`, `pending→cancelled`. Etiquetas en español solo para UI.
 - **Entidades (§11):** `UserProfile`, `Product`, `Order`, `OrderItem`, `Payment`, `PreparationMetric` (tablas SQL snake_case: `user_profiles`, `products`, `orders`, `order_items`, `payments`, `preparation_times`).
 - **Identidad (BR-002):** correo institucional `@email.utc.edu.ec` (o dominio oficial UTC); sin correos personales ni anónimos.

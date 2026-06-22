@@ -1,5 +1,7 @@
 # UTC FOOD / COOPERATIVA — Reglas obligatorias para Claude Code
 
+> Registro canónico de decisiones del proyecto: `docs/decisiones.md`.
+
 Estas reglas aplican para el proyecto escolar de aplicación de cooperativa / dark kitchen con modalidad Pick Up.
 
 Stack del proyecto:

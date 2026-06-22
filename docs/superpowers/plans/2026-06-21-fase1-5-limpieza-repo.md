@@ -12,7 +12,7 @@ Spec de origen: `docs/superpowers/specs/2026-06-21-fase1-5-limpieza-repo-design.
 
 ## Global Constraints
 
-Valores verbatim del spec y de `Diseño interno/rules.md` (vinculante):
+Valores verbatim del spec y de `docs/superpowers/priority/rules.md` (vinculante; reubicado desde `Diseño interno/` — ver Task 4 / D-009):
 
 - **EVIDENCE OR BLOCK (rules §0):** toda tarea cierra con verificación real ejecutada y su salida.
 - **FAIL-CLOSED (rules §1):** si una verificación falla, detener, NO commitear, diagnosticar.
@@ -279,12 +279,28 @@ git commit -m "Fase 1.5: mover reporte técnico a docs/ y corregir enlace de est
 
 ---
 
-### Task 4: Crear `docs/decisiones.md` (registro único) + punteros
+### Task 4: Decisiones (`docs/decisiones.md`) + gobernanza (reubicar rules.md) + punteros
+
+> **Cambio absorbido (decidido 2026-06-21):** el usuario reubicó `rules.md` a `docs/superpowers/priority/rules.md`, eliminó `Diseño interno/` y borró `README.md` (raíz, intencional) — sin commitear. Esta tarea lo consolida (commit con rename), lo registra como D-009 y arregla las referencias stale. **Step 0 (abajo) va primero.**
 
 **Files:**
+- Stage move (rename): `Diseño interno/rules.md` → `docs/superpowers/priority/rules.md` (ya en el árbol, sin commitear)
+- Stage delete: `README.md` (raíz; borrado intencional, se recreará en Fase 0 Task 8)
 - Create: `docs/decisiones.md`
-- Modify: `Diseño interno/rules.md` (1 línea de puntero, cerca del inicio)
-- Modify: `docs/superpowers/specs/2026-06-20-fase0-cimientos-arquitectura-design.md` (1 línea de puntero en §3)
+- Modify: `docs/superpowers/priority/rules.md` (1 línea de puntero, cerca del inicio)
+- Modify: `docs/superpowers/specs/2026-06-20-fase0-cimientos-arquitectura-design.md` (puntero §3 + ref de ruta)
+- Modify (refs stale `Diseño interno/rules.md` → nueva ruta): `docs/superpowers/plans/2026-06-20-fase0-cimientos.md`, `docs/superpowers/specs/2026-06-21-fase1-5-limpieza-repo-design.md`, este plan
+
+**Step 0 (primero): consolidar la reubicación con historial preservado**
+
+```bash
+cd "c:/Users/user/Proyecto---UTC---Innovacion"
+git status --short   # D "Diseño interno/rules.md", D README.md, ?? docs/superpowers/priority/
+git add -A "Diseño interno" docs/superpowers/priority README.md
+git status --short   # esperado: R "Diseño interno/rules.md" -> docs/superpowers/priority/rules.md ; D README.md
+git commit -m "Fase 1.5: reubicar rules.md a docs/superpowers/priority/, eliminar Diseño interno/ y README.md raíz" -m "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+```
+Expected: rename (R) detectado para rules.md; README.md como D. **Si rules.md no aparece como rename → verificar contenido idéntico antes de commitear (FAIL-CLOSED).**
 
 **Interfaces:**
 - Consumes: decisiones ya existentes (spec Fase 0 §3, `rules.md`, memoria).
@@ -336,9 +352,14 @@ Registro único y canónico de decisiones (estilo ADR ligero). Para añadir una 
 ## D-008 · Fase 1.5: limpieza del repo
 - Fecha: 2026-06-21 · Estado: vigente
 - Decisión: recortar el design-system (D-004), reparar el prototipo B, mover el reporte a `docs/`, y centralizar decisiones aquí. `PROPUESTA-ELEGIDA.md` se consolidó en D-001 y se eliminó.
+
+## D-009 · Gobernanza: reubicación de rules.md y limpieza de raíz
+- Fecha: 2026-06-21 · Estado: vigente
+- Contexto: `Diseño interno/` tenía espacio y acento (problemático para tooling, CLI y URLs).
+- Decisión: `rules.md` se reubicó a `docs/superpowers/priority/rules.md` y se eliminó `Diseño interno/`. El `README.md` raíz se eliminó intencionalmente (se recreará en Fase 0 Task 8).
 ```
 
-- [ ] **Step 2: Añadir puntero en `rules.md`** (Edit) — insertar una línea cerca del inicio del archivo
+- [ ] **Step 2: Añadir puntero en `docs/superpowers/priority/rules.md`** (Edit) — insertar una línea cerca del inicio del archivo
 
 Tras la primera línea de encabezado del archivo, añadir:
 ```markdown
@@ -360,21 +381,31 @@ y dejar inmediatamente debajo:
 > Registro vivo y canónico de decisiones: `docs/decisiones.md` (esta tabla queda como contexto de Fase 0).
 ```
 
+- [ ] **Step 3b: Actualizar referencias stale `Diseño interno/rules.md` → `docs/superpowers/priority/rules.md`** (Edit en cada archivo)
+
+Ubícalas con `grep -rn "Diseño interno/rules.md" .` y reemplaza la ruta en cada hit:
+- `docs/superpowers/plans/2026-06-20-fase0-cimientos.md` (3 hits)
+- `docs/superpowers/specs/2026-06-20-fase0-cimientos-arquitectura-design.md` (2 hits)
+- `docs/superpowers/specs/2026-06-21-fase1-5-limpieza-repo-design.md` (1 hit en §4.4)
+Además, en el spec de Fase 1.5 reescribe las dos menciones de "no se renombra `Diseño interno/`" / "deuda menor" (§ no-objetivos y § riesgos) para reflejar que SÍ se reubicó (ver D-009).
+
 - [ ] **Step 4: Verificar**
 
 ```bash
-test -f docs/decisiones.md && grep -c "^## D-0" docs/decisiones.md          # esperado: 9 entradas
-grep -n "docs/decisiones.md" "Diseño interno/rules.md"
+test -f docs/decisiones.md && grep -c "^## D-0" docs/decisiones.md          # esperado: 10 entradas (D-001..D-009 + D-002b)
+grep -n "docs/decisiones.md" docs/superpowers/priority/rules.md
 grep -n "docs/decisiones.md" docs/superpowers/specs/2026-06-20-fase0-cimientos-arquitectura-design.md
+grep -rn "Diseño interno/rules.md" . || echo "OK: cero refs a la ruta vieja"
 ```
-Expected: el conteo es **9**; ambos `grep` encuentran su puntero.
+Expected: conteo **10**; los dos `grep` de puntero lo encuentran; el último imprime "OK: cero refs a la ruta vieja" (las menciones históricas del nombre de carpeta en D-009/specs no usan la ruta `Diseño interno/rules.md`).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Commit (decisiones + punteros + refs)**
 
 ```bash
-git add docs/decisiones.md "Diseño interno/rules.md" docs/superpowers/specs/2026-06-20-fase0-cimientos-arquitectura-design.md
-git commit -m "Fase 1.5: registro único de decisiones (docs/decisiones.md) + punteros" -m "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+git add docs/decisiones.md docs/superpowers/priority/rules.md docs/superpowers/specs/2026-06-20-fase0-cimientos-arquitectura-design.md docs/superpowers/plans/2026-06-20-fase0-cimientos.md docs/superpowers/specs/2026-06-21-fase1-5-limpieza-repo-design.md docs/superpowers/plans/2026-06-21-fase1-5-limpieza-repo.md
+git commit -m "Fase 1.5: registro único de decisiones (docs/decisiones.md), punteros y refs a nueva ruta de rules.md" -m "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
+(El commit del **Step 0** — reubicación de rules.md + borrado de README — es aparte y va primero.)
 
 ---
 

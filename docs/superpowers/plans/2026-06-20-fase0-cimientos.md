@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-Valores verbatim del spec (`docs/superpowers/specs/2026-06-20-fase0-cimientos-arquitectura-design.md`) y de `Diseño interno/rules.md` (documento vinculante):
+Valores verbatim del spec (`docs/superpowers/specs/2026-06-20-fase0-cimientos-arquitectura-design.md`) y de `docs/superpowers/priority/rules.md` (documento vinculante):
 
 - **Infra Docker, imágenes oficiales (sin `docker build`):** `postgres:16` (puerto **5432**, base **`utc_food`**), `quay.io/keycloak/keycloak:26` (puerto **8080**, realm **`utc-food`**, roles `admin`/`user`). Backend NestJS puerto **3000**. Frontend Expo local (no en Docker).
 - **Marca (tokens):** primario `#E34100` (naranja-500), institucional `#021E5E` (azul-700). Fuentes: Bricolage Grotesque (display), Plus Jakarta Sans (body), Space Mono (mono).
@@ -823,7 +823,7 @@ App de pedidos Pick Up para la cooperativa (dark kitchen) — Universidad Técni
 - `backend/` — NestJS + TypeORM (Clean Architecture)
 - `infra/` — Docker Compose (PostgreSQL 16 + Keycloak 26)
 - `design-system/` — espejo de Claude Design (referencia de marca, no editar a mano)
-- `docs/` — briefs y specs · `Diseño interno/rules.md` — reglas obligatorias
+- `docs/` — briefs y specs · `docs/superpowers/priority/rules.md` — reglas obligatorias
 
 ## Arranque (orden)
 ```bash
@@ -836,7 +836,7 @@ cd ../frontend && npm install && npx expo start
 ```
 
 ## Reglas
-Ver `Diseño interno/rules.md` (evidence-or-block, fail-closed, gate de confianza 95–100%) y las business rules BR-001..BR-015.
+Ver `docs/superpowers/priority/rules.md` (evidence-or-block, fail-closed, gate de confianza 95–100%) y las business rules BR-001..BR-015.
 ```
 
 - [ ] **Step 2: Verificación final integral de Fase 0 (rules §0, §18, §19)**

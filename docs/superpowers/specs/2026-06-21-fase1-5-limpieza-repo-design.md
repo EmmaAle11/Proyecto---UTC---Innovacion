@@ -80,7 +80,7 @@ Formato por entrada: `## D-00X · título` con `Fecha · Estado` (vigente/revert
 | D-007 | Stack frontend: React Navigation (no Expo Router) + Zustand | vigente |
 | D-008 | **Fase 1.5**: recorte del design-system a esenciales + registro de decisiones; prototipo B reparado | vigente |
 
-Punteros (sin duplicar): una línea en `Diseño interno/rules.md` y en el spec de Fase 0 §3 → "Registro canónico de decisiones: `docs/decisiones.md`".
+Punteros (sin duplicar): una línea en `docs/superpowers/priority/rules.md` y en el spec de Fase 0 §3 → "Registro canónico de decisiones: `docs/decisiones.md`".
 
 ### 4.4 Sincronizar memoria
 - `utc-design-system-import.md`: reflejar el recorte y que `design-system/` ya no es espejo intocable (D-004 revertida); corregir rutas (`ui_kits/app` no existe; `index.html` propio eliminado).
@@ -88,7 +88,7 @@ Punteros (sin duplicar): una línea en `Diseño interno/rules.md` y en el spec d
 
 ### 4.5 No-objetivos
 - No se crean `frontend/`/`backend/`/`infra/` (eso es Fase 0, Tasks 2–7).
-- No se renombra `Diseño interno/` (deuda menor consciente).
+- ~~No se renombra `Diseño interno/`~~ → **SÍ se reubicó** (D-009): `rules.md` movido a `docs/superpowers/priority/rules.md` y `Diseño interno/` eliminado.
 - No se reescriben los planes/specs ejecutados salvo añadir el puntero a `decisiones.md`.
 - No se edita el contenido del reporte salvo el `<link>` de estilos.
 
@@ -133,4 +133,4 @@ docs/
 - **Se pierde la re-sincronización de un clic** con Claude Design (D-004 revertida). Mitigación: la URL/projectId queda en `decisiones.md` y todo lo borrado es re-descargable.
 - **`screens.jsx` restaurado** trae también pantallas de la Propuesta A (login/home Mosaico) que B no usa; quedan inertes. Quitarlas quirúrgicamente es frágil → se dejan.
 - **El reporte** sigue mencionando la Propuesta A en su prosa (histórico); fuera de alcance editarlo más allá del `<link>`.
-- **`Diseño interno/`** (espacio + acento) queda como deuda menor consciente.
+- **`Diseño interno/`** (espacio + acento) fue reubicado como D-009: `rules.md` → `docs/superpowers/priority/rules.md`; carpeta eliminada.
