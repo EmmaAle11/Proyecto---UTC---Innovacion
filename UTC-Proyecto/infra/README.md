@@ -6,11 +6,13 @@ Requiere Docker (daemon corriendo).
 cd infra
 cp .env.example .env   # editar valores locales (no se commitea)
 docker compose up -d
-docker compose ps      # postgres y keycloak deben estar "healthy"/"running"
+docker compose ps          # postgres y keycloak deben estar "healthy"/"running"
+./keycloak/seed-admin.sh   # crea/asegura el admin (rol admin) desde infra/.env
 ```
 
 - Postgres: `localhost:${POSTGRES_PORT}`, base `utc_food`, user `utc`
 - Keycloak: `http://localhost:${KEYCLOAK_PORT}` (realm `utc-food`, roles `admin`/`user`, client `mobile-app`)
+- Admin (panel): correo `ADMIN_SEED_EMAIL` + `ADMIN_SEED_PASSWORD` de `.env`, rol `admin` (credenciales **locales**, sin Microsoft). Sembrar/refrescar con `./keycloak/seed-admin.sh` (idempotente). Ver `../docs/decisiones.md` D-013.
 
 ## Puertos
 
