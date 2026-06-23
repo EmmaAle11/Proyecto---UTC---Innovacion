@@ -9,6 +9,7 @@ import { UserProfileEntity } from '../../infrastructure/database/entities/user-p
 import { UserRole } from '../../infrastructure/database/entities/enums';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { AdminLoginDto } from './dto/admin-login.dto';
 
 /** Orquesta el registro y login del cliente contra Keycloak + perfil local (ver D-014). */
 @Injectable()
@@ -52,5 +53,10 @@ export class AuthService {
 
   async login(dto: LoginDto): Promise<Tokens> {
     return this.keycloak.login(dto.email, dto.password);
+  }
+
+  /** Login del administrador: credenciales + MFA contra Keycloak, exige rol admin (ver D-014, rules §6). */
+  async loginAdmin(dto: AdminLoginDto): Promise<Tokens> {
+    return this.keycloak.loginAdmin(dto.email, dto.password, dto.totp);
   }
 }

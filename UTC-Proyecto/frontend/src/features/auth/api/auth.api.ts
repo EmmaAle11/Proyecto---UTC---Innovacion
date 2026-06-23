@@ -23,3 +23,12 @@ export function registerCliente(input: RegisterInput): Promise<TokenPayload> {
 export function loginCliente(email: string, password: string): Promise<TokenPayload> {
   return postJson<TokenPayload>('/auth/login', { email, password });
 }
+
+/** Inicia sesión del administrador: correo + contraseña + código MFA (totp). Ver rules §6. */
+export function loginAdmin(
+  email: string,
+  password: string,
+  totp: string,
+): Promise<TokenPayload> {
+  return postJson<TokenPayload>('/auth/admin/login', { email, password, totp });
+}

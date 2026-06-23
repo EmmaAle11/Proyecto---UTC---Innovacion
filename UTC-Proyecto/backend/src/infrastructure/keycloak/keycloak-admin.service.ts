@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   ServiceUnavailableException,
@@ -219,5 +220,52 @@ export class KeycloakAdminService {
       refresh_token: data.refresh_token ?? '',
       expires_in: data.expires_in ?? 0,
     };
+  }
+
+  /**
+   * Login del administrador: password grant **con código MFA (`totp`)**, y exige rol `admin`
+   * en el token (un `user` recibe 403). Keycloak rechaza si falta/erra el OTP. Ver rules §6.
+   */
+  async loginAdmin(
+    email: string,
+    password: string,
+    totp: string,
+  ): Promise<Tokens> {
+    const res = await this.safeFetch(this.tokenUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'password',
+        client_id: this.appClientId,
+        username: email,
+        password,
+        totp,
+      }),
+    });
+    if (!res.ok) {
+      throw new UnauthorizedException('Correo, contraseña o código inválidos');
+    }
+    const data = (await res.json()) as TokenResponse;
+    if (!this.rolesFromToken(data.access_token).includes('admin')) {
+      throw new ForbiddenException('Esta cuenta no es de administrador');
+    }
+    return {
+      access_token: data.access_token,
+      refresh_token: data.refresh_token ?? '',
+      expires_in: data.expires_in ?? 0,
+    };
+  }
+
+  /** Lee `realm_access.roles` del access_token recién emitido por nuestro Keycloak. */
+  private rolesFromToken(accessToken: string): string[] {
+    try {
+      const payload = accessToken.split('.')[1];
+      const json = JSON.parse(
+        Buffer.from(payload, 'base64url').toString('utf8'),
+      ) as { realm_access?: { roles?: string[] } };
+      return json.realm_access?.roles ?? [];
+    } catch {
+      return [];
+    }
   }
 }
