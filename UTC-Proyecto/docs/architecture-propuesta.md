@@ -4,7 +4,7 @@
 >
 > - Alcance y reglas de negocio: [`algoritmo-circulo-innovacion.md`](algoritmo-circulo-innovacion.md) (Ocurrencia → Idea → Propuesta) + [`Algoritmo-ejecucion.md`](Algoritmo-ejecucion.md).
 > - Decisiones canónicas: [`decisiones.md`](decisiones.md) (D-001…D-018). Reglas operativas: `superpowers/priority/rules.md`.
-> - Este documento refleja la arquitectura **adoptada** (post-decisiones). El esquema de BD (§5) es **propuesto**: se materializa por **migraciones TypeORM** (rules §11), no existe aún en `init.sql`.
+> - Este documento refleja la arquitectura **adoptada** (post-decisiones). El esquema de BD (§5) está **materializado** por **migración TypeORM** (`backend/src/infrastructure/database/migrations/1782168106072-Init.ts`, rules §11): 6 tablas + 5 enums creados en Postgres (`init.sql` solo crea la extensión `pgcrypto`).
 
 ---
 
@@ -105,7 +105,9 @@ El backend usa `KEYCLOAK_BACKEND_CLIENT_ID=backend-svc` + `KEYCLOAK_BACKEND_CLIE
 
 ---
 
-## 5. Base de datos — PostgreSQL (esquema propuesto, vía migraciones TypeORM)
+## 5. Base de datos — PostgreSQL (esquema materializado, vía migración TypeORM)
+
+> **Estado:** aplicado en Postgres (`UTC_PROJECT_DB`) por la migración `1782168106072-Init.ts` — verificado: 6 tablas (`user_profile`, `products`, `orders`, `order_items`, `payments`, `preparation_times`) + 5 enums + tabla `migrations`. Reproducible con `npm run migration:run` (idempotente). `synchronize: false`.
 
 > Convenciones: PK `uuid` (`gen_random_uuid()` de `pgcrypto`); timestamps `timestamptz`; dinero `numeric(10,2)`; tiempos de preparación en **segundos** (`int`). Todos los tiempos oficiales = **hora del servidor** (BR-005). PK/FK explícitas (Idea del círculo de innovación, punto 2).
 
