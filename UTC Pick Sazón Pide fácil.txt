@@ -1,0 +1,55 @@
+UTC Pick Sazón
+Pide fácil, recoge con sabor. 
+
+Objetivo 
+Resolver el problema de congestión en la cooperativa escolar, principalmente en horarios donde los alumnos salen a desayunar, la solución debe poder ser aplicada en cualquier modalidad (Escolarizada | Ejecutiva) y en cualquier horario. 
+
+¿Para quien va dirigido? 
+Para alumnos, maestros, personal escolar, cualquier persona que desee y pueda comprar en la cooperativa escolar, y a los dirigentes de la cooperativa para facilitar la gestión de la congestión del alumnado. 
+
+¿Cómo se va a dirigir?
+A través de arquitecturas definidas, tecnologías concretas que permitirán la creación de una app movil.
+
+Nota a considerar
+Se estarán haciendo constante pruebas en el editor de texto elegido y en el framework a trabajar. 
+
+Algoritmo de ejecución 
+1.- Se definirá el alcancé de la aplicación a través de los 3 primeros flujos del proceso de innovación los cuales son: 
+Ocurrencia 
+Idea
+Propuesta (Tocará tema de alcance, usuarios, auth, funcionalidades, tecnologías , arquitectura , distribución, etc.) Se explayará más al detalle en esta sección. 
+
+Cuando se tenga la propuesta se procederá a generar el diseño de la(s) pantalla(s) que tendrá la página web. 
+
+2.- Definir diseño y paleta de colores, la paleta de colores está definida con los siguientes códigos hexadecimales: 
+| Variante            |         Hex |
+| ------------------- | ----------: |
+| Azul oscuro cercano | **#021F5C** |
+| Azul alterno        | **#00205C** |
+| Naranja cercano     | **#E24200** |
+| Naranja alterno     | **#E54000** |
+Se deben crear dos diseños diferentes para el posible usuario dependiendo del perfil 
+1 .- Pantalla de Colaborador de la cooperativa (dark kitchen 
+2 .- Pantalla de Usuario con próposito de usar la plataforma
+
+3.- Una vez definido los estilos a elegir para 
+- Welcome Page 
+- Login Page 
+- Logo 
+- Nombre 
+- Eslogan 
+
+Procederemos a levantar los servicios necesarios como: 
+- Node.js 
+- Docker 
+- Puertos 5132, 8083 , etc.
+
+Construiremos las imagenes de Postgre.sql y Keycloack, tecnologías determinadas desde la propuesta. 
+
+4.- Cuando se tenga el servicio en linea, vamos a establecer de forma concreta la distribición de las carpetas quedando de la siguiente forma : 
+(Colocar dentado de carpetas con su path) 
+
+5.- 
+
+
+
