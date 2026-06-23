@@ -4,7 +4,7 @@ import type { RootStackParamList } from './types';
 import { WelcomeScreen } from '../../pages/welcome/WelcomeScreen';
 import { LoginUsuarioScreen } from '../../pages/auth/LoginUsuarioScreen';
 import { LoginAdminScreen } from '../../pages/auth/LoginAdminScreen';
-import { MainTabs } from './MainTabs';
+import { MainStack } from './MainStack';
 import { useSessionStore } from '../../features/auth/model/session.store';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -20,7 +20,7 @@ export function RootNavigator() {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {session ? (
-          <Stack.Screen name="Main" component={MainTabs} />
+          <Stack.Screen name="Main" component={MainStack} />
         ) : (
           <Stack.Group>
             <Stack.Screen name="Welcome" component={WelcomeScreen} />

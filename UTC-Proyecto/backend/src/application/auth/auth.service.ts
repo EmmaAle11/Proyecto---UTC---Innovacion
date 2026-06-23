@@ -25,7 +25,9 @@ export class AuthService {
    * perfil local (orders lo requiere) y devuelve tokens (auto-login). Atómico: si falla
    * el perfil local, deshace el usuario de Keycloak.
    */
-  async register(dto: RegisterDto): Promise<{ message: string } & Tokens> {
+  async register(
+    dto: RegisterDto,
+  ): Promise<{ message: string } & Partial<Tokens>> {
     const keycloakId = await this.keycloak.createUser({
       email: dto.email,
       password: dto.password,
@@ -47,8 +49,14 @@ export class AuthService {
       await this.keycloak.removeUser(keycloakId);
       throw err;
     }
-    const tokens = await this.keycloak.login(dto.email, dto.password);
-    return { message: 'Cuenta creada', ...tokens };
+    try {
+      const tokens = await this.keycloak.login(dto.email, dto.password);
+      return { message: 'Cuenta creada', ...tokens };
+    } catch {
+      // La cuenta ya quedó creada y consistente; si el auto-login falla (red/throttle),
+      // el cliente inicia sesión con /auth/login. No es un fallo del registro.
+      return { message: 'Cuenta creada. Inicia sesión.' };
+    }
   }
 
   async login(dto: LoginDto): Promise<Tokens> {

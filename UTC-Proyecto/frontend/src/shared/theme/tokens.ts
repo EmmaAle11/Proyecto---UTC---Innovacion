@@ -13,3 +13,15 @@ export const colors = {
 export const radius = { xs: 6, sm: 10, md: 14, lg: 18, xl: 24, card: 20, pill: 999 } as const;
 export const space = { 1: 4, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 8: 32, 10: 40, 12: 48 } as const;
 export const fonts = { display: 'BricolageGrotesque', body: 'PlusJakartaSans', mono: 'SpaceMono' } as const;
+
+// Tokens semánticos (mapeados de design-system/tokens/colors.css). Aliases sobre las rampas.
+export const text = { heading: colors.azul[700], muted: colors.gris[500], subtle: colors.gris[400] } as const;
+export const border = { subtle: colors.gris[200], default: colors.gris[300], strong: colors.gris[400] } as const;
+export const surface = { page: colors.gris[50] } as const;
+
+/** Colores de estado de producto/pedido: bg (fondo de la píldora), fg (texto), dot (punto). */
+export const state = {
+  cooking: { bg: colors.mango[50], fg: colors.mango[600], dot: colors.mango[400] },
+  ready: { bg: colors.lima[50], fg: colors.lima[600], dot: colors.lima[500] },
+  reoffer: { bg: colors.naranja[50], fg: colors.naranja[700], dot: colors.naranja[500] },
+} as const;

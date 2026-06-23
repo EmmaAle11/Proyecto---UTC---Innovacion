@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
@@ -14,6 +14,7 @@ export interface JwtUser {
 interface KeycloakJwtPayload {
   sub: string;
   email?: string;
+  azp?: string; // authorized party = client al que se emitió el token
   realm_access?: { roles?: string[] };
 }
 
@@ -23,10 +24,13 @@ interface KeycloakJwtPayload {
  */
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
+  private readonly expectedAzp: string;
+
   constructor(config: ConfigService) {
     const baseUrl = config.getOrThrow<string>('KEYCLOAK_URL');
     const realm = config.getOrThrow<string>('KEYCLOAK_REALM');
     const issuer = `${baseUrl}/realms/${realm}`;
+    const clientId = config.getOrThrow<string>('KEYCLOAK_CLIENT_ID');
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -38,9 +42,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         jwksUri: `${issuer}/protocol/openid-connect/certs`,
       }),
     });
+    this.expectedAzp = clientId;
   }
 
   validate(payload: KeycloakJwtPayload): JwtUser {
+    // Endurecimiento OIDC: el token debe haberse emitido para el client de la app
+    // (azp = authorized party). Rechaza tokens de otros clients del realm.
+    if (payload.azp !== this.expectedAzp) {
+      throw new UnauthorizedException(
+        'Token emitido para un cliente no autorizado',
+      );
+    }
     return {
       sub: payload.sub,
       email: payload.email,

@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -34,6 +35,7 @@ export interface Tokens {
  */
 @Injectable()
 export class KeycloakAdminService {
+  private readonly logger = new Logger(KeycloakAdminService.name);
   private readonly baseUrl: string;
   private readonly realm: string;
   private readonly appClientId: string;
@@ -190,12 +192,21 @@ export class KeycloakAdminService {
   /** Borra un usuario (compensación de registro). Best-effort: no propaga errores de limpieza. */
   private async deleteUser(token: string, userId: string): Promise<void> {
     try {
-      await this.safeFetch(this.adminUrl(`/users/${userId}`), {
+      const res = await this.safeFetch(this.adminUrl(`/users/${userId}`), {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) {
+        // No propagamos (es compensación), pero dejamos traza: posible usuario huérfano.
+        this.logger.warn(
+          `Compensación deleteUser respondió ${res.status}: usuario ${userId} podría quedar huérfano en Keycloak.`,
+        );
+      }
     } catch {
-      // Si la compensación falla, igual se relanza el error original del registro.
+      // Si la compensación falla por red, igual se relanza el error original del registro.
+      this.logger.warn(
+        `Compensación deleteUser sin conexión: usuario ${userId} podría quedar huérfano en Keycloak.`,
+      );
     }
   }
 

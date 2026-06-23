@@ -20,7 +20,13 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "UTC Pick Sazón usa tu ubicación para mostrarte la cooperativa más cercana."
+        }
+      ]
     ]
   }
 }

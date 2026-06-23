@@ -121,6 +121,8 @@ El backend usa `KEYCLOAK_BACKEND_CLIENT_ID=backend-svc` + `KEYCLOAK_BACKEND_CLIE
 | `payment_method` | `mercado_pago`, `paypal`, `tdc`, `tdd`, `efectivo` |
 | `payment_status` | `pending`, `paid`, `failed`, `refunded` |
 
+> **Nota (materialización):** los nombres `user_role`/`order_status`/… son **lógicos**. La migración TypeORM crea los tipos en Postgres como `<tabla>_<columna>_enum`: `user_profile_role_enum`, `orders_status_enum`, `products_status_enum`, `payments_method_enum`, `payments_status_enum`. Los **valores** coinciden exactamente; un `\dT+` mostrará esos nombres.
+
 ### 5.1 `user_profile` — perfil local enlazado a Keycloak (BR-002, BR-014)
 
 | Campo | Tipo | Restricciones | Nota |
@@ -148,9 +150,9 @@ El backend usa `KEYCLOAK_BACKEND_CLIENT_ID=backend-svc` + `KEYCLOAK_BACKEND_CLIE
 | `stock` | int | NOT NULL, default 0, CHECK `>= 0` | sin negativos (BR-011) |
 | `min_stock` | int | NOT NULL, default 0, CHECK `>= 0` | mínimo "Preparados" (BR-011) |
 | `max_stock` | int | CHECK `>= min_stock` | máximo "Preparados" (BR-011) |
-| `status` | `product_status` | NOT NULL, default `no_disponible` | estados del producto (círculo §7) |
+| `status` | `product_status` | NOT NULL, default `no_disponible` | estados del producto (círculo §3.6) |
 | `is_available` | boolean | NOT NULL, default true | |
-| `reoffer_price` | numeric(10,2) | CHECK `> 0` | reoferta / "Pon tu precio" (círculo §12) |
+| `reoffer_price` | numeric(10,2) | CHECK `> 0` | reoferta / "Pon tu precio" (círculo §3.11) |
 | `created_at` / `updated_at` | timestamptz | NOT NULL, default `now()` | |
 
 ### 5.3 `orders` — pedidos (BR-004, BR-005, BR-008, D-005)
@@ -162,7 +164,7 @@ El backend usa `KEYCLOAK_BACKEND_CLIENT_ID=backend-svc` + `KEYCLOAK_BACKEND_CLIE
 | `status` | `order_status` | NOT NULL, default `pending` | transiciones BR-004 |
 | `total_amount` | numeric(10,2) | NOT NULL, CHECK `>= 0` | suma de ítems |
 | `accepted_at` | timestamptz | | admin acepta → `preparing` (BR-008) |
-| `estimated_ready_at` | timestamptz | | estimado 10–15 min (círculo §9) |
+| `estimated_ready_at` | timestamptz | | estimado 10–15 min (círculo §3.8) |
 | `ready_at` | timestamptz | | **fuente de verdad** (BR-005), hora del servidor |
 | `pickup_deadline` | timestamptz | | `ready_at` + 20 min (D-005) |
 | `picked_up_at` | timestamptz | | |
@@ -237,7 +239,7 @@ products 1───∞ preparation_times ∞───0..1 order_items
 - **Ventana de recogida (D-005):** listo en ~10–15 min; margen de recogida ~10–20 min. Vencido → confirmación al alumno: *cancelar* o *extender para después*.
 - **Reoferta (BR-006):** si no se recoge / se cancela sin tocar el alimento → vuelve a ofertarse como *Preparado | Sin tiempo de espera*; la UI muestra *"Listo hace X min"* (desde `ready_at`). Si lleva mucho tiempo → *Calentando tu alimento*.
 - **Extender:** queda `ready_later`; recogible el mismo día. Si no se recoge al cierre, el cobro se mantiene y el alimento pasa a manejo interno.
-- **Precio dinámico (círculo §12):** el admin puede activar reoferta con descuento controlado o *"Pon tu precio"* (`products.reoffer_price`).
+- **Precio dinámico (círculo §3.11):** el admin puede activar reoferta con descuento controlado o *"Pon tu precio"* (`products.reoffer_price`).
 
 ---
 

@@ -59,7 +59,7 @@ Registro único y canónico de decisiones (estilo ADR ligero). Para añadir una 
 ## D-011 · Dominio institucional e identidad
 - Fecha: 2026-06-22 · Estado: vigente
 - Contexto: BR-002 de rules.md indicaba `@email.utc.edu.ec` (plantilla Ecuador), pero el proyecto es de la UTC de **México**.
-- Decisión: el dominio institucional es **`utc.edu.mx`**. Se corrige BR-002. **Formato exacto del correo: NO VERIFICADO** — el usuario indicó `edu.utc.mx`; falta evidencia del formato real (p. ej. `@utc.edu.mx`); confirmar antes de validar correos en backend.
+- Decisión: el dominio institucional es **`utc.edu.mx`**. Se corrige BR-002. **Formato adoptado y validado: `@utc.edu.mx`** — implementado en `backend/src/application/auth/dto/register.dto.ts` (`@Matches(/@utc\.edu\.mx$/i)`), conforme a D-014. (Histórico: quedó "NO VERIFICADO" al inicio porque se mencionó `edu.utc.mx`; se confirmó `@utc.edu.mx` al implementar el auto-registro.)
 - Permisos: el equipo **no controla DNS ni el tenant** institucional. Esto **no bloquea** el desarrollo (Keycloak local con usuarios de prueba). Solo condiciona la federación Microsoft real (app registration + admin consent del tenant UTC), no el resto del proyecto.
 
 ## D-012 · Expo Go como runtime de desarrollo + restricción de librerías nativas

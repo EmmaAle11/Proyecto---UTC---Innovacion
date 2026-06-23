@@ -11,8 +11,13 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
-  // CORS: por defecto refleja cualquier origen (dev); en prod fija CORS_ORIGIN (lista por comas).
+  // CORS: por defecto refleja cualquier origen (dev); en prod EXIGE CORS_ORIGIN (lista por comas).
   const corsOrigin = process.env.CORS_ORIGIN;
+  if (process.env.NODE_ENV === 'production' && !corsOrigin) {
+    throw new Error(
+      'CORS_ORIGIN es obligatorio en producción: no se permite reflejar cualquier origen (origin:true).',
+    );
+  }
   app.enableCors({
     origin: corsOrigin ? corsOrigin.split(',').map((o) => o.trim()) : true,
   });

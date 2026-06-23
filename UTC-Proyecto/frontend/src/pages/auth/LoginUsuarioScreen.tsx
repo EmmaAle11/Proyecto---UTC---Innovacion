@@ -51,14 +51,21 @@ export function LoginUsuarioScreen({ navigation }: Props) {
 
     setLoading(true);
     try {
-      const res = isRegister
-        ? await registerCliente({
-            email: mail,
-            password,
-            firstName: firstName.trim(),
-            lastName: lastName.trim(),
-          })
-        : await loginCliente(mail, password);
+      let res: { access_token: string; refresh_token: string };
+      if (isRegister) {
+        const reg = await registerCliente({
+          email: mail,
+          password,
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+        });
+        // La cuenta ya se creó; si el auto-login no devolvió tokens, inicia sesión.
+        res = reg.access_token
+          ? { access_token: reg.access_token, refresh_token: reg.refresh_token ?? '' }
+          : await loginCliente(mail, password);
+      } else {
+        res = await loginCliente(mail, password);
+      }
       // setSession cambia el navegador a Main (guard de sesión, ver RootNavigator).
       setSession({ accessToken: res.access_token, refreshToken: res.refresh_token, email: mail });
     } catch (e) {

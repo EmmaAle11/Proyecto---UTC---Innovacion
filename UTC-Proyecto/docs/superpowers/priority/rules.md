@@ -785,6 +785,33 @@ Flujo obligatorio:
 Excepción única: el usuario pide explícitamente en ese momento "hazlo tú / haz el commit". Sin esa orden explícita, Claude no comitea ni pushea.
 
 ---
+
+# 24. DOCUMENTOS VIVOS DEL CÍRCULO DE INNOVACIÓN
+
+Conforme el proyecto avanza, dos documentos deben mantenerse **actualizados** para que reflejen lo que la app realmente tiene (alcance, productos, pantallas, funcionalidades y reglas de negocio):
+
+```txt
+docs/algoritmo-circulo-innovacion.md   → la Propuesta (Ocurrencia → Idea → Propuesta → Implementación → Valor agregado → Adopción)
+docs/Algoritmo-ejecucion.md            → la Implementación (algoritmo de pasos para construir la Propuesta)
+```
+
+Cada cambio que altere el alcance, los productos, las pantallas o las reglas de negocio obliga a actualizar el documento correspondiente, en **su** tono, sin romperlo:
+
+```txt
+algoritmo-circulo-innovacion.md → tono juvenil / estudiantil (cercano, sin tecnicismos)
+Algoritmo-ejecucion.md          → tono plano y directo (pasos numerados)
+```
+
+Prohibido:
+
+```txt
+dejar los documentos desactualizados frente al código real
+meter tono técnico en algoritmo-circulo-innovacion.md
+romper la numeración de las fases o de los pasos
+agregar secciones sin su número (dejarlas "volando")
+```
+
+---
 ---
 
 # BUSINESS RULES — UTC PICK SAZÓN (BR)
