@@ -91,3 +91,26 @@ Registro único y canónico de decisiones (estilo ADR ligero). Para añadir una 
   - Keycloak sigue siendo el único emisor de tokens; si UTC algún día coopera, brokear a Microsoft es "solo config".
 - Verificación (§0): register `@utc.edu.mx` → 201 con token cuyo `realm_access.roles` incluye `user`; dominio ajeno → 400; duplicado → 409; rate-limit → 429. Build + tests verdes.
 - Alternativa cloud descartada por ahora: Microsoft Entra External ID / Azure AD B2C (directorio propio).
+
+## D-015 · Distinción de identidades admin (servidor vs app)
+- Fecha: 2026-06-23 · Estado: vigente · Afina D-013.
+- Contexto: tanto el admin del **servidor** Keycloak (realm `master`) como el admin de la **app** (realm `utc-food`) se llamaban `admin` → confusión al iniciar sesión (mismo username, distinta contraseña y consola).
+- Decisión: se renombran para distinguirlos. **Servidor Keycloak = `kcadmin`** (consola `/admin/`, realm `master`, password `KEYCLOAK_ADMIN_PASSWORD`). **App/cooperativa = `coop-admin`** (realm `utc-food`, Account Console + panel, email `admin@picksazon.app`, password `ADMIN_SEED_PASSWORD`). Aplicado en caliente (vía `editUsernameAllowed` temporal, luego revertido) y en `infra/.env`, `infra/.env.example`, realm JSON y seed. El email del admin de la app **no** cambió.
+
+## D-016 · MFA del admin activa (TOTP integrado de Keycloak)
+- Fecha: 2026-06-23 · Estado: vigente · Activa el endurecimiento §6 que D-010/D-013 dejaban pendiente.
+- Contexto: rules §6 exige MFA para admins; se evaluó si hacía falta un servicio externo.
+- Decisión: **NO se usa servicio externo.** Se usa el **TOTP integrado de Keycloak** (RFC 6238; política del realm: 6 dígitos / 30s / SHA1). El admin enrola su autenticador (Google/Microsoft Authenticator o FreeOTP) **una vez** vía Account Console; el login admin (password grant) envía el código en el parámetro **`totp`**. El cliente (`user`) **no** lleva MFA (no enrola OTP; el flujo condicional por defecto "user configured" no lo pide).
+- Verificación (§0): password grant del admin **sin** `totp` → rechazado (`invalid_grant`); `coop-admin` tiene credenciales `password` + `otp`.
+- Pendiente (diferido): flujo condicional **por rol** (exigir OTP a cualquier `admin` aunque no haya enrolado) — cirugía de auth-flows por kcadm, beneficio marginal para un solo admin.
+
+## D-017 · Seguridad de auth en backend (JWT guard + roles + login admin real)
+- Fecha: 2026-06-23 · Estado: vigente.
+- Contexto: el backend no validaba JWT ni rol, y el login admin de la app era un mock.
+- Decisión: **guards globales** en NestJS — `JwtAuthGuard` (passport-jwt + jwks-rsa: valida firma RS256 + issuer del realm) y `RolesGuard` (`@Roles('admin')`), con `@Public()` para `register`/`login`/`admin/login`/`health`. Nuevo `POST /auth/admin/login` (password grant + `totp`) que **verifica el rol `admin`** en el token (un `user` recibe 403). La pantalla RN LoginAdmin deja el mock y usa el login real con **campo OTP**. El rol se valida **en el backend** (rules §5, BR-015).
+- Verificación (§0): matriz curl — sin token→401; cliente en ruta admin→403; admin sin `totp`→400; admin con `totp` malo→401; cuenta cliente en `admin/login`→403. Backend `build`/`lint`/`test` verdes; frontend `tsc` + bundle Metro OK.
+
+## D-018 · Armonía de las pantallas de login
+- Fecha: 2026-06-23 · Estado: vigente.
+- Contexto: cliente (hero naranja + hoja blanca) y admin (banda plana) se veían "async".
+- Decisión: ambas comparten el mismo esqueleto (hero con degradado + hoja blanca) vía componentes reutilizables `widgets/auth/AuthScaffold` + `shared/ui/BrandField` + `shared/ui/PrimaryButton`; difieren solo en el **color de rol** (naranja cliente / azul admin) y el copy. El admin pasó de banda plana a hero azul.

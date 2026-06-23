@@ -3,7 +3,7 @@
 > **Pide fácil, recoge con sabor.** App de cooperativa / dark kitchen escolar UTC, modalidad **Pick Up** (sin envíos, BR-001).
 >
 > - Alcance y reglas de negocio: [`algoritmo-circulo-innovacion.md`](algoritmo-circulo-innovacion.md) (Ocurrencia → Idea → Propuesta) + [`Algoritmo-ejecucion.md`](Algoritmo-ejecucion.md).
-> - Decisiones canónicas: [`decisiones.md`](decisiones.md) (D-001…D-014). Reglas operativas: `superpowers/priority/rules.md`.
+> - Decisiones canónicas: [`decisiones.md`](decisiones.md) (D-001…D-018). Reglas operativas: `superpowers/priority/rules.md`.
 > - Este documento refleja la arquitectura **adoptada** (post-decisiones). El esquema de BD (§5) es **propuesto**: se materializa por **migraciones TypeORM** (rules §11), no existe aún en `init.sql`.
 
 ---
@@ -16,10 +16,10 @@
 ```txt
 app/        configuración global y navegación (RootNavigator, MainTabs, types)
 pages/      pantallas (welcome, auth, home, orders, profile)
-widgets/    bloques visuales grandes
+widgets/    bloques visuales grandes (auth/AuthScaffold)
 features/   acciones del usuario (auth: api + store de sesión)
 entities/   modelos de negocio
-shared/     ui (LogoLockup, LogoSymbol), api client, theme/tokens, helpers
+shared/     ui (LogoLockup, LogoSymbol, BrandField, PrimaryButton), api client, theme/tokens, helpers
 ```
 
 - **Restricción dura (D-012):** solo librerías compatibles con Expo Go. Auth del cliente por **HTTP al backend** (no `react-native-app-auth`).
@@ -35,7 +35,7 @@ shared/     ui (LogoLockup, LogoSymbol), api client, theme/tokens, helpers
 - **TypeORM** (`synchronize: false`; esquema por **migraciones**, rules §11) + driver `pg` → PostgreSQL.
 - **@nestjs/config** (variables de entorno globales, `.env` gitignored).
 - **@nestjs/throttler** → rate limiting (§8): default 60/min; **auth 5/min**.
-- **passport-jwt + jwks-rsa** → validación de **JWT emitidos por Keycloak** (proteger rutas; se aplica con la app-mostrador).
+- **passport-jwt + jwks-rsa** → validación de **JWT emitidos por Keycloak** (firma RS256 + issuer). **Guards globales** `JwtAuthGuard` + `RolesGuard` (`@Public()`/`@Roles()`) protegen las rutas (D-017).
 - **class-validator / class-transformer** → validación de DTOs (`ValidationPipe` global con `whitelist + forbidNonWhitelisted`).
 - **CORS** habilitado (la app Expo consume el backend desde otro origen).
 
@@ -44,8 +44,8 @@ shared/     ui (LogoLockup, LogoSymbol), api client, theme/tokens, helpers
 ```txt
 domain/          tipos y contratos de negocio (puros)
 application/     casos de uso / services + DTOs   → auth/ (auth.service, dto/)
-infrastructure/  detalles externos                → database/ (TypeORM: entities/, migrations/, data-source), keycloak/ (Admin API)
-presentation/    controllers + módulos Nest       → health/, auth/ (auth.controller, auth.module)
+infrastructure/  detalles externos                → database/ (TypeORM: entities/, migrations/, data-source), keycloak/ (Admin API), auth/ (JwtStrategy)
+presentation/    controllers + módulos Nest       → health/, auth/ (auth.controller, auth-me.controller, auth.module, guards/, decorators/)
 ```
 
 **Flujo de petición**
@@ -63,6 +63,9 @@ Controller → ValidationPipe (DTO) → Service (application)
 | `/health` | GET | estado del servicio + conexión a BD (`{status, db}`) |
 | `/auth/register` | POST | crea cuenta de cliente en Keycloak (valida `@utc.edu.mx`, rol `user`) y devuelve tokens |
 | `/auth/login` | POST | login del cliente (password grant) → tokens |
+| `/auth/admin/login` | POST | login del **admin**: password grant + **`totp`** (MFA) + verifica rol `admin` (403 si no) |
+| `/auth/me` | GET | (protegido) identidad del JWT (`sub`, `email`, `roles`) |
+| `/auth/admin-check` | GET | (protegido, `@Roles('admin')`) smoke-test de autorización |
 
 **Puertos** (este equipo remapea por conflicto con otro proyecto; defaults documentados):
 
@@ -82,9 +85,9 @@ Controller → ValidationPipe (DTO) → Service (application)
   - `mobile-app` — **público**, `directAccessGrants` (login por password grant del cliente).
   - `backend-svc` — **confidential**, **service account** (lo usa el backend para crear usuarios por la Admin API). Roles de `realm-management`: **`manage-users`** + **`view-realm`**.
 - **Modelo por rol (sin Microsoft — el equipo nunca tendrá app registration + admin consent del tenant UTC):**
-  - **Admin** → credenciales **locales**, **sembradas** (no se auto-registra). Correo provisto `admin@picksazon.app`. (MFA §6 = endurecimiento posterior, no activo.)
+  - **Admin** (`coop-admin`, D-015) → credenciales **locales**, **sembradas** (no se auto-registra). Correo `admin@picksazon.app`. **MFA activa** (TOTP de Keycloak, D-016): `POST /auth/admin/login` exige el código `totp` + rol `admin`.
   - **Cliente (`user`)** → **auto-registro restringido a `@utc.edu.mx`** vía backend; credenciales locales. Sin Microsoft/Outlook.
-- **Keycloak es el único emisor de tokens.** El backend valida firma + rol del JWT. Federar Microsoft a futuro sería "solo config" (no requiere reescritura).
+- **Keycloak es el único emisor de tokens.** El backend valida firma + rol del JWT (implementado, D-017). Federar Microsoft a futuro sería "solo config" (no requiere reescritura).
 
 ---
 
@@ -92,7 +95,7 @@ Controller → ValidationPipe (DTO) → Service (application)
 
 Script **idempotente** (re-ejecutable) que prepara la instancia viva (editar el realm JSON no re-importa en caliente). Lee secretos de `infra/.env` (**gitignored**, §17); nada de secretos en git.
 
-1. **Admin:** crea/asegura el usuario `admin` (`admin@picksazon.app`) — `enabled`, `emailVerified`, `firstName`/`lastName` (requeridos por el *User Profile* de Keycloak, si no el login falla con *"Account is not fully set up"*), contraseña **permanente** desde `ADMIN_SEED_PASSWORD`, y rol realm **`admin`**.
+1. **Admin:** crea/asegura el usuario `coop-admin` (`admin@picksazon.app`) — `enabled`, `emailVerified`, `firstName`/`lastName` (requeridos por el *User Profile* de Keycloak, si no el login falla con *"Account is not fully set up"*), contraseña **permanente** desde `ADMIN_SEED_PASSWORD`, y rol realm **`admin`**.
 2. **Client `backend-svc`:** lo crea si falta, fija su **secreto** desde `BACKEND_CLIENT_SECRET`, y asigna a su service-account los roles **`manage-users` + `view-realm`** de `realm-management`.
 
 **Variables** (`infra/.env`): `KEYCLOAK_ADMIN`, `KEYCLOAK_ADMIN_PASSWORD`, `ADMIN_SEED_USERNAME`, `ADMIN_SEED_EMAIL`, `ADMIN_SEED_PASSWORD`, `BACKEND_CLIENT_SECRET`.
@@ -216,10 +219,10 @@ products 1───∞ preparation_times ∞───0..1 order_items
 
 ## 6. Seguridad (rules §5–§10, §16–§17)
 
-- **JWT** de Keycloak validado por el backend (firma vía JWKS + rol). El frontend puede ocultar UI, pero **el backend siempre valida permisos**.
-- **DTO validation** en todo input (`ValidationPipe`).
+- **JWT** de Keycloak validado por el backend: **guards globales** `JwtAuthGuard` (firma RS256 vía JWKS + issuer) + `RolesGuard` (`@Roles`), con `@Public()` para auth/health (D-017). El frontend puede ocultar UI, pero **el backend siempre valida permisos** (rules §5).
+- **DTO validation** en todo input (`ValidationPipe` `whitelist`+`forbidNonWhitelisted`). **SQLi** mitigado por repos TypeORM **parametrizados** (sin SQL concatenado con input de usuario).
 - **Rate limiting** (§8): auth 5/min, default 60/min → HTTP 429.
-- **MFA admin** (§6): endurecimiento posterior (no activo en la demo).
+- **MFA admin** (§6): **activa** — TOTP integrado de Keycloak; el login admin exige `totp` (D-016).
 - **Circuit breaker de pagos** (BR-010): si la pasarela falla repetidamente → estado `OPEN`, error controlado, método alternativo.
 - **Secretos** solo en `.env` (gitignored); nunca en git (§17). Git lo ejecuta el usuario a mano (§23).
 
