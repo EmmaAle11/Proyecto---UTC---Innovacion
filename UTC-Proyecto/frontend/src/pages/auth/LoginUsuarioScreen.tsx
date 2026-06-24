@@ -182,7 +182,7 @@ export function LoginUsuarioScreen({ navigation }: Props) {
               ? 'Creando cuenta…'
               : 'Entrando…'
             : isRegister
-              ? 'Crea tu cuenta con tu correo institucional'
+              ? 'Crear cuenta'
               : 'Iniciar sesión'
         }
       />

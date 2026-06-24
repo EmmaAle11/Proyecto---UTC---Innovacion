@@ -4,7 +4,7 @@ import { ShoppingBag, ShieldCheck, ChevronRight } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../app/navigation/types';
 import { LogoLockup } from '../../shared/ui/LogoLockup';
-import { Display, Title, Body, Label } from '../../shared/ui/Type';
+import { Title, Body, Label } from '../../shared/ui/Type';
 import { colors, text, surface, shadow, border, fonts } from '../../shared/theme';
 import { useSessionStore } from '../../features/auth/model/session.store';
 
@@ -38,14 +38,11 @@ export function WelcomeScreen({ navigation }: Props) {
         }}
         showsVerticalScrollIndicator={false}
       >
-        {/* marca + hero editorial */}
-        <View style={{ marginTop: 24 }}>
-          <View style={{ alignItems: 'center' }}>
-            <LogoLockup width={250} />
-          </View>
-          <Display style={{ marginTop: 26 }}>UTC{'\n'}Pick Sazón</Display>
-          <View style={{ width: 58, height: 6, borderRadius: 3, backgroundColor: colors.naranja[500], marginTop: 12 }} />
-          <Body color={text.muted} style={{ fontSize: 15, marginTop: 12 }}>
+        {/* marca + eslogan (el nombre ya viene en el logo) */}
+        <View style={{ marginTop: 36, alignItems: 'center' }}>
+          <LogoLockup width={260} />
+          <View style={{ width: 58, height: 6, borderRadius: 3, backgroundColor: colors.naranja[500], marginTop: 18 }} />
+          <Body color={text.muted} style={{ fontSize: 15, marginTop: 12, textAlign: 'center' }}>
             Pide fácil, recoge con sabor.
           </Body>
         </View>
