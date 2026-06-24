@@ -44,7 +44,7 @@ export default function App() {
   if (!fontsLoaded && !fontError && !timedOut) {
     return (
       <View style={styles.splash}>
-        <Image source={require('./assets/logo-symbol.png')} style={styles.logo} resizeMode="contain" />
+        <Image source={require('./assets/logo.png')} style={styles.logo} resizeMode="contain" />
         <ActivityIndicator color={colors.naranja[400]} style={{ marginTop: 24 }} />
       </View>
     );

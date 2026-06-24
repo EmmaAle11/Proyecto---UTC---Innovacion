@@ -5,7 +5,7 @@ import { ArrowLeft } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { LogoSymbol } from '../../shared/ui/LogoSymbol';
 import { Display } from '../../shared/ui/Type';
-import { surface, text, shadow } from '../../shared/theme';
+import { surface, text } from '../../shared/theme';
 
 type Props = {
   gradient: readonly [string, string, string];
@@ -60,12 +60,9 @@ export function AuthScaffold({ gradient, blobTint, onBack, title, accessory, chi
             </Pressable>
 
             <View style={{ paddingHorizontal: 28, paddingTop: 2, paddingBottom: 22 }}>
-              <View
-                style={{ alignSelf: 'flex-start', backgroundColor: surface.card, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 10, ...shadow.floating }}
-              >
-                <LogoSymbol width={84} />
-              </View>
-              <Display color={text.onInk} style={{ fontSize: 29, lineHeight: 32, marginTop: 14 }}>
+              {/* logo PNG transparente, directo sobre el degradado (sin tarjeta blanca) */}
+              <LogoSymbol width={104} />
+              <Display color={text.onInk} style={{ fontSize: 29, lineHeight: 32, marginTop: 12 }}>
                 {title}
               </Display>
               <View style={{ marginTop: 12 }}>{accessory}</View>
