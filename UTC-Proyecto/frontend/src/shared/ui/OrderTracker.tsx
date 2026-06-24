@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 import { View, Text } from 'react-native';
-import { colors, text } from '../theme';
+import { colors, text, fonts } from '../theme';
 
 const STEPS = [
   { k: 'paid', l: 'Pagado' },
@@ -34,20 +34,20 @@ export function OrderTracker({ current, note }: Props) {
                   borderColor: colors.gris[300],
                 }}
               >
-                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{done ? '✓' : active ? '●' : ''}</Text>
+                <Text style={{ color: '#fff', fontSize: 13, fontFamily: fonts.bodyBold }}>{done ? '✓' : active ? '●' : ''}</Text>
               </View>
               <Text
                 style={{
                   marginTop: 7,
                   fontSize: 11,
-                  fontWeight: active ? '700' : '600',
+                  fontFamily: active ? fonts.bodyBold : fonts.bodySemi,
                   textAlign: 'center',
                   color: active ? text.heading : done ? colors.lima[600] : text.subtle,
                 }}
               >
                 {s.l}
               </Text>
-              {active && note ? <Text style={{ marginTop: 3, fontSize: 11, fontWeight: '700', color: colors.naranja[600] }}>{note}</Text> : null}
+              {active && note ? <Text style={{ marginTop: 3, fontSize: 11, fontFamily: fonts.bodyBold, color: colors.naranja[600] }}>{note}</Text> : null}
             </View>
             {i < STEPS.length - 1 ? (
               <View style={{ flex: 1, height: 3, borderRadius: 3, marginTop: 11.5, backgroundColor: i < current ? colors.lima[500] : colors.gris[200] }} />

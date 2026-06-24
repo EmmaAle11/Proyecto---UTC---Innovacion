@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { View, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, MapPin, Zap, ShoppingBag, ArrowRight, Plus, ChevronDown } from 'lucide-react-native';
 import { LogoSymbol } from '../../shared/ui/LogoSymbol';
 import { Badge } from '../../shared/ui/Badge';
 import { Chip } from '../../shared/ui/Chip';
 import { Media } from '../../shared/ui/Media';
-import { colors, text, border, surface } from '../../shared/theme';
+import { Display, Heading, Title, Body, Label, Mono } from '../../shared/ui/Type';
+import { colors, text, border, surface, shadow, fonts } from '../../shared/theme';
 import { PRODUCTS, CATEGORIES } from '../../entities/product/mock';
 import { productIcon } from '../../entities/product/icons';
 import { productImage } from '../../entities/product/images';
@@ -19,10 +20,9 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { MainStackParamList } from '../../app/navigation/types';
 
 /**
- * Inicio (Propuesta B "Mostrador"): header de pickup + rail "Listos para llevar ya"
- * + chips de categoría + feed. La barra flotante aparece al agregar al carrito.
- * M1: tocar una tarjeta agrega al carrito (quick add). M2: la tarjeta navegará al
- * detalle del producto y la barra abrirá el Carrito.
+ * Inicio (identidad "Editorial Street-Food", D-020): header de pickup + hero
+ * editorial + rail "Listos para llevar ya" + chips + feed. Precios en Space Mono
+ * (aire de ticket). La barra flotante aparece al agregar al carrito.
  */
 export function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
@@ -41,46 +41,55 @@ export function HomeScreen() {
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: surface.page }}>
       {/* HEADER (fijo) */}
-      <View style={{ paddingHorizontal: 20, paddingTop: 4, paddingBottom: 10, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: border.subtle }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+      <View style={{ paddingHorizontal: 20, paddingTop: 4, paddingBottom: 12, backgroundColor: surface.card, borderBottomWidth: 1, borderBottomColor: border.subtle }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Pressable onPress={() => setBranchOpen(true)} hitSlop={6}>
-            <Text style={{ fontSize: 12, color: text.muted, fontWeight: '600' }}>Recoges en</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <Label>Recoges en</Label>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
               <MapPin size={16} color={colors.naranja[500]} />
-              <Text style={{ fontWeight: '800', fontSize: 18, color: text.heading }}>{selectedBranch.name}</Text>
+              <Heading style={{ fontSize: 18, lineHeight: 22 }}>{selectedBranch.name}</Heading>
               {locStatus === 'loading' ? <ActivityIndicator size="small" color={text.muted} /> : <ChevronDown size={18} color={text.muted} />}
             </View>
           </Pressable>
           <LogoSymbol width={40} />
         </View>
-        {/* búsqueda (visual, no funcional aún) */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, height: 46, paddingHorizontal: 14, backgroundColor: colors.gris[100], borderRadius: 14 }}>
-          <Search size={18} color={text.muted} />
-          <Text style={{ color: text.muted, fontSize: 15 }}>¿Qué se te antoja hoy?</Text>
-        </View>
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: count > 0 ? 150 : 24 }} showsVerticalScrollIndicator={false}>
+        {/* HERO editorial */}
+        <View style={{ paddingHorizontal: 20, paddingTop: 18, paddingBottom: 4 }}>
+          <Display>¿Qué se te{'\n'}antoja hoy?</Display>
+          <View style={{ width: 58, height: 6, borderRadius: 3, backgroundColor: colors.naranja[500], marginTop: 10 }} />
+        </View>
+
+        {/* búsqueda (visual, no funcional aún) */}
+        <View style={{ paddingHorizontal: 20, paddingTop: 14 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, height: 48, paddingHorizontal: 14, backgroundColor: colors.gris[100], borderRadius: 14 }}>
+            <Search size={18} color={text.muted} />
+            <Body color={text.muted} style={{ fontSize: 15 }}>Busca tu antojo…</Body>
+          </View>
+        </View>
+
         {/* RAIL "Listos para llevar ya" */}
-        <View style={{ paddingTop: 16 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 20, paddingBottom: 10 }}>
+        <View style={{ paddingTop: 22 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 20, paddingBottom: 11 }}>
             <Zap size={18} color={colors.lima[500]} />
-            <Text style={{ fontWeight: '800', fontSize: 16, color: text.heading }}>Listos para llevar ya</Text>
+            <Heading style={{ fontSize: 17, lineHeight: 20 }}>Listos para llevar ya</Heading>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
             {ready.map((p) => {
               const Icon = productIcon(p.icon);
               return (
-                <Pressable key={p.id} onPress={() => navigation.navigate('Product', { productId: p.id })} style={{ width: 158, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.lima[100], borderRadius: 16, padding: 9 }}>
+                <Pressable key={p.id} onPress={() => navigation.navigate('Product', { productId: p.id })} style={{ width: 158, backgroundColor: surface.card, borderWidth: 1, borderColor: colors.lima[100], borderRadius: 16, padding: 9, ...shadow.card }}>
                   <Media height={84} radius={12} source={productImage(p.id)} icon={<Icon size={34} color={colors.azul[300]} />}>
                     <View style={{ position: 'absolute', top: 7, left: 7 }}>
                       <Badge tone="ready" dot>Listo</Badge>
                     </View>
                   </Media>
-                  <Text style={{ fontWeight: '700', fontSize: 13.5, color: text.heading, marginTop: 8, marginBottom: 3 }}>{p.name}</Text>
-                  <Text style={{ fontSize: 11, color: colors.lima[600], fontWeight: '600', marginBottom: 7 }}>Listo hace {p.readySinceMin} min</Text>
+                  <Title style={{ fontSize: 13.5, marginTop: 8, marginBottom: 3 }} numberOfLines={1}>{p.name}</Title>
+                  <Body color={colors.lima[600]} style={{ fontSize: 11, fontFamily: fonts.bodySemi, marginBottom: 7 }}>Listo hace {p.readySinceMin} min</Body>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={{ fontWeight: '700', fontSize: 15, color: text.heading }}>{`$${p.price}`}</Text>
+                    <Mono style={{ fontFamily: fonts.monoBold, fontSize: 15 }} color={text.heading}>{`$${p.price}`}</Mono>
                     <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}>
                       <Plus size={18} color="#fff" />
                     </View>
@@ -92,7 +101,7 @@ export function HomeScreen() {
         </View>
 
         {/* CHIPS de categoría */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 8, paddingTop: 12, paddingBottom: 14 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 8, paddingTop: 16, paddingBottom: 14 }}>
           {CATEGORIES.map((c) => (
             <Chip key={c} selected={c === cat} onPress={() => setCat(c)}>
               {c}
@@ -105,22 +114,22 @@ export function HomeScreen() {
           {list.map((p) => {
             const Icon = productIcon(p.icon);
             return (
-              <Pressable key={p.id} onPress={() => navigation.navigate('Product', { productId: p.id })} style={{ flexDirection: 'row', gap: 13, alignItems: 'center', backgroundColor: '#fff', borderWidth: 1, borderColor: border.subtle, borderRadius: 18, padding: 11 }}>
+              <Pressable key={p.id} onPress={() => navigation.navigate('Product', { productId: p.id })} style={{ flexDirection: 'row', gap: 13, alignItems: 'center', backgroundColor: surface.card, borderWidth: 1, borderColor: border.subtle, borderRadius: 18, padding: 11, ...shadow.card }}>
                 <Media height={78} radius={13} style={{ width: 78 }} source={productImage(p.id)} icon={<Icon size={30} color={colors.azul[300]} />} />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                    <Text style={{ fontWeight: '700', fontSize: 15.5, color: text.heading }}>{p.name}</Text>
-                    {p.popular ? <Text style={{ fontSize: 12 }}>🔥</Text> : null}
+                    <Title style={{ fontSize: 15.5 }} numberOfLines={1}>{p.name}</Title>
+                    {p.popular ? <Body style={{ fontSize: 12 }}>🔥</Body> : null}
                   </View>
-                  <Text style={{ fontSize: 12, color: text.muted, marginBottom: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                     {p.readySinceMin != null ? (
-                      <Text style={{ color: colors.lima[600], fontWeight: '600' }}>Listo hace {p.readySinceMin} min</Text>
+                      <Body color={colors.lima[600]} style={{ fontSize: 12, fontFamily: fonts.bodySemi }}>Listo hace {p.readySinceMin} min</Body>
                     ) : (
-                      <Text>⏱ {Math.round(p.basePrepTimeSeconds / 60)} min de espera</Text>
+                      <Body color={text.muted} style={{ fontSize: 12 }}>⏱ {Math.round(p.basePrepTimeSeconds / 60)} min de espera</Body>
                     )}
-                    {` · ${p.category}`}
-                  </Text>
-                  <Text style={{ fontWeight: '700', fontSize: 17, color: text.heading }}>{`$${p.price}`}</Text>
+                    <Body color={text.muted} style={{ fontSize: 12 }}>{` · ${p.category}`}</Body>
+                  </View>
+                  <Mono style={{ fontFamily: fonts.monoBold, fontSize: 17 }} color={text.heading}>{`$${p.price}`}</Mono>
                 </View>
                 <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}>
                   <Plus size={21} color="#fff" />
@@ -131,7 +140,7 @@ export function HomeScreen() {
         </View>
       </ScrollView>
 
-      {/* BARRA FLOTANTE DE CARRITO (M2: abrirá el Carrito) */}
+      {/* BARRA FLOTANTE DE CARRITO */}
       {count > 0 ? (
         <View style={{ position: 'absolute', left: 16, right: 16, bottom: 16 }}>
           <Pressable
@@ -140,7 +149,7 @@ export function HomeScreen() {
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'space-between',
-              height: 54,
+              height: 56,
               borderRadius: 16,
               backgroundColor: colors.primary,
               paddingHorizontal: 18,
@@ -153,10 +162,10 @@ export function HomeScreen() {
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <ShoppingBag size={18} color="#fff" />
-              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>{count} en tu pedido</Text>
+              <Title color="#fff" style={{ fontSize: 15 }}>{count} en tu pedido</Title>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>{`$${total} · Ver pedido`}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Mono color="#fff" style={{ fontFamily: fonts.monoBold, fontSize: 15 }}>{`$${total}`}</Mono>
               <ArrowRight size={18} color="#fff" />
             </View>
           </Pressable>

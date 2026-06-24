@@ -788,18 +788,20 @@ Excepción única: el usuario pide explícitamente en ese momento "hazlo tú / h
 
 # 24. DOCUMENTOS VIVOS DEL CÍRCULO DE INNOVACIÓN
 
-Conforme el proyecto avanza, dos documentos deben mantenerse **actualizados** para que reflejen lo que la app realmente tiene (alcance, productos, pantallas, funcionalidades y reglas de negocio):
+Conforme el proyecto avanza, **tres documentos** deben mantenerse **actualizados siempre** (en cuanto algo cambie) para que reflejen lo que la app realmente tiene (alcance, productos, pantallas, funcionalidades, decisiones y reglas de negocio):
 
 ```txt
 docs/algoritmo-circulo-innovacion.md   → la Propuesta (Ocurrencia → Idea → Propuesta → Implementación → Valor agregado → Adopción)
 docs/Algoritmo-ejecucion.md            → la Implementación (algoritmo de pasos para construir la Propuesta)
+docs/decisiones.md                     → el registro de decisiones (ADR ligero: una entrada D-00X por decisión)
 ```
 
-Cada cambio que altere el alcance, los productos, las pantallas o las reglas de negocio obliga a actualizar el documento correspondiente, en **su** tono, sin romperlo:
+Cada cambio que altere el alcance, los productos, las pantallas, las decisiones o las reglas de negocio obliga a actualizar el documento correspondiente, en **su** tono, sin romperlo:
 
 ```txt
 algoritmo-circulo-innovacion.md → tono juvenil / estudiantil (cercano, sin tecnicismos)
 Algoritmo-ejecucion.md          → tono plano y directo (pasos numerados)
+decisiones.md                   → estilo ADR: Contexto · Decisión · Verificación, conciso (sin explayar de más)
 ```
 
 Prohibido:
@@ -848,10 +850,10 @@ Los usuarios deben autenticarse mediante correo institucional UTC.
 Formato esperado:
 
 ```txt
-@utc.edu.mx
+@edu.utc.mx
 ```
 
-Dominio institucional UTC (México). El **formato exacto del correo está por confirmar** (NO VERIFICADO); ver `docs/decisiones.md` (D-011). Vale cualquier subdominio institucional oficial que defina la universidad.
+Dominio institucional UTC (México), **confirmado el 2026-06-24: `@edu.utc.mx`** (orden invertido respecto al supuesto inicial `utc.edu.mx`). Ver `docs/decisiones.md` (D-011).
 
 Reglas:
 

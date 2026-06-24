@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import { View, ScrollView, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, MapPin } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -8,7 +8,8 @@ import { Media } from '../../shared/ui/Media';
 import { Badge } from '../../shared/ui/Badge';
 import { QtyStepper } from '../../shared/ui/QtyStepper';
 import { PrimaryButton } from '../../shared/ui/PrimaryButton';
-import { colors, text, border } from '../../shared/theme';
+import { Display, Title, Body, Label } from '../../shared/ui/Type';
+import { colors, text, border, surface, shadow } from '../../shared/theme';
 import { PRODUCTS } from '../../entities/product/mock';
 import { productImage } from '../../entities/product/images';
 import { productIcon } from '../../entities/product/icons';
@@ -25,8 +26,8 @@ export function ProductScreen({ route, navigation }: Props) {
 
   if (!product) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' }}>
-        <Text style={{ color: text.muted }}>Producto no encontrado.</Text>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: surface.page }}>
+        <Body color={text.muted}>Producto no encontrado.</Body>
       </View>
     );
   }
@@ -40,17 +41,17 @@ export function ProductScreen({ route, navigation }: Props) {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#fff' }}>
+    <View style={{ flex: 1, backgroundColor: surface.page }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
         <Media height={300} radius={0} source={productImage(product.id)} icon={<Icon size={96} color={colors.azul[300]} />} />
 
-        <View style={{ padding: 22 }}>
-          <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 1, color: colors.naranja[600], marginBottom: 6 }}>
-            {product.category.toUpperCase()}
-          </Text>
-          <Text style={{ fontSize: 26, fontWeight: '800', color: text.heading, marginBottom: 12 }}>{product.name}</Text>
+        <View style={{ paddingHorizontal: 20, paddingTop: 22, paddingBottom: 22 }}>
+          {/* HERO editorial: categoría → nombre enorme → barrita naranja */}
+          <Label color={colors.naranja[600]}>{product.category}</Label>
+          <Display style={{ marginTop: 8 }}>{product.name}</Display>
+          <View style={{ width: 58, height: 6, borderRadius: 3, backgroundColor: colors.naranja[500], marginTop: 12 }} />
 
-          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 18, marginBottom: 18, flexWrap: 'wrap' }}>
             {product.readySinceMin != null ? (
               <Badge tone="ready" dot>{`Listo hace ${product.readySinceMin} min`}</Badge>
             ) : (
@@ -59,12 +60,14 @@ export function ProductScreen({ route, navigation }: Props) {
             <Badge tone="neutral" icon={<MapPin size={13} color={colors.gris[700]} />}>Recoger en tienda</Badge>
           </View>
 
-          <Text style={{ fontSize: 15, lineHeight: 23, color: colors.gris[700], marginBottom: 22 }}>{product.description}</Text>
+          {/* Descripción en tarjeta editorial */}
+          <View style={{ backgroundColor: surface.card, borderRadius: 18, borderWidth: 1, borderColor: border.subtle, padding: 16, ...shadow.card }}>
+            <Body color={colors.gris[700]} style={{ fontSize: 15, lineHeight: 23 }}>{product.description}</Body>
+          </View>
 
-          <View style={{ height: 1, backgroundColor: border.subtle, marginBottom: 18 }} />
-
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={{ fontSize: 15, fontWeight: '600', color: text.heading }}>Cantidad</Text>
+          {/* Cantidad en tarjeta editorial */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: surface.card, borderRadius: 18, borderWidth: 1, borderColor: border.subtle, paddingVertical: 14, paddingHorizontal: 16, marginTop: 12, ...shadow.card }}>
+            <Title>Cantidad</Title>
             <QtyStepper value={qty} min={1} max={10} onChange={setQty} />
           </View>
         </View>
@@ -73,13 +76,13 @@ export function ProductScreen({ route, navigation }: Props) {
       {/* botón atrás flotante sobre la foto */}
       <Pressable
         onPress={() => navigation.goBack()}
-        style={{ position: 'absolute', top: insets.top + 10, left: 16, width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center' }}
+        style={{ position: 'absolute', top: insets.top + 10, left: 16, width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center', ...shadow.card }}
       >
         <ArrowLeft size={20} color={colors.azul[700]} />
       </Pressable>
 
       {/* barra inferior: agregar */}
-      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 20, paddingTop: 14, paddingBottom: insets.bottom + 16, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: border.subtle }}>
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 20, paddingTop: 14, paddingBottom: insets.bottom + 16, backgroundColor: surface.card, borderTopWidth: 1, borderTopColor: border.subtle }}>
         <PrimaryButton
           color={colors.naranja[500]}
           onPress={onAdd}

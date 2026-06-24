@@ -4,6 +4,7 @@ export interface Session {
   accessToken: string;
   refreshToken: string;
   email: string;
+  role: 'admin' | 'user';
 }
 
 interface SessionState {

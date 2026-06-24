@@ -1,16 +1,34 @@
-import { View, Text, Pressable, ScrollView } from 'react-native';
+import { View, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ShoppingBag, ShieldCheck, ChevronRight } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../app/navigation/types';
 import { LogoLockup } from '../../shared/ui/LogoLockup';
+import { Display, Title, Body, Label } from '../../shared/ui/Type';
+import { colors, text, surface, shadow, border, fonts } from '../../shared/theme';
+import { useSessionStore } from '../../features/auth/model/session.store';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Welcome'>;
 
-/** Landing: el usuario elige si entra como Cliente o como Administrador. */
+/**
+ * Landing (identidad "Editorial Street-Food", D-020): el usuario elige si entra
+ * como Cliente o como Administrador. Marca "UTC Pick Sazón" en Display + acento
+ * naranja, y las dos rutas como tarjetas grandes (naranja cliente / navy admin).
+ */
 export function WelcomeScreen({ navigation }: Props) {
+  const setSession = useSessionStore((s) => s.setSession);
+  // Acceso SOLO en desarrollo: entra sin tocar el backend (para probar la UI por
+  // túnel cuando el servidor no es alcanzable). No aparece en builds de producción.
+  const devEnter = (role: 'user' | 'admin') =>
+    setSession({
+      accessToken: 'dev',
+      refreshToken: 'dev',
+      email: role === 'admin' ? 'admin@picksazon.app' : 'demo@edu.utc.mx',
+      role,
+    });
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: surface.page }}>
       <ScrollView
         contentContainerStyle={{
           flexGrow: 1,
@@ -18,26 +36,23 @@ export function WelcomeScreen({ navigation }: Props) {
           paddingHorizontal: 28,
           paddingVertical: 28,
         }}
+        showsVerticalScrollIndicator={false}
       >
-        {/* marca */}
-        <View style={{ alignItems: 'center', marginTop: 24 }}>
-          <LogoLockup width={250} />
+        {/* marca + hero editorial */}
+        <View style={{ marginTop: 24 }}>
+          <View style={{ alignItems: 'center' }}>
+            <LogoLockup width={250} />
+          </View>
+          <Display style={{ marginTop: 26 }}>UTC{'\n'}Pick Sazón</Display>
+          <View style={{ width: 58, height: 6, borderRadius: 3, backgroundColor: colors.naranja[500], marginTop: 12 }} />
+          <Body color={text.muted} style={{ fontSize: 15, marginTop: 12 }}>
+            Pide fácil, recoge con sabor.
+          </Body>
         </View>
 
         {/* elección de rol */}
         <View style={{ gap: 14, marginVertical: 28 }}>
-          <Text
-            style={{
-              textAlign: 'center',
-              fontSize: 12,
-              fontWeight: '700',
-              color: '#9BA4B5',
-              letterSpacing: 1,
-              marginBottom: 2,
-            }}
-          >
-            ¿CÓMO QUIERES ENTRAR?
-          </Text>
+          <Label style={{ marginBottom: 2 }}>¿Cómo quieres entrar?</Label>
 
           <Pressable
             onPress={() => navigation.navigate('LoginUsuario')}
@@ -46,9 +61,10 @@ export function WelcomeScreen({ navigation }: Props) {
               alignItems: 'center',
               gap: 14,
               borderRadius: 20,
-              backgroundColor: '#E34100',
+              backgroundColor: colors.naranja[500],
               padding: 18,
-              opacity: pressed ? 0.9 : 1,
+              ...shadow.card,
+              opacity: pressed ? 0.92 : 1,
             })}
           >
             <View
@@ -64,10 +80,10 @@ export function WelcomeScreen({ navigation }: Props) {
               <ShoppingBag color="#fff" size={24} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 18, fontWeight: '800', color: '#fff' }}>Soy Cliente</Text>
-              <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', marginTop: 2 }}>
+              <Title color={text.onInk} style={{ fontSize: 18 }}>Soy Cliente</Title>
+              <Body color="rgba(255,255,255,0.85)" style={{ fontSize: 13, marginTop: 2 }}>
                 Estudiante · pide y recoge tu antojo
-              </Text>
+              </Body>
             </View>
             <ChevronRight color="#fff" size={22} />
           </Pressable>
@@ -79,9 +95,10 @@ export function WelcomeScreen({ navigation }: Props) {
               alignItems: 'center',
               gap: 14,
               borderRadius: 20,
-              backgroundColor: '#021E5E',
+              backgroundColor: surface.ink,
               padding: 18,
-              opacity: pressed ? 0.9 : 1,
+              ...shadow.card,
+              opacity: pressed ? 0.92 : 1,
             })}
           >
             <View
@@ -94,21 +111,35 @@ export function WelcomeScreen({ navigation }: Props) {
                 justifyContent: 'center',
               }}
             >
-              <ShieldCheck color="#F26336" size={24} />
+              <ShieldCheck color={colors.naranja[400]} size={24} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 18, fontWeight: '800', color: '#fff' }}>Soy Administrador</Text>
-              <Text style={{ fontSize: 13, color: '#A6B6E0', marginTop: 2 }}>
+              <Title color={text.onInk} style={{ fontSize: 18 }}>Soy Administrador</Title>
+              <Body color={text.onInkMuted} style={{ fontSize: 13, marginTop: 2 }}>
                 Cocina · gestiona productos y pedidos
-              </Text>
+              </Body>
             </View>
             <ChevronRight color="#fff" size={22} />
           </Pressable>
         </View>
 
-        <Text style={{ textAlign: 'center', fontSize: 12, color: '#9BA4B5' }}>
+        {__DEV__ ? (
+          <View style={{ marginBottom: 14, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: border.subtle, backgroundColor: surface.card, ...shadow.card }}>
+            <Label style={{ marginBottom: 9 }}>Solo desarrollo · entrar sin servidor</Label>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Pressable onPress={() => devEnter('user')} style={{ flex: 1, height: 40, borderRadius: 11, borderWidth: 1, borderColor: colors.naranja[300], backgroundColor: colors.naranja[50], alignItems: 'center', justifyContent: 'center' }}>
+                <Body color={colors.naranja[700]} style={{ fontSize: 13.5, fontFamily: fonts.bodyBold }}>Cliente demo</Body>
+              </Pressable>
+              <Pressable onPress={() => devEnter('admin')} style={{ flex: 1, height: 40, borderRadius: 11, borderWidth: 1, borderColor: colors.azul[200], backgroundColor: colors.azul[50], alignItems: 'center', justifyContent: 'center' }}>
+                <Body color={colors.azul[700]} style={{ fontSize: 13.5, fontFamily: fonts.bodyBold }}>Admin demo</Body>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+
+        <Label style={{ textAlign: 'center', letterSpacing: 0.4, textTransform: 'none' }}>
           Modalidad Pick Up · Solo recogida en tienda
-        </Text>
+        </Label>
       </ScrollView>
     </SafeAreaView>
   );

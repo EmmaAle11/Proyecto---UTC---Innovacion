@@ -41,17 +41,17 @@ Perfil local enlazado a Keycloak (`keycloak_id` = `sub` del JWT). La **autoridad
 
 | Cód. | email | Nombre | `role` | Origen |
 | --- | --- | --- | --- | --- |
-| U01 | `prueba@utc.edu.mx` | Emmanuel Alejandre | `user` | **real** (registrado en la app) |
-| U02 | `prueba.func.1782226408@utc.edu.mx` | Prueba Funcional | `user` | **real** |
-| U03 | `sec.test.1782236599@utc.edu.mx` | Sec Test | `user` | **real** |
-| U04 | `valeria.ramirez@utc.edu.mx` | Valeria Ramírez | `user` | demo |
-| U05 | `diego.hernandez@utc.edu.mx` | Diego Hernández | `user` | demo |
-| U06 | `sofia.martinez@utc.edu.mx` | Sofía Martínez | `user` | demo |
-| U07 | `carlos.lopez@utc.edu.mx` | Carlos López | `user` | demo |
-| U08 | `ana.torres@utc.edu.mx` | Ana Torres | `user` | demo |
+| U01 | `prueba@edu.utc.mx` | Emmanuel Alejandre | `user` | registrado (migrado de `@utc.edu.mx`) |
+| U02 | `prueba.func.1782226408@edu.utc.mx` | Prueba Funcional | `user` | registrado (migrado) |
+| U03 | `sec.test.1782236599@edu.utc.mx` | Sec Test | `user` | registrado (migrado) |
+| U04 | `valeria.ramirez@edu.utc.mx` | Valeria Ramírez | `user` | demo |
+| U05 | `diego.hernandez@edu.utc.mx` | Diego Hernández | `user` | demo |
+| U06 | `sofia.martinez@edu.utc.mx` | Sofía Martínez | `user` | demo |
+| U07 | `carlos.lopez@edu.utc.mx` | Carlos López | `user` | demo |
+| U08 | `ana.torres@edu.utc.mx` | Ana Torres | `user` | demo |
 | U09 | `admin@picksazon.app` | Coop Admin | `admin` | demo (operador de la cooperativa) |
 
-> Los 3 clientes **reales** se crearon con el auto-registro `@utc.edu.mx` (D-014) y **no se modifican**. El admin (`coop-admin`) vive realmente en Keycloak con MFA (D-016); aquí se incluye su **espejo local** para mostrar el rol `admin`. Los alumnos demo llevan un `keycloak_id` de relleno (sin cuenta real) porque solo pueblan el modelo de datos.
+> **Dominio (D-011):** el dataset usa el correo institucional **`@edu.utc.mx`**. Los perfiles U01–U03 se habían registrado como `@utc.edu.mx` y se **migraron** a `@edu.utc.mx`; sus cuentas viejas de Keycloak quedan obsoletas, así que para entrar a la app se registra una `@edu.utc.mx` nueva. El admin (`coop-admin`) vive en Keycloak con MFA (D-016); aquí va su **espejo local** para mostrar el rol `admin`. El resto son alumnos demo con `keycloak_id` de relleno (solo pueblan el modelo de datos).
 
 ---
 

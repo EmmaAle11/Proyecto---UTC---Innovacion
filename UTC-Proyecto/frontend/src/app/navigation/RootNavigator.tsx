@@ -5,6 +5,7 @@ import { WelcomeScreen } from '../../pages/welcome/WelcomeScreen';
 import { LoginUsuarioScreen } from '../../pages/auth/LoginUsuarioScreen';
 import { LoginAdminScreen } from '../../pages/auth/LoginAdminScreen';
 import { MainStack } from './MainStack';
+import { AdminStack } from './AdminStack';
 import { useSessionStore } from '../../features/auth/model/session.store';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -20,7 +21,7 @@ export function RootNavigator() {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {session ? (
-          <Stack.Screen name="Main" component={MainStack} />
+          <Stack.Screen name="Main" component={session.role === 'admin' ? AdminStack : MainStack} />
         ) : (
           <Stack.Group>
             <Stack.Screen name="Welcome" component={WelcomeScreen} />

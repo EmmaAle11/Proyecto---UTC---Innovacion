@@ -46,7 +46,7 @@ Todo lo que hará, **todo lo que hará UTC Pick Sazón** — juntando la idea or
 
 **Para el alumno:**
 
-- Entrará con su **correo institucional** (`@utc.edu.mx`), sino tiene cuenta registrada en la app deberá crear una, cuando acceda verá el **menú con fotos**, precios y, lo mejor, **cuánto vas a esperar** por cada cosa. Lo que ya está hecho aparece como *Listo para llevar*.
+- Entrará con su **correo institucional** (`@edu.utc.mx`), sino tiene cuenta registrada en la app deberá crear una, cuando acceda verá el **menú con fotos**, precios y, lo mejor, **cuánto vas a esperar** por cada cosa. Lo que ya está hecho aparece como *Listo para llevar*.
 - Arma su pedido, elige cómo pagar (Mercado Pago, PayPal, tarjeta (TDC o TDD) o **efectivo al recoger**) y lo manda a la cocina **sin moverse de tu lugar**.
 - Puede **programar su pedido** para que esté listo justo cuando salga (ej. "lo quiero a las 10:00") — así llega y ya está.
 - Cuando esté listo llega una **notificación** con su **número de turno**: con ese número en el celular **no se acerca antes de tiempo**, y se acaba el amontonamiento en la ventanilla.
@@ -61,6 +61,8 @@ Todo lo que hará, **todo lo que hará UTC Pick Sazón** — juntando la idea or
 - Ve el **semáforo de congestión en vivo** según la cola (pedidos pendientes + en preparación + listos esperando): 🟢 **Verde (menos de 5)**, 🟡 **Amarillo (de 5 a 10)**, 🔴 **Rojo (más de 10)** — con el **número exacto** para leer cómo viene el recreo y, si hace falta, empujar el **pedido programado** para repartir la llegada. Ese mismo semáforo lo ve también el alumno (ver §3.14).
 - Aprovecha la **reoferta / "Pon tu precio"** para vender lo que ya está hecho antes de perderlo.
 - Con el tiempo, ve **qué se vende más y a qué hora pega el pico** (la app mide los tiempos reales de preparación) para comprar mejor y reforzar la hora pico.
+- Trabaja sobre **los mismos pedidos que el alumno**: lo que marca (En preparación, Listo, Entregado) le aparece al alumno al instante, y los pedidos que el alumno manda caen solos en su cola. Nadie ve cosas distintas.
+- Maneja su **cuenta**: puede **cerrar sesión** y ajustar opciones de **accesibilidad** (texto más grande, más contraste) y de **personalización** (su sucursal, los números del semáforo, su horario).
 
 En una frase: **pides desde tu lugar, te avisan con tu turno y recoges sin fila** — y la cooperativa cocina con orden y vende mejor.
 
@@ -215,7 +217,7 @@ Lo que hace que UTC Pick Sazón valga la pena, más allá de "una app para pedir
 
 - **Mata la fila del recreo de verdad:** turnos + semáforo + pedido programado reparten la llegada de cientos de alumnos a la misma hora.
 - **Nadie se queda viendo a ciegas:** siempre sabes cuánto falta y cuándo está listo.
-- **Incluye a todos:** pagar en efectivo al recoger (y a futuro, saldo/monedero escolar) para quien no trae tarjeta.
+- **Incluye a todos:** pagar en efectivo al recoger (y a futuro, saldo/monedero escolar) para quien no trae tarjeta, más opciones de accesibilidad (texto más grande, más contraste) para que cualquiera la use con comodidad.
 - **La cooperativa gana:** menos desperdicio (reoferta), mejores compras (datos de demanda) y una operación más tranquila en la hora pico.
 - **Escala:** si funciona aquí, el mismo diseño sirve para otros planteles (selección de sucursal por cercanía).
 

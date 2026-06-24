@@ -18,7 +18,7 @@ describe('AuthController', () => {
 
   it('register delega en AuthService', async () => {
     const dto: RegisterDto = {
-      email: 'alguien@utc.edu.mx',
+      email: 'alguien@edu.utc.mx',
       password: 'contrasena8',
       firstName: 'Ana',
       lastName: 'García',
@@ -35,7 +35,7 @@ describe('AuthController', () => {
 
   it('login delega en AuthService', async () => {
     const dto: LoginDto = {
-      email: 'alguien@utc.edu.mx',
+      email: 'alguien@edu.utc.mx',
       password: 'contrasena8',
     };
     auth.login.mockResolvedValue({

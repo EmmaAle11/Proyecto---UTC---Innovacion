@@ -17,7 +17,7 @@ export interface RegisterInput {
 /** Resultado del registro: tokens para auto-login; pueden faltar si el auto-login falló (la cuenta SÍ se creó). */
 export type RegisterResult = Partial<TokenPayload>;
 
-/** Crea la cuenta del cliente (backend valida @utc.edu.mx). Devuelve tokens si el auto-login funcionó. */
+/** Crea la cuenta del cliente (backend valida @edu.utc.mx). Devuelve tokens si el auto-login funcionó. */
 export function registerCliente(input: RegisterInput): Promise<RegisterResult> {
   return postJson<RegisterResult>('/auth/register', input);
 }

@@ -12,12 +12,45 @@ export const colors = {
 
 export const radius = { xs: 6, sm: 10, md: 14, lg: 18, xl: 24, card: 20, pill: 999 } as const;
 export const space = { 1: 4, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 8: 32, 10: 40, 12: 48 } as const;
-export const fonts = { display: 'BricolageGrotesque', body: 'PlusJakartaSans', mono: 'SpaceMono' } as const;
+// Familias reales cargadas en App.tsx con expo-font (@expo-google-fonts/*).
+// El nombre = clave exacta registrada en useFonts() = nombre del módulo de la fuente.
+export const fonts = {
+  // Display / titulares — Bricolage Grotesque (editorial, con carácter)
+  display: 'BricolageGrotesque_700Bold',
+  displayBlack: 'BricolageGrotesque_800ExtraBold',
+  displaySemi: 'BricolageGrotesque_600SemiBold',
+  // Cuerpo — Plus Jakarta Sans (limpia, legible)
+  body: 'PlusJakartaSans_400Regular',
+  bodyMedium: 'PlusJakartaSans_500Medium',
+  bodySemi: 'PlusJakartaSans_600SemiBold',
+  bodyBold: 'PlusJakartaSans_700Bold',
+  // Números / turnos / códigos / semáforo — Space Mono (aire de "ticket")
+  mono: 'SpaceMono_400Regular',
+  monoBold: 'SpaceMono_700Bold',
+} as const;
 
-// Tokens semánticos (mapeados de design-system/tokens/colors.css). Aliases sobre las rampas.
-export const text = { heading: colors.azul[700], muted: colors.gris[500], subtle: colors.gris[400] } as const;
+// Tokens semánticos: aliases legibles sobre las rampas de color.
+export const text = {
+  heading: colors.azul[700],
+  body: colors.gris[800],
+  muted: colors.gris[500],
+  subtle: colors.gris[400],
+  onInk: colors.blanco, // texto sobre superficies navy
+  onInkMuted: colors.azul[200],
+} as const;
 export const border = { subtle: colors.gris[200], default: colors.gris[300], strong: colors.gris[400] } as const;
-export const surface = { page: colors.gris[50] } as const;
+export const surface = {
+  page: colors.gris[50],
+  card: colors.blanco,
+  ink: colors.azul[900], // navy profundo para secciones editoriales oscuras
+  inkSoft: colors.azul[800],
+} as const;
+
+/** Sombras suaves para tarjetas y elementos flotantes (cross-platform). */
+export const shadow = {
+  card: { shadowColor: '#0A1430', shadowOpacity: 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 3 },
+  floating: { shadowColor: '#0A1430', shadowOpacity: 0.18, shadowRadius: 22, shadowOffset: { width: 0, height: 12 }, elevation: 9 },
+} as const;
 
 /** Colores de estado de producto/pedido: bg (fondo de la píldora), fg (texto), dot (punto). */
 export const state = {

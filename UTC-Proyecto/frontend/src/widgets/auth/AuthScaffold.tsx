@@ -1,9 +1,11 @@
-import { View, Text, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { LogoSymbol } from '../../shared/ui/LogoSymbol';
+import { Display } from '../../shared/ui/Type';
+import { surface, text, shadow } from '../../shared/theme';
 
 type Props = {
   gradient: readonly [string, string, string];
@@ -50,20 +52,20 @@ export function AuthScaffold({ gradient, blobTint, onBack, title, accessory, chi
 
           <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 30, paddingBottom: 8 }}>
             <View
-              style={{ alignSelf: 'flex-start', backgroundColor: '#fff', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 14, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 5 }}
+              style={{ alignSelf: 'flex-start', backgroundColor: surface.card, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 14, ...shadow.floating }}
             >
               <LogoSymbol width={120} />
             </View>
-            <Text style={{ color: '#fff', fontSize: 36, lineHeight: 39, fontWeight: '800', marginTop: 18, letterSpacing: -0.5 }}>
+            <Display color={text.onInk} style={{ fontSize: 38, lineHeight: 41, marginTop: 18 }}>
               {title}
-            </Text>
+            </Display>
             <View style={{ marginTop: 18 }}>{accessory}</View>
           </View>
         </SafeAreaView>
 
         {/* HOJA BLANCA */}
         <View
-          style={{ backgroundColor: '#fff', borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 24, paddingTop: 14, paddingBottom: insets.bottom + 16, gap: 12, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 22, shadowOffset: { width: 0, height: -8 }, elevation: 24 }}
+          style={{ backgroundColor: surface.card, borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 24, paddingTop: 14, paddingBottom: insets.bottom + 16, gap: 12, shadowColor: '#0A1430', shadowOpacity: 0.18, shadowRadius: 22, shadowOffset: { width: 0, height: -8 }, elevation: 24 }}
         >
           <View style={{ alignSelf: 'center', width: 42, height: 5, borderRadius: 5, backgroundColor: '#E6E9F0' }} />
           {children}

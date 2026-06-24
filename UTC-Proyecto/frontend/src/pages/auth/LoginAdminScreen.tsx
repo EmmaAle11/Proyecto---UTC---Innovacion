@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Pressable } from 'react-native';
 import { Mail, Lock, KeyRound, Eye, EyeOff, ShieldCheck, LogIn, CircleAlert } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../app/navigation/types';
 import { AuthScaffold } from '../../widgets/auth/AuthScaffold';
 import { BrandField } from '../../shared/ui/BrandField';
 import { PrimaryButton } from '../../shared/ui/PrimaryButton';
+import { Heading, Body } from '../../shared/ui/Type';
+import { colors, text, fonts } from '../../shared/theme';
 import { useSessionStore } from '../../features/auth/model/session.store';
 import { loginAdmin } from '../../features/auth/api/auth.api';
 import { ApiError } from '../../shared/api/client';
@@ -36,7 +38,7 @@ export function LoginAdminScreen({ navigation }: Props) {
     try {
       const res = await loginAdmin(mail, pass, totp);
       // setSession cambia el navegador a Main (guard de sesión, ver RootNavigator).
-      setSession({ accessToken: res.access_token, refreshToken: res.refresh_token, email: mail });
+      setSession({ accessToken: res.access_token, refreshToken: res.refresh_token, email: mail, role: 'admin' });
     } catch (e) {
       setError(
         e instanceof ApiError ? e.message : 'No se pudo conectar con el servidor. Revisa tu red.',
@@ -56,22 +58,22 @@ export function LoginAdminScreen({ navigation }: Props) {
         <View
           style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 13, paddingVertical: 7, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.16)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)' }}
         >
-          <ShieldCheck color="#F26336" size={15} />
-          <Text style={{ color: '#fff', fontSize: 12.5, fontWeight: '600' }}>
+          <ShieldCheck color={colors.naranja[400]} size={15} />
+          <Body color={text.onInk} style={{ fontSize: 12.5, fontFamily: fonts.bodySemi }}>
             Acceso restringido · Solo administradores
-          </Text>
+          </Body>
         </View>
       }
     >
       <View style={{ gap: 2 }}>
-        <Text style={{ fontSize: 20, fontWeight: '800', color: '#021E5E' }}>Iniciar sesión</Text>
-        <Text style={{ fontSize: 13.5, color: '#6C7689' }}>Usa tus credenciales de administrador</Text>
+        <Heading style={{ fontSize: 22, lineHeight: 26 }}>Iniciar sesión</Heading>
+        <Body color={text.muted} style={{ fontSize: 13.5 }}>Usa tus credenciales de administrador</Body>
       </View>
 
       {error ? (
         <View style={{ flexDirection: 'row', gap: 9, padding: 11, backgroundColor: '#FDECEC', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(215,38,61,0.18)' }}>
-          <CircleAlert color="#D7263D" size={17} />
-          <Text style={{ flex: 1, fontSize: 13, color: '#B01B30', fontWeight: '500' }}>{error}</Text>
+          <CircleAlert color={colors.rojo[500]} size={17} />
+          <Body color={colors.rojo[600]} style={{ flex: 1, fontSize: 13, fontFamily: fonts.bodyMedium }}>{error}</Body>
         </View>
       ) : null}
 
@@ -85,7 +87,7 @@ export function LoginAdminScreen({ navigation }: Props) {
         focused={focus === 'email'}
         onFocus={() => setFocus('email')}
         onBlur={() => setFocus(null)}
-        placeholder="admin@utc.edu.mx"
+        placeholder="admin@edu.utc.mx"
         keyboardType="email-address"
         autoCapitalize="none"
         hint="Cuenta de administrador UTC"
@@ -133,9 +135,9 @@ export function LoginAdminScreen({ navigation }: Props) {
         label={loading ? 'Verificando…' : 'Entrar al panel'}
       />
 
-      <Text style={{ textAlign: 'center', fontSize: 11.5, color: '#9BA4B5' }}>
+      <Body color={text.subtle} style={{ textAlign: 'center', fontSize: 11.5 }}>
         Acceso solo para personal autorizado · Verificación MFA
-      </Text>
+      </Body>
     </AuthScaffold>
   );
 }

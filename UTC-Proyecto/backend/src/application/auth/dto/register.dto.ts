@@ -8,7 +8,7 @@ import {
 } from 'class-validator';
 
 // BR-002 / D-011: correo institucional. El admin es aparte (no usa este endpoint).
-const UTC_DOMAIN = /@utc\.edu\.mx$/i;
+const UTC_DOMAIN = /@edu\.utc\.mx$/i;
 
 export class RegisterDto {
   @Transform(({ value }: { value: unknown }) =>
@@ -16,7 +16,7 @@ export class RegisterDto {
   )
   @IsEmail({}, { message: 'Correo inválido' })
   @Matches(UTC_DOMAIN, {
-    message: 'Debe ser un correo institucional @utc.edu.mx',
+    message: 'Debe ser un correo institucional @edu.utc.mx',
   })
   email: string;
 

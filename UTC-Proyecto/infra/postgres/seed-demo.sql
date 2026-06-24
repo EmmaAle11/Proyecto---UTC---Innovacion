@@ -25,17 +25,20 @@ BEGIN;
 
 -- ----------------------------------------------------------------------------
 -- 1) user_profile  (perfil local enlazado a Keycloak)
---    Los 3 clientes reales ya existen; aquí se agregan 5 alumnos demo + 1 admin.
---    Nota: el keycloak_id de los demo es filler (no hay cuenta real en Keycloak);
---    sirve para poblar el modelo de datos de la demo.
+--    9 perfiles de alumno demo + 1 admin, dominio @edu.utc.mx (D-011).
+--    Nota: el keycloak_id es filler (no hay cuenta real en Keycloak); sirve para
+--    poblar el modelo de datos. El login real lo maneja Keycloak por separado.
 -- ----------------------------------------------------------------------------
 INSERT INTO user_profile (id, keycloak_id, email, first_name, last_name, role, created_at, updated_at) VALUES
   ('f0000000-0000-4000-8000-000000000001', 'f1000000-0000-4000-8000-000000000001', 'admin@picksazon.app',          'Coop',     'Admin',     'admin', '2026-06-22 16:00:00+00', '2026-06-22 16:00:00+00'),
-  ('f0000000-0000-4000-8000-000000000002', 'f1000000-0000-4000-8000-000000000002', 'valeria.ramirez@utc.edu.mx',   'Valeria',  'Ramírez',   'user',  '2026-06-24 08:40:00+00', '2026-06-24 08:40:00+00'),
-  ('f0000000-0000-4000-8000-000000000003', 'f1000000-0000-4000-8000-000000000003', 'diego.hernandez@utc.edu.mx',   'Diego',    'Hernández', 'user',  '2026-06-24 08:42:00+00', '2026-06-24 08:42:00+00'),
-  ('f0000000-0000-4000-8000-000000000004', 'f1000000-0000-4000-8000-000000000004', 'sofia.martinez@utc.edu.mx',    'Sofía',    'Martínez',  'user',  '2026-06-24 08:45:00+00', '2026-06-24 08:45:00+00'),
-  ('f0000000-0000-4000-8000-000000000005', 'f1000000-0000-4000-8000-000000000005', 'carlos.lopez@utc.edu.mx',      'Carlos',   'López',     'user',  '2026-06-24 08:48:00+00', '2026-06-24 08:48:00+00'),
-  ('f0000000-0000-4000-8000-000000000006', 'f1000000-0000-4000-8000-000000000006', 'ana.torres@utc.edu.mx',        'Ana',      'Torres',    'user',  '2026-06-24 08:50:00+00', '2026-06-24 08:50:00+00')
+  ('f0000000-0000-4000-8000-000000000002', 'f1000000-0000-4000-8000-000000000002', 'valeria.ramirez@edu.utc.mx',   'Valeria',  'Ramírez',   'user',  '2026-06-24 08:40:00+00', '2026-06-24 08:40:00+00'),
+  ('f0000000-0000-4000-8000-000000000003', 'f1000000-0000-4000-8000-000000000003', 'diego.hernandez@edu.utc.mx',   'Diego',    'Hernández', 'user',  '2026-06-24 08:42:00+00', '2026-06-24 08:42:00+00'),
+  ('f0000000-0000-4000-8000-000000000004', 'f1000000-0000-4000-8000-000000000004', 'sofia.martinez@edu.utc.mx',    'Sofía',    'Martínez',  'user',  '2026-06-24 08:45:00+00', '2026-06-24 08:45:00+00'),
+  ('f0000000-0000-4000-8000-000000000005', 'f1000000-0000-4000-8000-000000000005', 'carlos.lopez@edu.utc.mx',      'Carlos',   'López',     'user',  '2026-06-24 08:48:00+00', '2026-06-24 08:48:00+00'),
+  ('f0000000-0000-4000-8000-000000000006', 'f1000000-0000-4000-8000-000000000006', 'ana.torres@edu.utc.mx',        'Ana',      'Torres',    'user',  '2026-06-24 08:50:00+00', '2026-06-24 08:50:00+00'),
+  ('f0000000-0000-4000-8000-000000000007', 'f1000000-0000-4000-8000-000000000007', 'prueba@edu.utc.mx',                 'Emmanuel', 'Alejandre', 'user',  '2026-06-23 20:03:00+00', '2026-06-23 20:03:00+00'),
+  ('f0000000-0000-4000-8000-000000000008', 'f1000000-0000-4000-8000-000000000008', 'prueba.func.1782226408@edu.utc.mx', 'Prueba',   'Funcional', 'user',  '2026-06-23 14:53:00+00', '2026-06-23 14:53:00+00'),
+  ('f0000000-0000-4000-8000-000000000009', 'f1000000-0000-4000-8000-000000000009', 'sec.test.1782236599@edu.utc.mx',    'Sec',      'Test',      'user',  '2026-06-23 17:43:00+00', '2026-06-23 17:43:00+00')
 ON CONFLICT (email) DO NOTHING;
 
 -- ----------------------------------------------------------------------------
@@ -66,17 +69,17 @@ ON CONFLICT (id) DO NOTHING;
 --    Owner por email (3 reales + alumnos demo).
 -- ----------------------------------------------------------------------------
 INSERT INTO orders (id, user_profile_id, status, total_amount, accepted_at, estimated_ready_at, ready_at, pickup_deadline, picked_up_at, created_at, updated_at) VALUES
-  ('b0000000-0000-4000-8000-000000000001', (SELECT id FROM user_profile WHERE email='prueba@utc.edu.mx'),                 'picked_up',     56.00, '2026-06-24 09:32:00+00', '2026-06-24 09:44:00+00', '2026-06-24 09:43:00+00', '2026-06-24 10:03:00+00', '2026-06-24 09:48:00+00', '2026-06-24 09:31:00+00', '2026-06-24 09:48:00+00'),
-  ('b0000000-0000-4000-8000-000000000002', (SELECT id FROM user_profile WHERE email='valeria.ramirez@utc.edu.mx'),        'preparing',    123.00, '2026-06-24 09:51:00+00', '2026-06-24 10:06:00+00', NULL,                     NULL,                     NULL,                     '2026-06-24 09:50:00+00', '2026-06-24 09:51:00+00'),
-  ('b0000000-0000-4000-8000-000000000003', (SELECT id FROM user_profile WHERE email='diego.hernandez@utc.edu.mx'),        'ready',         50.00, '2026-06-24 09:41:00+00', '2026-06-24 09:54:00+00', '2026-06-24 09:55:00+00', '2026-06-24 10:15:00+00', NULL,                     '2026-06-24 09:40:00+00', '2026-06-24 09:55:00+00'),
-  ('b0000000-0000-4000-8000-000000000004', (SELECT id FROM user_profile WHERE email='sofia.martinez@utc.edu.mx'),         'pending',       59.00, NULL,                     NULL,                     NULL,                     NULL,                     NULL,                     '2026-06-24 10:02:00+00', '2026-06-24 10:02:00+00'),
-  ('b0000000-0000-4000-8000-000000000005', (SELECT id FROM user_profile WHERE email='carlos.lopez@utc.edu.mx'),           'not_picked_up', 50.00, '2026-06-24 09:21:00+00', '2026-06-24 09:31:00+00', '2026-06-24 09:30:00+00', '2026-06-24 09:50:00+00', NULL,                     '2026-06-24 09:20:00+00', '2026-06-24 09:50:00+00'),
-  ('b0000000-0000-4000-8000-000000000006', (SELECT id FROM user_profile WHERE email='ana.torres@utc.edu.mx'),             'cancelled',     38.00, NULL,                     NULL,                     NULL,                     NULL,                     NULL,                     '2026-06-24 09:15:00+00', '2026-06-24 09:17:00+00'),
-  ('b0000000-0000-4000-8000-000000000007', (SELECT id FROM user_profile WHERE email='prueba.func.1782226408@utc.edu.mx'), 'ready_later',   68.00, '2026-06-24 09:26:00+00', '2026-06-24 09:39:00+00', '2026-06-24 09:40:00+00', '2026-06-24 10:00:00+00', NULL,                     '2026-06-24 09:25:00+00', '2026-06-24 10:01:00+00'),
-  ('b0000000-0000-4000-8000-000000000008', (SELECT id FROM user_profile WHERE email='sec.test.1782236599@utc.edu.mx'),    'picked_up',     58.00, '2026-06-24 09:06:00+00', '2026-06-24 09:20:00+00', '2026-06-24 09:19:00+00', '2026-06-24 09:39:00+00', '2026-06-24 09:24:00+00', '2026-06-24 09:05:00+00', '2026-06-24 09:24:00+00'),
-  ('b0000000-0000-4000-8000-000000000009', (SELECT id FROM user_profile WHERE email='prueba@utc.edu.mx'),                 'picked_up',     97.00, '2026-06-24 08:56:00+00', '2026-06-24 09:11:00+00', '2026-06-24 09:10:00+00', '2026-06-24 09:30:00+00', '2026-06-24 09:15:00+00', '2026-06-24 08:55:00+00', '2026-06-24 09:15:00+00'),
-  ('b0000000-0000-4000-8000-000000000010', (SELECT id FROM user_profile WHERE email='diego.hernandez@utc.edu.mx'),        'picked_up',     40.00, '2026-06-24 09:36:00+00', '2026-06-24 09:43:00+00', '2026-06-24 09:42:00+00', '2026-06-24 10:02:00+00', '2026-06-24 09:50:00+00', '2026-06-24 09:35:00+00', '2026-06-24 09:50:00+00'),
-  ('b0000000-0000-4000-8000-000000000011', (SELECT id FROM user_profile WHERE email='valeria.ramirez@utc.edu.mx'),        'cancelled',     50.00, NULL,                     NULL,                     NULL,                     NULL,                     NULL,                     '2026-06-24 09:48:00+00', '2026-06-24 09:49:00+00')
+  ('b0000000-0000-4000-8000-000000000001', (SELECT id FROM user_profile WHERE email='prueba@edu.utc.mx'),                 'picked_up',     56.00, '2026-06-24 09:32:00+00', '2026-06-24 09:44:00+00', '2026-06-24 09:43:00+00', '2026-06-24 10:03:00+00', '2026-06-24 09:48:00+00', '2026-06-24 09:31:00+00', '2026-06-24 09:48:00+00'),
+  ('b0000000-0000-4000-8000-000000000002', (SELECT id FROM user_profile WHERE email='valeria.ramirez@edu.utc.mx'),        'preparing',    123.00, '2026-06-24 09:51:00+00', '2026-06-24 10:06:00+00', NULL,                     NULL,                     NULL,                     '2026-06-24 09:50:00+00', '2026-06-24 09:51:00+00'),
+  ('b0000000-0000-4000-8000-000000000003', (SELECT id FROM user_profile WHERE email='diego.hernandez@edu.utc.mx'),        'ready',         50.00, '2026-06-24 09:41:00+00', '2026-06-24 09:54:00+00', '2026-06-24 09:55:00+00', '2026-06-24 10:15:00+00', NULL,                     '2026-06-24 09:40:00+00', '2026-06-24 09:55:00+00'),
+  ('b0000000-0000-4000-8000-000000000004', (SELECT id FROM user_profile WHERE email='sofia.martinez@edu.utc.mx'),         'pending',       59.00, NULL,                     NULL,                     NULL,                     NULL,                     NULL,                     '2026-06-24 10:02:00+00', '2026-06-24 10:02:00+00'),
+  ('b0000000-0000-4000-8000-000000000005', (SELECT id FROM user_profile WHERE email='carlos.lopez@edu.utc.mx'),           'not_picked_up', 50.00, '2026-06-24 09:21:00+00', '2026-06-24 09:31:00+00', '2026-06-24 09:30:00+00', '2026-06-24 09:50:00+00', NULL,                     '2026-06-24 09:20:00+00', '2026-06-24 09:50:00+00'),
+  ('b0000000-0000-4000-8000-000000000006', (SELECT id FROM user_profile WHERE email='ana.torres@edu.utc.mx'),             'cancelled',     38.00, NULL,                     NULL,                     NULL,                     NULL,                     NULL,                     '2026-06-24 09:15:00+00', '2026-06-24 09:17:00+00'),
+  ('b0000000-0000-4000-8000-000000000007', (SELECT id FROM user_profile WHERE email='prueba.func.1782226408@edu.utc.mx'), 'ready_later',   68.00, '2026-06-24 09:26:00+00', '2026-06-24 09:39:00+00', '2026-06-24 09:40:00+00', '2026-06-24 10:00:00+00', NULL,                     '2026-06-24 09:25:00+00', '2026-06-24 10:01:00+00'),
+  ('b0000000-0000-4000-8000-000000000008', (SELECT id FROM user_profile WHERE email='sec.test.1782236599@edu.utc.mx'),    'picked_up',     58.00, '2026-06-24 09:06:00+00', '2026-06-24 09:20:00+00', '2026-06-24 09:19:00+00', '2026-06-24 09:39:00+00', '2026-06-24 09:24:00+00', '2026-06-24 09:05:00+00', '2026-06-24 09:24:00+00'),
+  ('b0000000-0000-4000-8000-000000000009', (SELECT id FROM user_profile WHERE email='prueba@edu.utc.mx'),                 'picked_up',     97.00, '2026-06-24 08:56:00+00', '2026-06-24 09:11:00+00', '2026-06-24 09:10:00+00', '2026-06-24 09:30:00+00', '2026-06-24 09:15:00+00', '2026-06-24 08:55:00+00', '2026-06-24 09:15:00+00'),
+  ('b0000000-0000-4000-8000-000000000010', (SELECT id FROM user_profile WHERE email='diego.hernandez@edu.utc.mx'),        'picked_up',     40.00, '2026-06-24 09:36:00+00', '2026-06-24 09:43:00+00', '2026-06-24 09:42:00+00', '2026-06-24 10:02:00+00', '2026-06-24 09:50:00+00', '2026-06-24 09:35:00+00', '2026-06-24 09:50:00+00'),
+  ('b0000000-0000-4000-8000-000000000011', (SELECT id FROM user_profile WHERE email='valeria.ramirez@edu.utc.mx'),        'cancelled',     50.00, NULL,                     NULL,                     NULL,                     NULL,                     NULL,                     '2026-06-24 09:48:00+00', '2026-06-24 09:49:00+00')
 ON CONFLICT (id) DO NOTHING;
 
 -- ----------------------------------------------------------------------------
@@ -157,15 +160,13 @@ ON CONFLICT (id) DO NOTHING;
 COMMIT;
 
 -- ============================================================================
--- REINICIO (opcional) — borra SOLO los datos demo (los 3 clientes reales se
--- conservan). Descomenta y corre para limpiar antes de re-sembrar.
+-- REINICIO (opcional) — borra TODOS los datos demo. Descomenta y corre para
+-- limpiar antes de re-sembrar.
 -- ----------------------------------------------------------------------------
 -- BEGIN;
 --   DELETE FROM preparation_times WHERE id LIKE 'e0000000-%';
 --   DELETE FROM orders   WHERE id LIKE 'b0000000-%';  -- cascada: order_items + payments
 --   DELETE FROM products WHERE id LIKE 'a0000000-%';
---   DELETE FROM user_profile WHERE email IN
---     ('admin@picksazon.app','valeria.ramirez@utc.edu.mx','diego.hernandez@utc.edu.mx',
---      'sofia.martinez@utc.edu.mx','carlos.lopez@utc.edu.mx','ana.torres@utc.edu.mx');
+--   DELETE FROM user_profile WHERE id LIKE 'f0000000-%';
 -- COMMIT;
 -- ============================================================================

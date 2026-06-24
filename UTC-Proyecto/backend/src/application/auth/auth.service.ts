@@ -21,7 +21,7 @@ export class AuthService {
   ) {}
 
   /**
-   * Crea la cuenta en Keycloak (dominio @utc.edu.mx validado en el DTO), inserta el
+   * Crea la cuenta en Keycloak (dominio @edu.utc.mx validado en el DTO), inserta el
    * perfil local (orders lo requiere) y devuelve tokens (auto-login). Atómico: si falla
    * el perfil local, deshace el usuario de Keycloak.
    */

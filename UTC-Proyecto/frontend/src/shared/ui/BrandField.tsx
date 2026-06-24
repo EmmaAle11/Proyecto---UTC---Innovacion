@@ -1,5 +1,6 @@
 import { View, Text, TextInput, type StyleProp, type ViewStyle, type TextInputProps } from 'react-native';
 import type { ReactNode } from 'react';
+import { fonts } from '../theme';
 
 type Props = {
   value: string;
@@ -65,11 +66,11 @@ export function BrandField({
           secureTextEntry={secure}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
-          style={{ flex: 1, fontSize: 15, color: '#021E5E' }}
+          style={{ flex: 1, fontSize: 15, color: '#021E5E', fontFamily: fonts.bodyMedium }}
         />
         {rightSlot}
       </View>
-      {hint ? <Text style={{ fontSize: 12, color: '#6C7689', marginTop: 4 }}>{hint}</Text> : null}
+      {hint ? <Text style={{ fontSize: 12, color: '#6C7689', marginTop: 4, fontFamily: fonts.body }}>{hint}</Text> : null}
     </View>
   );
 }

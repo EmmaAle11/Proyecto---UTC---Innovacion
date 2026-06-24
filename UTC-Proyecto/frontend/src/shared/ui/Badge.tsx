@@ -1,6 +1,6 @@
 import { View, Text, type StyleProp, type ViewStyle } from 'react-native';
 import type { ReactNode } from 'react';
-import { colors, state } from '../theme';
+import { colors, state, fonts } from '../theme';
 
 export type BadgeTone = 'neutral' | 'primary' | 'cooking' | 'ready' | 'reoffer' | 'success';
 
@@ -21,7 +21,7 @@ type Props = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** Píldora de estado (Preparado · En preparación · Listo…). Tonos del design-system. */
+/** Píldora de estado (Preparado · En preparación · Listo…). Tonos del sistema de diseño. */
 export function Badge({ tone = 'neutral', dot, icon, children, style }: Props) {
   const t = TONES[tone];
   return (
@@ -33,7 +33,7 @@ export function Badge({ tone = 'neutral', dot, icon, children, style }: Props) {
     >
       {dot ? <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: t.dot }} /> : null}
       {icon}
-      <Text style={{ color: t.fg, fontWeight: '700', fontSize: 12 }}>{children}</Text>
+      <Text style={{ color: t.fg, fontFamily: fonts.bodyBold, fontSize: 12 }}>{children}</Text>
     </View>
   );
 }

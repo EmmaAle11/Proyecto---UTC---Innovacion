@@ -1,5 +1,6 @@
 import { Pressable, Text, ActivityIndicator } from 'react-native';
 import type { ReactNode } from 'react';
+import { fonts } from '../theme';
 
 type Props = {
   label: string;
@@ -34,7 +35,7 @@ export function PrimaryButton({ label, onPress, color, loading, icon, disabled }
       }}
     >
       {loading ? <ActivityIndicator color="#fff" /> : icon}
-      <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15.5 }}>{label}</Text>
+      <Text style={{ color: '#fff', fontFamily: fonts.bodyBold, fontSize: 15.5 }}>{label}</Text>
     </Pressable>
   );
 }

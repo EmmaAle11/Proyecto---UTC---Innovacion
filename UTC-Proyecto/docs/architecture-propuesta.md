@@ -10,7 +10,8 @@
 
 ## 1. Frontend — Expo (managed) + React Native
 
-- **Tecnología:** Expo SDK 56 (runtime **Expo Go**, D-012), TypeScript, **NativeWind/Tailwind**, React Navigation, **Zustand**, `react-native-svg`, `expo-linear-gradient`, `expo-constants`.
+- **Tecnología:** Expo SDK 56 (runtime **Expo Go**, D-012), TypeScript, **NativeWind/Tailwind**, React Navigation, **Zustand**, `react-native-svg`, `expo-linear-gradient`, `expo-constants`, **`expo-font`** (identidad "Editorial Street-Food", D-020: Bricolage Grotesque / Plus Jakarta Sans / Space Mono).
+- **Roles y navegación:** `RootNavigator` ramifica por rol de sesión — cliente → `MainStack` (tabs Inicio·Pedidos·Perfil); **admin → `AdminStack`** (tabs Dashboard·Cola·Menú + Detalle de pedido / Editar producto / Reoferta). Sistema de diseño en código: `shared/theme/tokens.ts` + primitivas `shared/ui/Type`. (El `design-system/` de referencia se retiró; másters del logo en `brand/`.)
 - **Arquitectura FSD** (`frontend/src/`):
 
 ```txt
@@ -61,7 +62,7 @@ Controller → ValidationPipe (DTO) → Service (application)
 | Ruta | Método | Función |
 | --- | --- | --- |
 | `/health` | GET | estado del servicio + conexión a BD (`{status, db}`) |
-| `/auth/register` | POST | crea cuenta de cliente en Keycloak (valida `@utc.edu.mx`, rol `user`) y devuelve tokens |
+| `/auth/register` | POST | crea cuenta de cliente en Keycloak (valida `@edu.utc.mx`, rol `user`) y devuelve tokens |
 | `/auth/login` | POST | login del cliente (password grant) → tokens |
 | `/auth/admin/login` | POST | login del **admin**: password grant + **`totp`** (MFA) + verifica rol `admin` (403 si no) |
 | `/auth/me` | GET | (protegido) identidad del JWT (`sub`, `email`, `roles`) |
@@ -86,7 +87,7 @@ Controller → ValidationPipe (DTO) → Service (application)
   - `backend-svc` — **confidential**, **service account** (lo usa el backend para crear usuarios por la Admin API). Roles de `realm-management`: **`manage-users`** + **`view-realm`**.
 - **Modelo por rol (sin Microsoft — el equipo nunca tendrá app registration + admin consent del tenant UTC):**
   - **Admin** (`coop-admin`, D-015) → credenciales **locales**, **sembradas** (no se auto-registra). Correo `admin@picksazon.app`. **MFA activa** (TOTP de Keycloak, D-016): `POST /auth/admin/login` exige el código `totp` + rol `admin`.
-  - **Cliente (`user`)** → **auto-registro restringido a `@utc.edu.mx`** vía backend; credenciales locales. Sin Microsoft/Outlook.
+  - **Cliente (`user`)** → **auto-registro restringido a `@edu.utc.mx`** vía backend; credenciales locales. Sin Microsoft/Outlook.
 - **Keycloak es el único emisor de tokens.** El backend valida firma + rol del JWT (implementado, D-017). Federar Microsoft a futuro sería "solo config" (no requiere reescritura).
 
 ---
@@ -101,7 +102,7 @@ Script **idempotente** (re-ejecutable) que prepara la instancia viva (editar el 
 **Variables** (`infra/.env`): `KEYCLOAK_ADMIN`, `KEYCLOAK_ADMIN_PASSWORD`, `ADMIN_SEED_USERNAME`, `ADMIN_SEED_EMAIL`, `ADMIN_SEED_PASSWORD`, `BACKEND_CLIENT_SECRET`.
 El backend usa `KEYCLOAK_BACKEND_CLIENT_ID=backend-svc` + `KEYCLOAK_BACKEND_CLIENT_SECRET` (mismo valor) desde `backend/.env`.
 
-**Verificación (§0):** token `client_credentials` de `backend-svc` → Admin API HTTP 200; registro `@utc.edu.mx` → token con `realm_access.roles` incluyendo `user`. El **cliente no se siembra**: se auto-registra por `POST /auth/register`.
+**Verificación (§0):** token `client_credentials` de `backend-svc` → Admin API HTTP 200; registro `@edu.utc.mx` → token con `realm_access.roles` incluyendo `user`. El **cliente no se siembra**: se auto-registra por `POST /auth/register`.
 
 ---
 
@@ -129,7 +130,7 @@ El backend usa `KEYCLOAK_BACKEND_CLIENT_ID=backend-svc` + `KEYCLOAK_BACKEND_CLIE
 | --- | --- | --- | --- |
 | `id` | uuid | PK, default `gen_random_uuid()` | |
 | `keycloak_id` | uuid | UNIQUE, NOT NULL | `sub` del JWT de Keycloak |
-| `email` | text | UNIQUE, NOT NULL | cliente: `@utc.edu.mx` |
+| `email` | text | UNIQUE, NOT NULL | cliente: `@edu.utc.mx` |
 | `first_name` | text | NOT NULL | |
 | `last_name` | text | NOT NULL | |
 | `role` | `user_role` | NOT NULL, default `user` | **autoridad real = JWT**; copia de conveniencia |

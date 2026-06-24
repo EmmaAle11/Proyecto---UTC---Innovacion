@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Pressable } from 'react-native';
 import { Mail, Lock, User, Eye, EyeOff, CircleAlert, Info } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../app/navigation/types';
 import { AuthScaffold } from '../../widgets/auth/AuthScaffold';
 import { BrandField } from '../../shared/ui/BrandField';
 import { PrimaryButton } from '../../shared/ui/PrimaryButton';
+import { Heading, Body } from '../../shared/ui/Type';
+import { colors, text, fonts } from '../../shared/theme';
 import { registerCliente, loginCliente } from '../../features/auth/api/auth.api';
 import { useSessionStore } from '../../features/auth/model/session.store';
 import { ApiError } from '../../shared/api/client';
@@ -14,7 +16,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'LoginUsuario'>;
 type Mode = 'register' | 'login';
 
 const PILLS = ['⏱ Tiempos visibles', '📍 Pick Up', '✓ Paga con tarjeta'];
-const UTC_DOMAIN = /@utc\.edu\.mx$/i;
+const UTC_DOMAIN = /@edu\.utc\.mx$/i;
 const NARANJA = ['#F0531A', '#E34100', '#A82C00'] as const;
 
 /** Login/registro del cliente: cuenta LOCAL en Keycloak vía backend (sin Microsoft). Ver D-014. */
@@ -42,7 +44,7 @@ export function LoginUsuarioScreen({ navigation }: Props) {
     setError('');
     const mail = email.trim().toLowerCase();
     if (!mail) return setError('Ingresa tu correo institucional');
-    if (!UTC_DOMAIN.test(mail)) return setError('Usa tu correo @utc.edu.mx');
+    if (!UTC_DOMAIN.test(mail)) return setError('Usa tu correo @edu.utc.mx');
     if (isRegister && (!firstName.trim() || !lastName.trim()))
       return setError('Ingresa tu nombre y apellido');
     if (isRegister && password.length < 8)
@@ -67,7 +69,7 @@ export function LoginUsuarioScreen({ navigation }: Props) {
         res = await loginCliente(mail, password);
       }
       // setSession cambia el navegador a Main (guard de sesión, ver RootNavigator).
-      setSession({ accessToken: res.access_token, refreshToken: res.refresh_token, email: mail });
+      setSession({ accessToken: res.access_token, refreshToken: res.refresh_token, email: mail, role: 'user' });
     } catch (e) {
       setError(
         e instanceof ApiError ? e.message : 'No se pudo conectar con el servidor. Revisa tu red.',
@@ -90,25 +92,25 @@ export function LoginUsuarioScreen({ navigation }: Props) {
               key={f}
               style={{ paddingHorizontal: 13, paddingVertical: 7, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.16)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)' }}
             >
-              <Text style={{ color: '#fff', fontSize: 12.5, fontWeight: '600' }}>{f}</Text>
+              <Body color={text.onInk} style={{ fontSize: 12.5, fontFamily: fonts.bodySemi }}>{f}</Body>
             </View>
           ))}
         </View>
       }
     >
       <View style={{ gap: 2 }}>
-        <Text style={{ fontSize: 20, fontWeight: '800', color: '#021E5E' }}>
+        <Heading style={{ fontSize: 22, lineHeight: 26 }}>
           {isRegister ? 'Crea tu cuenta' : 'Inicia sesión'}
-        </Text>
-        <Text style={{ fontSize: 13.5, color: '#6C7689' }}>
-          {isRegister ? 'Con tu correo institucional @utc.edu.mx' : 'Con tu correo y contraseña'}
-        </Text>
+        </Heading>
+        <Body color={text.muted} style={{ fontSize: 13.5 }}>
+          {isRegister ? 'Con tu correo institucional @edu.utc.mx' : 'Con tu correo y contraseña'}
+        </Body>
       </View>
 
       {error ? (
         <View style={{ flexDirection: 'row', gap: 9, padding: 11, backgroundColor: '#FDECEC', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(215,38,61,0.18)' }}>
-          <CircleAlert color="#D7263D" size={17} />
-          <Text style={{ flex: 1, fontSize: 13, color: '#B01B30', fontWeight: '500' }}>{error}</Text>
+          <CircleAlert color={colors.rojo[500]} size={17} />
+          <Body color={colors.rojo[600]} style={{ flex: 1, fontSize: 13, fontFamily: fonts.bodyMedium }}>{error}</Body>
         </View>
       ) : null}
 
@@ -146,7 +148,7 @@ export function LoginUsuarioScreen({ navigation }: Props) {
         focused={focus === 'email'}
         onFocus={() => setFocus('email')}
         onBlur={() => setFocus(null)}
-        placeholder="tucorreo@utc.edu.mx"
+        placeholder="tucorreo@edu.utc.mx"
         keyboardType="email-address"
         autoCapitalize="none"
       />
@@ -186,26 +188,26 @@ export function LoginUsuarioScreen({ navigation }: Props) {
       />
 
       <Pressable onPress={switchMode} hitSlop={6} style={{ alignSelf: 'center', paddingVertical: 2 }}>
-        <Text style={{ fontSize: 13.5, color: '#6C7689' }}>
+        <Body color={text.muted} style={{ fontSize: 13.5 }}>
           {isRegister ? '¿Ya tienes cuenta? ' : '¿Nuevo aquí? '}
-          <Text style={{ color: '#E34100', fontWeight: '700' }}>
+          <Body color={colors.naranja[500]} style={{ fontSize: 13.5, fontFamily: fonts.bodyBold }}>
             {isRegister ? 'Inicia sesión' : 'Crea tu cuenta'}
-          </Text>
-        </Text>
+          </Body>
+        </Body>
       </Pressable>
 
       {isRegister ? (
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 2 }}>
-          <Info color="#9BA4B5" size={14} />
-          <Text style={{ flex: 1, fontSize: 11.5, color: '#9BA4B5', lineHeight: 16 }}>
-            Solo cuentas <Text style={{ color: '#021E5E', fontWeight: '700' }}>@utc.edu.mx</Text>. Creas
+          <Info color={colors.gris[400]} size={14} />
+          <Body color={text.subtle} style={{ flex: 1, fontSize: 11.5, lineHeight: 16 }}>
+            Solo cuentas <Body color={text.heading} style={{ fontSize: 11.5, fontFamily: fonts.bodyBold }}>@edu.utc.mx</Body>. Creas
             tu contraseña la primera vez · Modalidad Pick Up.
-          </Text>
+          </Body>
         </View>
       ) : (
-        <Text style={{ textAlign: 'center', fontSize: 11.5, color: '#9BA4B5' }}>
+        <Body color={text.subtle} style={{ textAlign: 'center', fontSize: 11.5 }}>
           Modalidad Pick Up · Solo recogida en tienda
-        </Text>
+        </Body>
       )}
     </AuthScaffold>
   );

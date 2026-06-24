@@ -1,66 +1,101 @@
-import { useEffect, useState } from 'react';
-import { View, Text, ScrollView } from 'react-native';
+import { View, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChefHat, CircleCheckBig, Timer } from 'lucide-react-native';
+import { ChefHat, CircleCheckBig, Timer, PackageCheck, Receipt, CircleSlash } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { MainStackParamList } from '../../app/navigation/types';
 import { OrderTracker } from '../../shared/ui/OrderTracker';
 import { PrimaryButton } from '../../shared/ui/PrimaryButton';
-import { colors, text, border, state } from '../../shared/theme';
-import { ACTIVE_ORDER } from '../../entities/order/mock';
+import { Display, Heading, Body, Label, Mono } from '../../shared/ui/Type';
+import { colors, text, border, surface, shadow, fonts, radius, space, state } from '../../shared/theme';
+import { useOrdersStore, trackerStep } from '../../features/orders/model/orders.store';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'Tracking'>;
 
-/** Seguimiento del pedido: código de recogida + tracker que avanza a "Listo" (demo). */
+/**
+ * Seguimiento del pedido: lee el estado EN VIVO del store compartido (lo que el
+ * admin marca aparece aquí). Código de recogida + tracker derivado del estado.
+ */
 export function TrackingScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const [step, setStep] = useState(1); // 0 Pagado · 1 En preparación · 2 Listo · 3 Recogido
-  useEffect(() => {
-    const t = setTimeout(() => setStep(2), 3500);
-    return () => clearTimeout(t);
-  }, []);
-  const ready = step >= 2;
+  const order = useOrdersStore((s) => s.orders.find((o) => o.id === s.activeOrderId));
+
+  // Sin pedido en curso (nunca se envió uno): estado vacío.
+  if (!order) {
+    return (
+      <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: surface.page }}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 }}>
+          <Receipt size={46} color={colors.gris[300]} />
+          <Display style={{ marginTop: 16, textAlign: 'center' }}>Sin pedido{'\n'}en curso</Display>
+          <Body color={text.muted} style={{ marginTop: 10, textAlign: 'center', fontSize: 15, lineHeight: 22 }}>
+            Arma tu antojo en el menú y te avisamos en cuanto esté en el mostrador.
+          </Body>
+        </View>
+        <View style={{ paddingHorizontal: space[5], paddingBottom: insets.bottom + space[2] }}>
+          <PrimaryButton color={colors.naranja[500]} onPress={() => navigation.popToTop()} label="Ir al menú" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const step = trackerStep(order.status);
+  const ready = order.status === 'ready' || order.status === 'ready_later';
+  const done = order.status === 'picked_up';
+  const failed = order.status === 'cancelled' || order.status === 'not_picked_up';
+
+  const hero = failed
+    ? { icon: <CircleSlash size={38} color={colors.rojo[500]} />, bg: colors.rojo[50], accent: colors.rojo[500], title: order.status === 'cancelled' ? 'Pedido\ncancelado' : 'No se\nrecogió', sub: 'Si fue un error, vuelve a pedir desde el menú.' }
+    : done
+      ? { icon: <PackageCheck size={38} color={colors.lima[500]} />, bg: colors.lima[50], accent: colors.lima[500], title: '¡Pedido\nrecogido!', sub: 'Gracias por tu compra. ¡Buen provecho!' }
+      : ready
+        ? { icon: <CircleCheckBig size={38} color={colors.lima[500]} />, bg: colors.lima[50], accent: colors.lima[500], title: '¡Tu pedido\nestá listo!', sub: 'Pásale a recogerlo a la cooperativa.' }
+        : { icon: <ChefHat size={38} color={colors.mango[600]} />, bg: state.cooking.bg, accent: colors.naranja[500], title: order.status === 'pending' ? 'Pedido\nrecibido' : 'Estamos\npreparando\ntu pedido', sub: order.status === 'pending' ? 'En cuanto la cocina lo acepte, empieza la preparación.' : 'Te avisamos en cuanto esté en el mostrador.' };
 
   return (
-    <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: colors.gris[50] }}>
-      <ScrollView contentContainerStyle={{ padding: 22, paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
-        <View style={{ alignItems: 'center', paddingTop: 8, paddingBottom: 22 }}>
-          <View style={{ width: 76, height: 76, borderRadius: 38, alignItems: 'center', justifyContent: 'center', marginBottom: 16, backgroundColor: ready ? colors.lima[50] : state.cooking.bg }}>
-            {ready ? <CircleCheckBig size={38} color={colors.lima[500]} /> : <ChefHat size={38} color={colors.mango[600]} />}
+    <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: surface.page }}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: space[5], paddingTop: space[5], paddingBottom: space[6] }} showsVerticalScrollIndicator={false}>
+        {/* HERO editorial de estado */}
+        <View style={{ paddingTop: space[1], paddingBottom: space[6] }}>
+          <View style={{ width: 76, height: 76, borderRadius: 38, alignItems: 'center', justifyContent: 'center', marginBottom: space[4], backgroundColor: hero.bg }}>
+            {hero.icon}
           </View>
-          <Text style={{ fontSize: 23, fontWeight: '800', color: text.heading, marginBottom: 6, textAlign: 'center' }}>
-            {ready ? '¡Tu pedido está listo!' : 'Estamos preparando tu pedido'}
-          </Text>
-          <Text style={{ fontSize: 14.5, color: colors.gris[600], textAlign: 'center' }}>
-            {ready ? 'Pásale a recogerlo a la cooperativa.' : 'Te avisamos en cuanto esté en el mostrador.'}
-          </Text>
+          <Display>{hero.title}</Display>
+          <View style={{ width: 58, height: 6, borderRadius: 3, backgroundColor: hero.accent, marginTop: space[3], marginBottom: space[4] }} />
+          <Body color={text.muted} style={{ fontSize: 15, lineHeight: 22 }}>{hero.sub}</Body>
         </View>
 
-        <View style={{ backgroundColor: colors.azul[700], borderRadius: 20, padding: 22, marginBottom: 18 }}>
-          <Text style={{ fontSize: 12, color: colors.azul[200], fontWeight: '600', letterSpacing: 1, marginBottom: 6 }}>CÓDIGO DE RECOGIDA</Text>
-          <Text style={{ fontSize: 40, fontWeight: '800', letterSpacing: 3, color: '#fff' }}>{ACTIVE_ORDER.code}</Text>
-          <Text style={{ fontSize: 12.5, color: colors.azul[200], marginTop: 4 }}>Muéstralo en el mostrador de la cooperativa</Text>
+        {/* TARJETA DE CÓDIGO DE RECOGIDA — ticket navy */}
+        <View style={{ backgroundColor: surface.ink, borderRadius: radius.card, paddingVertical: space[6], paddingHorizontal: space[5], marginBottom: space[5], ...shadow.floating }}>
+          <Label color={text.onInkMuted}>Tu código de recogida</Label>
+          <Mono color={text.onInk} style={{ fontFamily: fonts.monoBold, fontSize: 48, lineHeight: 56, letterSpacing: 6, marginTop: space[2] }}>{order.code}</Mono>
+          <Body color={text.onInkMuted} style={{ fontSize: 13, marginTop: space[2] }}>Muéstralo en el mostrador de la cooperativa</Body>
         </View>
 
-        <View style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: border.subtle, borderRadius: 18, paddingVertical: 22, paddingHorizontal: 14, marginBottom: 16 }}>
-          <OrderTracker current={step} note={ready ? 'Listo hace 0 min' : ACTIVE_ORDER.etaLabel} />
-        </View>
+        {/* TRACKER (en vivo) */}
+        {!failed ? (
+          <View style={{ backgroundColor: surface.card, borderWidth: 1, borderColor: border.subtle, borderRadius: radius.lg, paddingVertical: space[6], paddingHorizontal: space[4], marginBottom: space[4], ...shadow.card }}>
+            <OrderTracker current={step} note={ready ? 'Listo' : order.status === 'preparing' ? 'En cocina' : undefined} />
+          </View>
+        ) : null}
 
+        {/* AVISO de ventana de recogida */}
         {ready ? (
-          <View style={{ flexDirection: 'row', gap: 12, padding: 14, backgroundColor: state.ready.bg, borderRadius: 16 }}>
+          <View style={{ flexDirection: 'row', gap: space[3], padding: space[4], backgroundColor: state.ready.bg, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.lima[100] }}>
             <Timer size={22} color={colors.lima[600]} />
-            <Text style={{ flex: 1, fontSize: 13, color: colors.lima[600], lineHeight: 19 }}>
-              <Text style={{ fontWeight: '700' }}>Recoge en 10–20 min</Text> para que llegue calientito. Pasado ese tiempo podría volver a ofertarse como "Preparados".
-            </Text>
+            <View style={{ flex: 1 }}>
+              <Heading style={{ fontSize: 16, lineHeight: 20, marginBottom: 4 }} color={colors.lima[600]}>Recoge en 10–20 min</Heading>
+              <Body color={colors.lima[600]} style={{ fontSize: 13, lineHeight: 19 }}>
+                Para que llegue calientito. Pasado ese tiempo podría volver a ofertarse como "Preparados".
+              </Body>
+            </View>
           </View>
         ) : null}
       </ScrollView>
 
-      <View style={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: insets.bottom + 8, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: border.subtle }}>
+      <View style={{ paddingHorizontal: space[5], paddingTop: space[4], paddingBottom: insets.bottom + space[2], backgroundColor: surface.card, borderTopWidth: 1, borderTopColor: border.subtle }}>
         <PrimaryButton
-          color={ready ? colors.naranja[500] : colors.azul[700]}
+          color={ready || done ? colors.naranja[500] : colors.azul[700]}
           onPress={() => navigation.popToTop()}
-          label={ready ? 'Volver al menú' : 'Seguir explorando el menú'}
+          label={ready || done || failed ? 'Volver al menú' : 'Seguir explorando el menú'}
         />
       </View>
     </SafeAreaView>

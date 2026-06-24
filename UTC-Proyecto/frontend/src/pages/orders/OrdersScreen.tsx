@@ -1,61 +1,112 @@
-import { View, Text, Pressable, ScrollView } from 'react-native';
+import { View, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Receipt, ArrowRight, Check } from 'lucide-react-native';
+import { Receipt, ArrowRight, Check, CircleSlash } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { MainStackParamList } from '../../app/navigation/types';
 import { Badge } from '../../shared/ui/Badge';
 import { OrderTracker } from '../../shared/ui/OrderTracker';
-import { colors, text, border, surface } from '../../shared/theme';
-import { ACTIVE_ORDER, ORDER_HISTORY } from '../../entities/order/mock';
+import { Display, Title, Body, Label, Mono } from '../../shared/ui/Type';
+import { colors, text, border, surface, shadow, fonts } from '../../shared/theme';
+import { useOrdersStore, trackerStep, TERMINAL_STATUSES } from '../../features/orders/model/orders.store';
+import { useSessionStore } from '../../features/auth/model/session.store';
+import { ORDER_STATUS_META, type AdminOrder } from '../../entities/order/admin-mock';
 
-/** Pestaña Pedidos: pedido activo (con tracker → Seguimiento) + historial. */
+/**
+ * Pestaña Pedidos del cliente: lee SUS pedidos del store compartido (los mismos
+ * que ve el admin). Activo = en curso (tracker en vivo) · Historial = cerrados.
+ */
 export function OrdersScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
-  const hasActive = true; // mock; en el turno de datos vendrá de GET /orders/active
+  const email = useSessionStore((s) => s.session?.email ?? '');
+  const orders = useOrdersStore((s) => s.orders);
+  const setActiveOrder = useOrdersStore((s) => s.setActiveOrder);
+
+  const mine = orders.filter((o) => o.email === email);
+  const active = mine.filter((o) => !TERMINAL_STATUSES.includes(o.status));
+  const history = mine.filter((o) => TERMINAL_STATUSES.includes(o.status));
+
+  const openTracking = (id: string) => {
+    setActiveOrder(id);
+    navigation.navigate('Tracking');
+  };
+  const summary = (o: AdminOrder) => o.items.map((i) => `${i.name}${i.qty > 1 ? ` ×${i.qty}` : ''}`).join(' · ');
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: surface.page }}>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
-        <Text style={{ fontSize: 24, fontWeight: '800', color: text.heading, marginBottom: 16 }}>Tus pedidos</Text>
+        <View style={{ paddingTop: 14, paddingBottom: 22 }}>
+          <Display>Tus pedidos</Display>
+          <View style={{ width: 58, height: 6, borderRadius: 3, backgroundColor: colors.naranja[500], marginTop: 10 }} />
+        </View>
 
-        {hasActive ? (
-          <Pressable
-            onPress={() => navigation.navigate('Tracking')}
-            style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: border.subtle, borderRadius: 18, padding: 16, marginBottom: 18 }}
-          >
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <Text style={{ fontWeight: '800', fontSize: 16, color: colors.azul[700] }}>{`#${ACTIVE_ORDER.code}`}</Text>
-              <Badge tone="cooking" dot>En preparación</Badge>
-            </View>
-            <OrderTracker current={ACTIVE_ORDER.trackerStep} note={ACTIVE_ORDER.etaLabel} />
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 14 }}>
-              <Text style={{ fontSize: 13, color: colors.naranja[600], fontWeight: '700' }}>Ver seguimiento</Text>
-              <ArrowRight size={15} color={colors.naranja[600]} />
-            </View>
-          </Pressable>
-        ) : (
-          <View style={{ alignItems: 'center', paddingVertical: 60 }}>
-            <Receipt size={44} color={colors.gris[300]} />
-            <Text style={{ marginTop: 12, fontSize: 15, color: text.muted, textAlign: 'center', lineHeight: 22 }}>
+        {mine.length === 0 ? (
+          <View style={{ alignItems: 'center', paddingVertical: 70 }}>
+            <Receipt size={46} color={colors.gris[300]} />
+            <Body color={text.muted} style={{ marginTop: 14, fontSize: 15, textAlign: 'center', lineHeight: 22 }}>
               Aún no tienes pedidos.{'\n'}Tu próximo antojo aparecerá aquí.
-            </Text>
+            </Body>
           </View>
-        )}
+        ) : null}
 
-        <Text style={{ fontSize: 12, fontWeight: '700', letterSpacing: 1, color: text.muted, marginBottom: 10, textTransform: 'uppercase' }}>Historial</Text>
-        {ORDER_HISTORY.map((o) => (
-          <View key={o.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: border.subtle }}>
-            <View style={{ width: 40, height: 40, borderRadius: 11, backgroundColor: colors.lima[50], alignItems: 'center', justifyContent: 'center' }}>
-              <Check size={18} color={colors.lima[600]} />
+        {/* ACTIVO */}
+        {active.length > 0 ? (
+          <>
+            <Label style={{ marginBottom: 11 }}>Activo</Label>
+            <View style={{ gap: 12, marginBottom: 24 }}>
+              {active.map((o) => {
+                const meta = ORDER_STATUS_META[o.status];
+                return (
+                  <Pressable
+                    key={o.id}
+                    onPress={() => openTracking(o.id)}
+                    style={{ backgroundColor: surface.card, borderWidth: 1.5, borderColor: colors.naranja[200], borderRadius: 18, padding: 16, ...shadow.card }}
+                  >
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                      <Mono style={{ fontFamily: fonts.monoBold, fontSize: 16 }} color={text.heading}>{`#${o.code}`}</Mono>
+                      <Badge tone={meta.tone} dot>{meta.label}</Badge>
+                    </View>
+                    <OrderTracker current={trackerStep(o.status)} note={o.status === 'ready' || o.status === 'ready_later' ? 'Listo' : undefined} />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 16 }}>
+                      <Body color={colors.naranja[600]} style={{ fontSize: 13, fontFamily: fonts.bodyBold }}>Ver seguimiento</Body>
+                      <ArrowRight size={15} color={colors.naranja[600]} />
+                    </View>
+                  </Pressable>
+                );
+              })}
             </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ fontWeight: '700', fontSize: 14, color: text.heading }}>{o.summary}</Text>
-              <Text style={{ fontSize: 12, color: text.muted }}>{`#${o.code} · ${o.whenLabel} · Recogido`}</Text>
+          </>
+        ) : null}
+
+        {/* HISTORIAL */}
+        {history.length > 0 ? (
+          <>
+            <Label style={{ marginBottom: 12 }}>Historial</Label>
+            <View style={{ gap: 10 }}>
+              {history.map((o) => {
+                const ok = o.status === 'picked_up';
+                return (
+                  <View
+                    key={o.id}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: surface.card, borderWidth: 1, borderColor: border.subtle, borderRadius: 16, padding: 12 }}
+                  >
+                    <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: ok ? colors.lima[50] : colors.gris[100], alignItems: 'center', justifyContent: 'center' }}>
+                      {ok ? <Check size={19} color={colors.lima[600]} /> : <CircleSlash size={19} color={colors.gris[500]} />}
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Title style={{ fontSize: 14.5 }} numberOfLines={1}>{summary(o)}</Title>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                        <Mono style={{ fontSize: 12 }} color={text.muted}>{`#${o.code}`}</Mono>
+                        <Body color={text.muted} style={{ fontSize: 12 }}>{`· ${o.createdLabel} · ${ORDER_STATUS_META[o.status].label}`}</Body>
+                      </View>
+                    </View>
+                    <Mono style={{ fontFamily: fonts.monoBold, fontSize: 15 }} color={text.heading}>{`$${o.total}`}</Mono>
+                  </View>
+                );
+              })}
             </View>
-            <Text style={{ fontWeight: '700', color: text.heading }}>{`$${o.total}`}</Text>
-          </View>
-        ))}
+          </>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );

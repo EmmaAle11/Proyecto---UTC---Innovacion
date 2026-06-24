@@ -59,7 +59,8 @@ Registro único y canónico de decisiones (estilo ADR ligero). Para añadir una 
 ## D-011 · Dominio institucional e identidad
 - Fecha: 2026-06-22 · Estado: vigente
 - Contexto: BR-002 de rules.md indicaba `@email.utc.edu.ec` (plantilla Ecuador), pero el proyecto es de la UTC de **México**.
-- Decisión: el dominio institucional es **`utc.edu.mx`**. Se corrige BR-002. **Formato adoptado y validado: `@utc.edu.mx`** — implementado en `backend/src/application/auth/dto/register.dto.ts` (`@Matches(/@utc\.edu\.mx$/i)`), conforme a D-014. (Histórico: quedó "NO VERIFICADO" al inicio porque se mencionó `edu.utc.mx`; se confirmó `@utc.edu.mx` al implementar el auto-registro.)
+- Decisión: el dominio institucional es **`edu.utc.mx`**. Se corrige BR-002. **Formato adoptado y validado: `@edu.utc.mx`** — implementado en `backend/src/application/auth/dto/register.dto.ts` (`@Matches(/@edu\.utc\.mx$/i)`) y en el frontend (`LoginUsuario`), conforme a D-014.
+- Corrección 2026-06-24: hubo confusión histórica entre `utc.edu.mx` y `edu.utc.mx`; el usuario confirmó que el correcto es **`edu.utc.mx`** (orden invertido). Se reemplazó en la validación (frontend + backend), los textos, los mocks, los **datos demo** (re-sembrados) y los docs. Las cuentas viejas `@utc.edu.mx` quedan obsoletas; para entrar hay que registrar una `@edu.utc.mx`.
 - Permisos: el equipo **no controla DNS ni el tenant** institucional. Esto **no bloquea** el desarrollo (Keycloak local con usuarios de prueba). Solo condiciona la federación Microsoft real (app registration + admin consent del tenant UTC), no el resto del proyecto.
 
 ## D-012 · Expo Go como runtime de desarrollo + restricción de librerías nativas
@@ -83,13 +84,13 @@ Registro único y canónico de decisiones (estilo ADR ligero). Para añadir una 
 
 ## D-014 · Cliente con credenciales locales en Keycloak (supersede la parte Microsoft de D-010)
 - Fecha: 2026-06-22 · Estado: vigente
-- Contexto: el equipo **nunca** tendrá app registration + admin consent del tenant institucional de UTC → el SSO Microsoft real para cuentas `@utc.edu.mx` es inviable. (Aclaración: el *app registration* lo crea uno mismo, gratis; lo que depende de UTC es el *admin consent*.)
+- Contexto: el equipo **nunca** tendrá app registration + admin consent del tenant institucional de UTC → el SSO Microsoft real para cuentas `@edu.utc.mx` es inviable. (Aclaración: el *app registration* lo crea uno mismo, gratis; lo que depende de UTC es el *admin consent*.)
 - Decisión:
-  - **Cliente (`user`)** = credenciales **locales en Keycloak**, igual que el admin. **Auto-registro restringido a `@utc.edu.mx`** (validado en el DTO del backend). Sin Microsoft/Azure. **Supersede** la parte "usuario SSO Microsoft" de D-010.
+  - **Cliente (`user`)** = credenciales **locales en Keycloak**, igual que el admin. **Auto-registro restringido a `@edu.utc.mx`** (validado en el DTO del backend). Sin Microsoft/Azure. **Supersede** la parte "usuario SSO Microsoft" de D-010.
   - **Registro/login branded vía backend** (Keycloak no expone auto-registro público por API): la app llama a `POST /auth/register` y `POST /auth/login` del backend NestJS. El registro usa un client **service-account `backend-svc`** (roles `manage-users` + `view-realm`) para crear el usuario por la Admin API y asignar el rol realm `user`; el login es password grant al client público `mobile-app`. Secretos solo en `.env` (gitignored, §17). Rate-limit 5/min en auth (§8).
   - UI: `LoginUsuario` pasa de "Iniciar sesión con Outlook" (mock Microsoft) a formularios **Crear cuenta / Iniciar sesión**.
   - Keycloak sigue siendo el único emisor de tokens; si UTC algún día coopera, brokear a Microsoft es "solo config".
-- Verificación (§0): register `@utc.edu.mx` → 201 con token cuyo `realm_access.roles` incluye `user`; dominio ajeno → 400; duplicado → 409; rate-limit → 429. Build + tests verdes.
+- Verificación (§0): register `@edu.utc.mx` → 201 con token cuyo `realm_access.roles` incluye `user`; dominio ajeno → 400; duplicado → 409; rate-limit → 429. Build + tests verdes.
 - Alternativa cloud descartada por ahora: Microsoft Entra External ID / Azure AD B2C (directorio propio).
 
 ## D-015 · Distinción de identidades admin (servidor vs app)
@@ -125,3 +126,23 @@ Registro único y canónico de decisiones (estilo ADR ligero). Para añadir una 
   - **Fuente de verdad:** lo calcula el **backend** (no el frontend) a partir de `orders`, y se expone por un endpoint legible por ambos roles. Hora del servidor (BR-005).
 - Verificación (§0): consulta sobre el dataset demo → `pending`+`preparing`+`ready` = 3 → 🟢 Verde, consistente con `datos-demo.md`. Query en `consultas-sql.md`.
 - Reflejo en docs (rule #24): círculo §3.14, ejecución §12, arquitectura §7.
+
+## D-020 · Identidad visual "Editorial Street-Food" + panel admin en RN (Astro descartado)
+- Fecha: 2026-06-24 · Estado: vigente.
+- Contexto: faltaba el **panel de administración** y se quería dejar **lo estético listo** en todas las pantallas, con una identidad "fuera de lo común" inspirada en el logo (mascota verde antojada). Se evaluó si convenía un framework como **Astro**.
+- Decisión:
+  - **Identidad "Editorial Street-Food":** tipografías cargadas con `expo-font` — **Bricolage Grotesque** (titulares), **Plus Jakarta Sans** (cuerpo), **Space Mono** (números/turnos/códigos/semáforo). Paleta navy `azul[700]` + naranja `naranja[500]` + acento verde lima; layout editorial (titulares grandes, tarjetas con sombra, barrita de acento). Primitivas tipográficas `shared/ui/Type` (`Display/Heading/Title/Body/Label/Mono`). Aplicada a **todas** las pantallas (cliente + auth + admin).
+  - **Panel admin = stack RN propio** dentro de la misma app Expo: `RootNavigator` ramifica por **rol de sesión** (`session.role`), admin → `AdminStack` (tabs Dashboard · Cola · Menú) + pantallas empujadas (Detalle de pedido, Editar producto, Reoferta). UI-first con mock que **espeja el dataset demo** (`datos-demo.md`).
+  - **Astro DESCARTADO:** genera sitios web (HTML/islas), no apps React Native; obligaría a un 2º frontend solo-admin (duplica stack/build/diseño/auth y rompe la armonía cliente↔admin de D-018). Un panel admin es un dashboard muy interactivo (cola/semáforo/CRUD) = caso de SPA, donde el modelo de islas estorba. Lo distintivo se logró dentro de Expo; el admin puede verse en pantalla grande con React Native Web (mismo código).
+  - **`design-system/` retirado:** su contenido ya estaba **consumido** (kits/specs → pantallas RN) y quedó **superado** por el sistema de diseño en código (`shared/theme/tokens.ts` + `shared/ui/Type`). Se eliminó la carpeta; los **másters del logo** se preservaron en `brand/`. (Cierra el ciclo de D-004/D-008.)
+- Verificación (§0): por milestone `npx tsc --noEmit` (0 errores) + `expo export` (bundle Android OK con las 9 fuentes). Cero `fontWeight` residual: todo el frontend usa las familias de marca. Solo librerías compatibles con Expo Go (D-012).
+- Pendiente (turno de datos): cablear el CRUD/transiciones reales del admin a `UTC_PROJECT_DB` (los guards JWT/roles ya existen); reemplazar los mocks por endpoints.
+
+## D-021 · Pedidos sincronizados alumno↔administrador + cuenta del administrador
+- Fecha: 2026-06-24 · Estado: vigente.
+- Contexto: la vista del alumno y la del administrador llevaban listas de pedidos separadas, así que lo que uno marcaba no se reflejaba en el otro. El panel del administrador tampoco permitía cerrar sesión ni ajustar nada.
+- Decisión:
+  - **Pedidos compartidos:** el alumno y el administrador trabajan sobre los **mismos pedidos**. Cuando el alumno envía uno, aparece en la cola del administrador; cuando el administrador cambia el estado (En preparación · Listo · Entregado), el seguimiento del alumno lo refleja al instante, y a la inversa.
+  - **Cuenta del administrador:** se agregó **cerrar sesión**, una sección de **accesibilidad** (texto grande, alto contraste, reducir movimiento) y de **personalización funcional**: el administrador edita el **nombre y el horario** de la cooperativa y los **umbrales del semáforo**, y el cambio se aplica **al instante** (los umbrales mueven el color del semáforo en el Dashboard; el nombre se refleja en el panel).
+- Verificación (§0): recorrido completo del flujo — el alumno paga, el administrador marca listo y el alumno lo ve reflejado.
+- Pendiente: hoy la sincronización ocurre en un mismo equipo; entre dispositivos distintos se completa al conectar la base de datos (turno de datos).

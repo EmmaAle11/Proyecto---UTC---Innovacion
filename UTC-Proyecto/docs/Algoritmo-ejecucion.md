@@ -53,11 +53,11 @@ UTC-Proyecto/
   frontend/        (la app Expo: pantallas del alumno)
   backend/         (NestJS: la lógica y la conexión a la base de datos)
   infra/           (Docker: PostgreSQL + Keycloak)
-  design-system/   (colores, tipos y prototipos de referencia)
+  brand/           (másters del logo; el sistema de diseño vive en frontend/src/shared/theme + ui)
   docs/            (este documento, la propuesta y las decisiones)
 
 5.- Construir las pantallas del alumno (cliente):
-- Welcome y Login con el correo institucional (@utc.edu.mx).
+- Welcome y Login con el correo institucional (@edu.utc.mx).
 - Inicio: el menú con fotos, precios y el tiempo de espera de cada cosa, más el carril de "listos para llevar ya" y el buscador.
 - Detalle del producto, carrito y checkout (pago con Mercado Pago, PayPal, tarjeta o efectivo al recoger).
 - Seguimiento del pedido (con su código de recogida y su número de turno) y las pestañas de Pedidos y Perfil.
@@ -67,6 +67,8 @@ UTC-Proyecto/
 - Recibir los pedidos y marcarlos como "Listo" (eso le asigna el número de turno al alumno).
 - Ver el semáforo de congestión en vivo: menos de 5 = Verde, de 5 a 10 = Amarillo, más de 10 = Rojo (parámetros y visibilidad en §12).
 - Manejar la reoferta / "Pon tu precio" para vender lo que ya está hecho.
+- Cerrar sesión y ajustar su cuenta: accesibilidad (texto grande, alto contraste, reducir movimiento) y personalización funcional (nombre y horario de la cooperativa, y los umbrales del semáforo, que cambian el color de la cola al instante).
+- Los pedidos son los mismos para el administrador y para el alumno: lo que el administrador marca le aparece al alumno al instante, y los pedidos que el alumno envía entran solos a esta cola.
 
 7.- Conectar todo con la base de datos:
 - Guardar productos, pedidos, pagos y tiempos en PostgreSQL (las 6 tablas).

@@ -6,9 +6,15 @@ import Constants from 'expo-constants';
 const BACKEND_PORT = 3001;
 
 function resolveBaseUrl(): string {
-  // Override por entorno: define expo.extra.apiUrl en app.json / EAS (https://… en prod).
+  // 1) Override por variable de entorno (ideal en modo --tunnel): EXPO_PUBLIC_API_URL.
+  //    Ej.: EXPO_PUBLIC_API_URL=http://192.168.1.81:3001 npx expo start --tunnel
+  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (envUrl) return envUrl;
+  // 2) Override por app.json / EAS (https://… en prod).
   const extra = Constants.expoConfig?.extra as { apiUrl?: string } | undefined;
   if (extra?.apiUrl) return extra.apiUrl;
+  // 3) Derivar del host del dev server (modo LAN). OJO: en --tunnel ese host es el de
+  //    ngrok (no la IP de la PC), así que ahí hay que usar EXPO_PUBLIC_API_URL (paso 1).
   const hostUri = Constants.expoConfig?.hostUri; // p.ej. "192.168.1.5:8081"
   const host = hostUri?.split(':')[0];
   return host ? `http://${host}:${BACKEND_PORT}` : `http://localhost:${BACKEND_PORT}`;
@@ -25,13 +31,26 @@ export class ApiError extends Error {
   }
 }
 
-/** POST JSON al backend; lanza `ApiError` con el mensaje del servidor si la respuesta no es ok. */
+/** POST JSON al backend; lanza `ApiError` con el mensaje del servidor si la respuesta no es ok.
+ *  Tiene timeout (12 s) para no colgarse si el servidor no es alcanzable (p. ej. en túnel
+ *  sin EXPO_PUBLIC_API_URL). El header `bypass-tunnel-reminder` evita la página de aviso
+ *  de localtunnel cuando se expone el backend por túnel. */
 export async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12000);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'bypass-tunnel-reminder': 'true' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch {
+    throw new ApiError('No se pudo conectar con el servidor. Revisa tu red.', 0);
+  } finally {
+    clearTimeout(timer);
+  }
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
     const m = data.message;

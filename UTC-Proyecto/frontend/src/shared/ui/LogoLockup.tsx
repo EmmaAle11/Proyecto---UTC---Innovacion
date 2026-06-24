@@ -8,7 +8,7 @@ type Props = { width?: number; style?: StyleProp<ImageStyle> };
 
 /**
  * Lockup de marca: la mascota UTC sobre "UTC Pick Sazón".
- * Fuente: `frontend/assets/logo-lockup.png` (derivado de design-system/assets/logo_utc.jpeg).
+ * Fuente: `frontend/assets/logo-lockup.png` (derivado del máster en `brand/logo_utc_hq.png`).
  * Ideal sobre fondos claros (header de Welcome).
  */
 export function LogoLockup({ width = 240, style }: Props) {
