@@ -34,7 +34,7 @@ Usuario: UTC_PROJECT   Password: (DB_PASSWORD de backend/.env)
 ---
 
 ## Consultas de ejemplo (para la demo del profe)
-```sql
+```sqlS
 -- Estructura
 \dt
 \dT+
@@ -68,6 +68,15 @@ SELECT p.name, round(avg(pt.duration_seconds)) AS prom_segundos, count(*) AS mue
 FROM preparation_times pt
 JOIN products p ON p.id = pt.product_id
 GROUP BY p.name;
+
+-- Semáforo de congestión en vivo (D-019): cola = pending + preparing + ready
+--   Verde n<5 · Amarillo 5..10 · Rojo n>10  (con el dataset demo da: 3 → Verde)
+SELECT count(*) AS pedidos_en_cola,
+       CASE WHEN count(*) < 5  THEN 'Verde'
+            WHEN count(*) <= 10 THEN 'Amarillo'
+            ELSE 'Rojo' END AS semaforo
+FROM orders
+WHERE status IN ('pending', 'preparing', 'ready');
 ```
 
-> **Nota:** hoy `products` / `orders` están **vacías** (los datos reales llegan en el "turno de datos"). Las consultas funcionan; devolverán 0 filas hasta sembrar el catálogo. `user_profile` sí tiene registros (los clientes creados).
+> **Nota:** la BD trae cargado el **dataset de demostración** (seed `infra/postgres/seed-demo.sql`, detallado en [`datos-demo.md`](datos-demo.md)): 10 productos, 11 pedidos con sus líneas, pagos y tiempos de preparación, más 6 perfiles demo junto a los 3 clientes reales. Las consultas de arriba devuelven filas. El cableado app↔BD (repos/endpoints) sigue siendo el "turno de datos" pendiente; estos datos se cargan por SQL para la demo.

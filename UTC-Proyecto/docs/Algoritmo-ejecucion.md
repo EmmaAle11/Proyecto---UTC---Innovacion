@@ -65,7 +65,7 @@ UTC-Proyecto/
 6.- Construir el panel del administrador (la cooperativa):
 - Dar de alta y editar el menú (productos, precios, fotos y el stock de "Preparados").
 - Recibir los pedidos y marcarlos como "Listo" (eso le asigna el número de turno al alumno).
-- Ver el semáforo de congestión en vivo: menos de 5 = Verde, más de 5 = Amarillo, más de 10 = Rojo.
+- Ver el semáforo de congestión en vivo: menos de 5 = Verde, de 5 a 10 = Amarillo, más de 10 = Rojo (parámetros y visibilidad en §12).
 - Manejar la reoferta / "Pon tu precio" para vender lo que ya está hecho.
 
 7.- Conectar todo con la base de datos:
@@ -96,3 +96,11 @@ La aplicación arranca con un menú base pensado para el recreo. La cooperativa 
 - Gelatina de mosaico — $15 (lista para llevar)
 - Agua de horchata — $18 (lista para llevar)
 Las aguas frescas y la gelatina suelen estar listas para llevar de inmediato; los demás se preparan al momento mostrando su tiempo de espera. Cada producto lleva su foto, que arranca con una imagen provisional y se puede reemplazar.
+
+12.- Semáforo de congestión (parámetros y visibilidad)
+El semáforo mide en vivo qué tan cargada está la cooperativa. Lo calcula el backend (no el frontend) como el número de pedidos en cola: los pedidos en estado pending, preparing y ready. No cuentan ready_later, picked_up, not_picked_up ni cancelled.
+Umbrales (parámetros ajustables, UMBRAL_AMARILLO = 5 y UMBRAL_ROJO = 10):
+- Verde: menos de 5 pedidos en cola (n < 5).
+- Amarillo: de 5 a 10 pedidos en cola (5 ≤ n ≤ 10).
+- Rojo: más de 10 pedidos en cola (n > 10).
+Lo ven los dos perfiles: el administrador con el conteo exacto (para decidir cuándo empujar los pedidos programados) y el cliente con el color y una etiqueta (tranquila / concurrida / llena) para decidir cuándo pedir o recoger. El cálculo usa la hora del servidor.

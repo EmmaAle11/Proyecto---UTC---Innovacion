@@ -240,6 +240,7 @@ products 1───∞ preparation_times ∞───0..1 order_items
 - **Reoferta (BR-006):** si no se recoge / se cancela sin tocar el alimento → vuelve a ofertarse como *Preparado | Sin tiempo de espera*; la UI muestra *"Listo hace X min"* (desde `ready_at`). Si lleva mucho tiempo → *Calentando tu alimento*.
 - **Extender:** queda `ready_later`; recogible el mismo día. Si no se recoge al cierre, el cobro se mantiene y el alimento pasa a manejo interno.
 - **Precio dinámico (círculo §3.11):** el admin puede activar reoferta con descuento controlado o *"Pon tu precio"* (`products.reoffer_price`).
+- **Semáforo de congestión (D-019, círculo §3.14):** indicador de carga calculado por el **backend** como el **número de pedidos en cola** = `orders` en estado `pending` + `preparing` + `ready` (excluye `ready_later`/`picked_up`/`not_picked_up`/`cancelled`). Umbrales **parametrizables**: 🟢 **Verde** `n < 5` · 🟡 **Amarillo** `5 ≤ n ≤ 10` · 🔴 **Rojo** `n > 10` (`UMBRAL_AMARILLO=5`, `UMBRAL_ROJO=10`). **Lo ven ambos roles:** el **admin** con el conteo exacto (para empujar pedidos programados) y el **cliente** con el color + etiqueta ("tranquila / concurrida / llena"), sin el número crudo. Expuesto por endpoint legible por ambos; hora del servidor (BR-005).
 
 ---
 

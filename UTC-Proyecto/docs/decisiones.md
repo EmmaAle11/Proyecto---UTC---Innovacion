@@ -114,3 +114,14 @@ Registro único y canónico de decisiones (estilo ADR ligero). Para añadir una 
 - Fecha: 2026-06-23 · Estado: vigente.
 - Contexto: cliente (hero naranja + hoja blanca) y admin (banda plana) se veían "async".
 - Decisión: ambas comparten el mismo esqueleto (hero con degradado + hoja blanca) vía componentes reutilizables `widgets/auth/AuthScaffold` + `shared/ui/BrandField` + `shared/ui/PrimaryButton`; difieren solo en el **color de rol** (naranja cliente / azul admin) y el copy. El admin pasó de banda plana a hero azul.
+
+## D-019 · Semáforo de congestión: parámetros y visibilidad para ambos roles
+- Fecha: 2026-06-24 · Estado: vigente.
+- Contexto: el círculo definía el semáforo de forma aproximada ("menos de 5 Verde, más de 5 Amarillo, más de 10 Rojo") y lo ubicaba sobre todo en el panel del admin. Faltaba precisar **qué cuenta**, los **umbrales como parámetros** (incluidos los bordes 5 y 10) y dejar explícito que el **cliente también lo ve**.
+- Decisión:
+  - **Métrica:** número de **pedidos en cola** = `orders` en estado `pending` + `preparing` + `ready`. Se **excluyen** `ready_later`, `picked_up`, `not_picked_up` y `cancelled` (no presionan el mostrador en el momento).
+  - **Umbrales parametrizables** (resuelven la ambigüedad de los bordes): 🟢 **Verde** `n < 5` · 🟡 **Amarillo** `5 ≤ n ≤ 10` · 🔴 **Rojo** `n > 10`. Constantes `UMBRAL_AMARILLO = 5` y `UMBRAL_ROJO = 10`, **ajustables** por la cooperativa según su capacidad.
+  - **Visibilidad por rol:** el **admin** ve el **conteo exacto** + color (para decidir cuándo empujar los pedidos programados); el **cliente** ve solo el **color** + una etiqueta ("tranquila / concurrida / llena"), sin el número crudo.
+  - **Fuente de verdad:** lo calcula el **backend** (no el frontend) a partir de `orders`, y se expone por un endpoint legible por ambos roles. Hora del servidor (BR-005).
+- Verificación (§0): consulta sobre el dataset demo → `pending`+`preparing`+`ready` = 3 → 🟢 Verde, consistente con `datos-demo.md`. Query en `consultas-sql.md`.
+- Reflejo en docs (rule #24): círculo §3.14, ejecución §12, arquitectura §7.

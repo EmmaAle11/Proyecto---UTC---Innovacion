@@ -34,7 +34,7 @@ Crear una aplicación web/móvil amigable (p. ej. con Expo Go o framework simila
 - Mostrar **cuánto tiempo lleva preparado** cada producto.
 - **Número de fila** — cuando el **administrador de la cooperativa** marca tu pedido como listo, recibes un **número de turno** (ej. el 15). Con ese número en tu celular **no te acercas antes de tiempo**, evitando la congestión en la ventanilla.
 - **Programar tu pedido** — pides con anticipación y recoges a la hora justa, tomando desde antes tu número de turno. 
-- **Semáforo de congestión** — aunque existan los turnos, siempre habrá muchos pedidos, así que un semáforo en vivo detecta cuántos hay en cola: **menos de 5 = Verde**, **más de 5 = Amarillo**, **más de 10 = Rojo**.
+- **Semáforo de congestión** — aunque existan los turnos, siempre habrá muchos pedidos, así que un semáforo en vivo detecta cuántos hay en cola: **menos de 5 = Verde**, **de 5 a 10 = Amarillo**, **más de 10 = Rojo** (se detalla en §3.14).
 
 ---
 
@@ -51,13 +51,14 @@ Todo lo que hará, **todo lo que hará UTC Pick Sazón** — juntando la idea or
 - Puede **programar su pedido** para que esté listo justo cuando salga (ej. "lo quiero a las 10:00") — así llega y ya está.
 - Cuando esté listo llega una **notificación** con su **número de turno**: con ese número en el celular **no se acerca antes de tiempo**, y se acaba el amontonamiento en la ventanilla.
 - Sigue su pedido en vivo (Pagado → En preparación → Listo → Recogido) y lo recoge mostrando su **código de recogida**.
+- Antes de pedir puede echarle un ojo al **semáforo de la cooperativa**: 🟢 verde = hay poca fila, 🟡 amarillo = va concurrido, 🔴 rojo = está a tope. Así decide si pide ya o se espera un toque (ver §3.14).
 - ¿No alcanzaste a recogerlo? Puede **cancelar** o **extender para después**; si lo dejas, el alimento se puede **reofertar** como *Preparado | Sin tiempo de espera*.
 
 **Para la cooperativa (panel de admin):**
 
 - Da de alta y edita el **menú** (productos, precios, fotos, stock mínimo/máximo de "Preparados").
 - Marca los pedidos como **listos**, y eso dispara el **turno** del alumno.
-- Ve el **semáforo de congestión en vivo** según la cola: **Verde (< 5)**, **Amarillo (> 5)**, **Rojo (> 10)** — para leer cómo viene el recreo y, si hace falta, empujar el **pedido programado** para repartir la llegada.
+- Ve el **semáforo de congestión en vivo** según la cola (pedidos pendientes + en preparación + listos esperando): 🟢 **Verde (menos de 5)**, 🟡 **Amarillo (de 5 a 10)**, 🔴 **Rojo (más de 10)** — con el **número exacto** para leer cómo viene el recreo y, si hace falta, empujar el **pedido programado** para repartir la llegada. Ese mismo semáforo lo ve también el alumno (ver §3.14).
 - Aprovecha la **reoferta / "Pon tu precio"** para vender lo que ya está hecho antes de perderlo.
 - Con el tiempo, ve **qué se vende más y a qué hora pega el pico** (la app mide los tiempos reales de preparación) para comprar mejor y reforzar la hora pico.
 
@@ -188,6 +189,17 @@ El menú con el que arranca la app refleja los antojos típicos del recreo. Es u
 - **Agua de horchata** — $18 · lista para llevar. Horchata de arroz con canela, dulce y cremosa.
 
 Las **aguas frescas** y la **gelatina** suelen ofrecerse como *Preparado | Sin tiempo de espera*, listas para recoger casi de inmediato; el resto se prepara al momento mostrando su tiempo de espera. Cada producto tendrá su foto en la app (al inicio con una imagen provisional que la cooperativa puede reemplazar).
+
+### 3.14. Semáforo de congestión (cómo se calcula y quién lo ve)
+
+Aunque existan los turnos, en el recreo siempre habrá un montón de pedidos juntos. El **semáforo** mide en vivo qué tan llena está la cooperativa, para que nadie pida a ciegas y el admin reparta la carga.
+
+- **Qué cuenta:** los **pedidos en cola** ahorita mismo — los que están *pendientes*, *en preparación* o *listos esperando* en el mostrador. **No** cuentan los ya recogidos, los cancelados, ni los que se dejaron para después.
+- **Los colores (parámetros):** 🟢 **Verde** = menos de 5 en cola · 🟡 **Amarillo** = de 5 a 10 · 🔴 **Rojo** = más de 10. Son números **ajustables**: si la cooperativa aguanta más movimiento, se suben.
+- **Quién lo ve:**
+  - **El alumno** ve el **color** (con un textito tipo *"está tranquila / concurrida / llena"*) para decidir si pide ya o se espera un toque.
+  - **El admin** ve el **número exacto** además del color, para saber cuándo empujar los pedidos programados y repartir la llegada de todos.
+- **Sin trampas:** el semáforo lo calcula el sistema con la **hora del servidor**, no el teléfono; así todos ven lo mismo.
 
 ---
 
