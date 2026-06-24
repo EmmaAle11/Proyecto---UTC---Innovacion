@@ -1,4 +1,4 @@
-// Enumerados del dominio (ver docs/architecture-propuesta.md §5.0).
+// Enumerados del dominio (ver docs/arquitectura/architecture-propuesta.md §5.0).
 
 export enum UserRole {
   ADMIN = 'admin',

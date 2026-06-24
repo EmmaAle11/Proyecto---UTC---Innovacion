@@ -3,7 +3,7 @@ import type { BadgeTone } from '../../shared/ui/Badge';
 
 /**
  * Mock del lado ADMIN: espeja el dataset demo sembrado en UTC_PROJECT_DB
- * (ver docs/datos-demo.md) — 11 pedidos del recreo cubriendo los 7 estados.
+ * (ver docs/datos/datos-demo.md) — 11 pedidos del recreo cubriendo los 7 estados.
  * Al llegar el "turno de datos" se reemplaza por `GET /admin/orders`.
  */
 export interface AdminOrderItem {

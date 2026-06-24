@@ -1,9 +1,9 @@
 # Datos de demostración — UTC Pick Sazón
 
-> **Pide fácil, recoge con sabor.** Este documento presenta el **conjunto de datos** con el que se pueblan las **6 tablas** de la base `UTC_PROJECT_DB` (PostgreSQL en Docker). Los datos son **coherentes con el esquema materializado** (migración TypeORM `1782168106072-Init`) y están pensados para la demo: **ejercitan todos los tipos enumerados y las reglas de negocio** del [círculo de innovación](algoritmo-circulo-innovacion.md).
+> **Pide fácil, recoge con sabor.** Este documento presenta el **conjunto de datos** con el que se pueblan las **6 tablas** de la base `UTC_PROJECT_DB` (PostgreSQL en Docker). Los datos son **coherentes con el esquema materializado** (migración TypeORM `1782168106072-Init`) y están pensados para la demo: **ejercitan todos los tipos enumerados y las reglas de negocio** del [círculo de innovación](../propuesta/algoritmo-circulo-innovacion.md).
 >
-> - **Esquema de referencia:** [`architecture-propuesta.md`](architecture-propuesta.md) §5.
-> - **Cómo integrarlos / consultarlos:** seed en [`infra/postgres/seed-demo.sql`](../infra/postgres/seed-demo.sql); consultas en [`consultas-sql.md`](consultas-sql.md).
+> - **Esquema de referencia:** [`architecture-propuesta.md`](../arquitectura/architecture-propuesta.md) §5.
+> - **Cómo integrarlos / consultarlos:** seed en [`infra/postgres/seed-demo.sql`](../../infra/postgres/seed-demo.sql); consultas en [`consultas-sql.md`](consultas-sql.md).
 > - **Hora oficial:** todos los `timestamptz` son **hora del servidor en UTC** (BR-005). El "recreo" de la demo ocurre el **24-jun-2026** por la mañana.
 
 ---

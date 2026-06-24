@@ -4,7 +4,7 @@ import type { BadgeTone } from '../../shared/ui/Badge';
 
 /**
  * Producto del lado ADMIN con TODOS los campos del esquema (architecture §5 /
- * products): espeja el dataset demo (docs/datos-demo.md §2). `id` coincide con
+ * products): espeja el dataset demo (docs/datos/datos-demo.md §2). `id` coincide con
  * el del catálogo del cliente para reusar los assets (productImage/productIcon).
  * Al llegar el turno de datos se reemplaza por `GET /admin/products`.
  */

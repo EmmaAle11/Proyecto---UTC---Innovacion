@@ -1,6 +1,6 @@
 # UTC FOOD / COOPERATIVA — Reglas obligatorias para Claude Code
 
-> Registro canónico de decisiones del proyecto: `docs/decisiones.md`.
+> Registro canónico de decisiones del proyecto: `docs/arquitectura/decisiones.md`.
 
 Estas reglas aplican para el proyecto escolar de aplicación de cooperativa / dark kitchen con modalidad Pick Up.
 
@@ -791,9 +791,9 @@ Excepción única: el usuario pide explícitamente en ese momento "hazlo tú / h
 Conforme el proyecto avanza, **tres documentos** deben mantenerse **actualizados siempre** (en cuanto algo cambie) para que reflejen lo que la app realmente tiene (alcance, productos, pantallas, funcionalidades, decisiones y reglas de negocio):
 
 ```txt
-docs/algoritmo-circulo-innovacion.md   → la Propuesta (Ocurrencia → Idea → Propuesta → Implementación → Valor agregado → Adopción)
-docs/Algoritmo-ejecucion.md            → la Implementación (algoritmo de pasos para construir la Propuesta)
-docs/decisiones.md                     → el registro de decisiones (ADR ligero: una entrada D-00X por decisión)
+docs/propuesta/algoritmo-circulo-innovacion.md  → la Propuesta (Ocurrencia → Idea → Propuesta → Implementación → Valor agregado → Adopción)
+docs/propuesta/Algoritmo-ejecucion.md           → la Implementación (algoritmo de pasos para construir la Propuesta)
+docs/arquitectura/decisiones.md                 → el registro de decisiones (ADR ligero: una entrada D-00X por decisión)
 ```
 
 Cada cambio que altere el alcance, los productos, las pantallas, las decisiones o las reglas de negocio obliga a actualizar el documento correspondiente, en **su** tono, sin romperlo:
@@ -853,7 +853,7 @@ Formato esperado:
 @edu.utc.mx
 ```
 
-Dominio institucional UTC (México), **confirmado el 2026-06-24: `@edu.utc.mx`** (orden invertido respecto al supuesto inicial `utc.edu.mx`). Ver `docs/decisiones.md` (D-011).
+Dominio institucional UTC (México), **confirmado el 2026-06-24: `@edu.utc.mx`** (orden invertido respecto al supuesto inicial `utc.edu.mx`). Ver `docs/arquitectura/decisiones.md` (D-011).
 
 Reglas:
 

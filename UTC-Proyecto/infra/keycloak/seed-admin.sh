@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Seed de Keycloak (realm utc-food): admin local (sin Microsoft) + client service-account 'backend-svc'.
 # Idempotente: re-ejecutar es seguro. Lee secretos de infra/.env (NO en git, rules §17).
-# Ver docs/decisiones.md (D-013, D-014) y rules.md §6.
+# Ver docs/arquitectura/decisiones.md (D-013, D-014) y rules.md §6.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

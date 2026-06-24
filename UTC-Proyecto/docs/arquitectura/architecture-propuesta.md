@@ -2,8 +2,8 @@
 
 > **Pide fácil, recoge con sabor.** App de cooperativa / dark kitchen escolar UTC, modalidad **Pick Up** (sin envíos, BR-001).
 >
-> - Alcance y reglas de negocio: [`algoritmo-circulo-innovacion.md`](algoritmo-circulo-innovacion.md) (Ocurrencia → Idea → Propuesta) + [`Algoritmo-ejecucion.md`](Algoritmo-ejecucion.md).
-> - Decisiones canónicas: [`decisiones.md`](decisiones.md) (D-001…D-018). Reglas operativas: `superpowers/priority/rules.md`.
+> - Alcance y reglas de negocio: [`algoritmo-circulo-innovacion.md`](../propuesta/algoritmo-circulo-innovacion.md) (Ocurrencia → Idea → Propuesta) + [`Algoritmo-ejecucion.md`](../propuesta/Algoritmo-ejecucion.md).
+> - Decisiones canónicas: [`decisiones.md`](decisiones.md) (D-001…D-021). Reglas operativas: `docs/superpowers/priority/rules.md`.
 > - Este documento refleja la arquitectura **adoptada** (post-decisiones). El esquema de BD (§5) está **materializado** por **migración TypeORM** (`backend/src/infrastructure/database/migrations/1782168106072-Init.ts`, rules §11): 6 tablas + 5 enums creados en Postgres (`init.sql` solo crea la extensión `pgcrypto`).
 
 ---

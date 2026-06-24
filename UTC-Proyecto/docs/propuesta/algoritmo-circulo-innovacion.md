@@ -2,7 +2,7 @@
 
 > **Pide fácil, recoge con sabor.** Documento **fuente** del círculo de innovación de la app de cooperativa / dark kitchen escolar UTC, modalidad **Pick Up** (sin envíos). Recorre las fases: **Ocurrencia → Idea → Propuesta → Implementación → Valor agregado → Adopción**.
 >
-> - Aquí viven el **alcance** y las **reglas de negocio**. El **algoritmo de implementación** está en [`Algoritmo-ejecucion.md`](Algoritmo-ejecucion.md); el detalle técnico en [`architecture-propuesta.md`](architecture-propuesta.md); las decisiones en [`decisiones.md`](decisiones.md).
+> - Aquí viven el **alcance** y las **reglas de negocio**. El **algoritmo de implementación** está en [`Algoritmo-ejecucion.md`](Algoritmo-ejecucion.md); el detalle técnico en [`architecture-propuesta.md`](../arquitectura/architecture-propuesta.md); las decisiones en [`decisiones.md`](../arquitectura/decisiones.md).
 > - La **Propuesta consolidada** (§3.1) reúne, en cortito, todo lo que tendrá la app (lado alumno + panel de admin).
 
 ---
@@ -207,7 +207,7 @@ Aunque existan los turnos, en el recreo siempre habrá un montón de pedidos jun
 
 ## 4. Implementación
 
-El **algoritmo para construir todo lo de la Propuesta** vive en [`Algoritmo-ejecucion.md`](Algoritmo-ejecucion.md): los pasos concretos (definir alcance y diseño, levantar servicios, estructura de carpetas, armar pantallas y backend, etc.). El **detalle técnico** (arquitectura, esquema de BD, seguridad) está en [`architecture-propuesta.md`](architecture-propuesta.md) y las **decisiones** en [`decisiones.md`](decisiones.md).
+El **algoritmo para construir todo lo de la Propuesta** vive en [`Algoritmo-ejecucion.md`](Algoritmo-ejecucion.md): los pasos concretos (definir alcance y diseño, levantar servicios, estructura de carpetas, armar pantallas y backend, etc.). El **detalle técnico** (arquitectura, esquema de BD, seguridad) está en [`architecture-propuesta.md`](../arquitectura/architecture-propuesta.md) y las **decisiones** en [`decisiones.md`](../arquitectura/decisiones.md).
 
 ---
 

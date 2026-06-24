@@ -12,7 +12,7 @@ docker compose ps          # postgres y keycloak deben estar "healthy"/"running"
 
 - Postgres: `localhost:${POSTGRES_PORT}`, base `utc_food`, user `utc`
 - Keycloak: `http://localhost:${KEYCLOAK_PORT}` (realm `utc-food`, roles `admin`/`user`, client `mobile-app`)
-- Admin (panel): correo `ADMIN_SEED_EMAIL` + `ADMIN_SEED_PASSWORD` de `.env`, rol `admin` (credenciales **locales**, sin Microsoft). Sembrar/refrescar con `./keycloak/seed-admin.sh` (idempotente). Ver `../docs/decisiones.md` D-013.
+- Admin (panel): correo `ADMIN_SEED_EMAIL` + `ADMIN_SEED_PASSWORD` de `.env`, rol `admin` (credenciales **locales**, sin Microsoft). Sembrar/refrescar con `./keycloak/seed-admin.sh` (idempotente). Ver `../docs/arquitectura/decisiones.md` D-013.
 
 ## Puertos
 
