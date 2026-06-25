@@ -63,3 +63,35 @@ export async function postJson<T>(path: string, body: unknown): Promise<T> {
   }
   return data as T;
 }
+
+/** GET JSON al backend. Adjunta `Authorization: Bearer` si se pasa `token`
+ *  (rutas protegidas por el guard JWT). Mismo timeout/errores que `postJson`. */
+export async function getJson<T>(path: string, token?: string): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12000);
+  const headers: Record<string, string> = { 'bypass-tunnel-reminder': 'true' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'GET',
+      headers,
+      signal: controller.signal,
+    });
+  } catch {
+    throw new ApiError('No se pudo conectar con el servidor. Revisa tu red.', 0);
+  } finally {
+    clearTimeout(timer);
+  }
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) {
+    const m = data.message;
+    const message = Array.isArray(m)
+      ? String(m[0])
+      : typeof m === 'string'
+        ? m
+        : 'Algo salió mal, intenta de nuevo';
+    throw new ApiError(message, res.status);
+  }
+  return data as T;
+}

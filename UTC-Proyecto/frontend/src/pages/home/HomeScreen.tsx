@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, MapPin, Zap, ShoppingBag, ArrowRight, Plus, ChevronDown } from 'lucide-react-native';
@@ -8,9 +8,10 @@ import { Chip } from '../../shared/ui/Chip';
 import { Media } from '../../shared/ui/Media';
 import { Display, Heading, Title, Body, Label, Mono } from '../../shared/ui/Type';
 import { colors, text, border, surface, shadow, fonts } from '../../shared/theme';
-import { PRODUCTS, CATEGORIES } from '../../entities/product/mock';
 import { productIcon } from '../../entities/product/icons';
 import { productImage } from '../../entities/product/images';
+import { useSessionStore } from '../../features/auth/model/session.store';
+import { useCatalogStore } from '../../features/catalog/model/catalog.store';
 import { useCartStore, selectCount, selectTotal } from '../../features/cart/model/cart.store';
 import { useBranchStore } from '../../features/branch/model/branch.store';
 import { useBranchLocation } from '../../features/branch/lib/useBranchLocation';
@@ -34,9 +35,19 @@ export function HomeScreen() {
   const [branchOpen, setBranchOpen] = useState(false);
   const { status: locStatus, locate } = useBranchLocation(true); // intenta ubicar al montar
 
-  const available = PRODUCTS.filter((p) => p.isAvailable && p.status !== 'no_disponible');
-  const ready = available.filter((p) => p.readySinceMin != null);
+  // Catálogo real (GET /products) vía store compartido; ProductScreen lee el mismo.
+  const token = useSessionStore((s) => s.session?.accessToken);
+  const products = useCatalogStore((s) => s.products);
+  const loading = useCatalogStore((s) => s.loading);
+  const loadCatalog = useCatalogStore((s) => s.load);
+  useEffect(() => {
+    void loadCatalog(token);
+  }, [token, loadCatalog]);
+
+  const available = products.filter((p) => p.isAvailable && p.status !== 'no_disponible');
+  const ready = available.filter((p) => p.status === 'sin_tiempo_espera' || p.status === 'preparado');
   const list = cat === 'Todo' ? available : available.filter((p) => p.category === cat);
+  const categories = ['Todo', ...Array.from(new Set(available.map((p) => p.category)))];
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: surface.page }}>
@@ -70,7 +81,15 @@ export function HomeScreen() {
           </View>
         </View>
 
-        {/* RAIL "Listos para llevar ya" */}
+        {/* Cargando catálogo */}
+        {loading ? (
+          <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+            <ActivityIndicator size="large" color={colors.primary} />
+          </View>
+        ) : null}
+
+        {/* RAIL "Listos para llevar ya" (solo si hay listos) */}
+        {ready.length > 0 ? (
         <View style={{ paddingTop: 22 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 20, paddingBottom: 11 }}>
             <Zap size={18} color={colors.lima[500]} />
@@ -81,13 +100,13 @@ export function HomeScreen() {
               const Icon = productIcon(p.icon);
               return (
                 <Pressable key={p.id} onPress={() => navigation.navigate('Product', { productId: p.id })} style={{ width: 158, backgroundColor: surface.card, borderWidth: 1, borderColor: colors.lima[100], borderRadius: 16, padding: 9, ...shadow.card }}>
-                  <Media height={84} radius={12} source={productImage(p.id)} icon={<Icon size={34} color={colors.azul[300]} />}>
+                  <Media height={84} radius={12} source={productImage(p)} icon={<Icon size={34} color={colors.azul[300]} />}>
                     <View style={{ position: 'absolute', top: 7, left: 7 }}>
                       <Badge tone="ready" dot>Listo</Badge>
                     </View>
                   </Media>
                   <Title style={{ fontSize: 13.5, marginTop: 8, marginBottom: 3 }} numberOfLines={1}>{p.name}</Title>
-                  <Body color={colors.lima[600]} style={{ fontSize: 11, fontFamily: fonts.bodySemi, marginBottom: 7 }}>Listo hace {p.readySinceMin} min</Body>
+                  <Body color={colors.lima[600]} style={{ fontSize: 11, fontFamily: fonts.bodySemi, marginBottom: 7 }}>{p.readySinceMin != null ? `Listo hace ${p.readySinceMin} min` : 'Sin tiempo de espera'}</Body>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                     <Mono style={{ fontFamily: fonts.monoBold, fontSize: 15 }} color={text.heading}>{`$${p.price}`}</Mono>
                     <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}>
@@ -99,10 +118,11 @@ export function HomeScreen() {
             })}
           </ScrollView>
         </View>
+        ) : null}
 
         {/* CHIPS de categoría */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 8, paddingTop: 16, paddingBottom: 14 }}>
-          {CATEGORIES.map((c) => (
+          {categories.map((c) => (
             <Chip key={c} selected={c === cat} onPress={() => setCat(c)}>
               {c}
             </Chip>
@@ -115,15 +135,15 @@ export function HomeScreen() {
             const Icon = productIcon(p.icon);
             return (
               <Pressable key={p.id} onPress={() => navigation.navigate('Product', { productId: p.id })} style={{ flexDirection: 'row', gap: 13, alignItems: 'center', backgroundColor: surface.card, borderWidth: 1, borderColor: border.subtle, borderRadius: 18, padding: 11, ...shadow.card }}>
-                <Media height={78} radius={13} style={{ width: 78 }} source={productImage(p.id)} icon={<Icon size={30} color={colors.azul[300]} />} />
+                <Media height={78} radius={13} style={{ width: 78 }} source={productImage(p)} icon={<Icon size={30} color={colors.azul[300]} />} />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
                     <Title style={{ fontSize: 15.5 }} numberOfLines={1}>{p.name}</Title>
                     {p.popular ? <Body style={{ fontSize: 12 }}>🔥</Body> : null}
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                    {p.readySinceMin != null ? (
-                      <Body color={colors.lima[600]} style={{ fontSize: 12, fontFamily: fonts.bodySemi }}>Listo hace {p.readySinceMin} min</Body>
+                    {p.status === 'sin_tiempo_espera' || p.status === 'preparado' ? (
+                      <Body color={colors.lima[600]} style={{ fontSize: 12, fontFamily: fonts.bodySemi }}>Listo · sin espera</Body>
                     ) : (
                       <Body color={text.muted} style={{ fontSize: 12 }}>⏱ {Math.round(p.basePrepTimeSeconds / 60)} min de espera</Body>
                     )}

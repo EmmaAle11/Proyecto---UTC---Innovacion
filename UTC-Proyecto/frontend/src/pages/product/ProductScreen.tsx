@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { View, ScrollView, Pressable } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, MapPin } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -10,24 +10,36 @@ import { QtyStepper } from '../../shared/ui/QtyStepper';
 import { PrimaryButton } from '../../shared/ui/PrimaryButton';
 import { Display, Title, Body, Label } from '../../shared/ui/Type';
 import { colors, text, border, surface, shadow } from '../../shared/theme';
-import { PRODUCTS } from '../../entities/product/mock';
 import { productImage } from '../../entities/product/images';
 import { productIcon } from '../../entities/product/icons';
 import { useCartStore } from '../../features/cart/model/cart.store';
+import { useCatalogStore } from '../../features/catalog/model/catalog.store';
+import { useSessionStore } from '../../features/auth/model/session.store';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'Product'>;
 
 /** Detalle del producto: foto + estado + descripción + cantidad. Agregar → vuelve a Inicio. */
 export function ProductScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const product = PRODUCTS.find((p) => p.id === route.params.productId);
+  const loaded = useCatalogStore((s) => s.loaded);
+  const loading = useCatalogStore((s) => s.loading);
+  const loadCatalog = useCatalogStore((s) => s.load);
+  const token = useSessionStore((s) => s.session?.accessToken);
+  useEffect(() => {
+    if (!loaded) void loadCatalog(token); // deep-link: carga una vez si nadie lo hizo
+  }, [loaded, loadCatalog, token]);
+  const product = useCatalogStore((s) => s.getById(route.params.productId));
   const add = useCartStore((s) => s.add);
   const [qty, setQty] = useState(1);
 
   if (!product) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: surface.page }}>
-        <Body color={text.muted}>Producto no encontrado.</Body>
+        {loading ? (
+          <ActivityIndicator size="large" color={colors.primary} />
+        ) : (
+          <Body color={text.muted}>Producto no encontrado.</Body>
+        )}
       </View>
     );
   }
@@ -43,7 +55,7 @@ export function ProductScreen({ route, navigation }: Props) {
   return (
     <View style={{ flex: 1, backgroundColor: surface.page }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
-        <Media height={300} radius={0} source={productImage(product.id)} icon={<Icon size={96} color={colors.azul[300]} />} />
+        <Media height={300} radius={0} source={productImage(product)} icon={<Icon size={96} color={colors.azul[300]} />} />
 
         <View style={{ paddingHorizontal: 20, paddingTop: 22, paddingBottom: 22 }}>
           {/* HERO editorial: categoría → nombre enorme → barrita naranja */}

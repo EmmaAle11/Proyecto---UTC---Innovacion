@@ -18,6 +18,7 @@ export interface Product {
   isAvailable: boolean;
   readySinceMin: number | null; // minutos desde que quedó listo (rail "Listos ahora")
   description: string;
+  imageUrl?: string | null; // ruta del asset desde la BD (p. ej. "products/boneless-bbq.png")
   popular?: boolean;
   icon: ProductIconName;
 }

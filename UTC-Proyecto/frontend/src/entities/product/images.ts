@@ -17,20 +17,34 @@ import aguaHorchata from '../../../assets/products/agua-horchata.png';
  * por eso el mapa es estático (en RN no hay require dinámico por string).
  * Mapea el `id` del producto → su asset.
  */
+// Llaveado por **slug** (coincide con `image_url` de la BD: "products/<slug>.png")
+// y por **id del mock** ('1'..'10'), para que sirva igual con datos reales (UUID +
+// imageUrl) que con el mock/admin (ids cortos).
 const IMAGES: Record<string, ImageSourcePropType> = {
-  '1': quesadillaTinga,
-  '2': comboEstudiante,
-  '3': hamburguesaCasa,
-  '4': papasQueso,
-  '5': aguaJamaica,
-  '6': bonelessBbq,
-  '7': papasFrancesa,
-  '8': esquites,
-  '9': gelatinaMosaico,
-  '10': aguaHorchata,
+  'quesadilla-tinga': quesadillaTinga, '1': quesadillaTinga,
+  'combo-estudiante': comboEstudiante, '2': comboEstudiante,
+  'hamburguesa-casa': hamburguesaCasa, '3': hamburguesaCasa,
+  'papas-queso': papasQueso, '4': papasQueso,
+  'agua-jamaica': aguaJamaica, '5': aguaJamaica,
+  'boneless-bbq': bonelessBbq, '6': bonelessBbq,
+  'papas-francesa': papasFrancesa, '7': papasFrancesa,
+  'esquites': esquites, '8': esquites,
+  'gelatina-mosaico': gelatinaMosaico, '9': gelatinaMosaico,
+  'agua-horchata': aguaHorchata, '10': aguaHorchata,
 };
 
-/** Asset local del producto, o `undefined` si no hay (entonces se usa el ícono de fallback). */
-export function productImage(id: string): ImageSourcePropType | undefined {
-  return IMAGES[id];
+/**
+ * Asset local del producto, o `undefined` si no hay (se usa el ícono de fallback).
+ * Acepta un `id` suelto (mock/admin) o el producto completo: con datos reales
+ * resuelve por `imageUrl` (slug) y, si no, por `id`.
+ */
+export function productImage(
+  arg: string | { id: string; imageUrl?: string | null },
+): ImageSourcePropType | undefined {
+  if (typeof arg === 'string') return IMAGES[arg];
+  if (arg.imageUrl) {
+    const slug = arg.imageUrl.split('/').pop()?.replace(/\.png$/i, '');
+    if (slug && IMAGES[slug]) return IMAGES[slug];
+  }
+  return IMAGES[arg.id];
 }

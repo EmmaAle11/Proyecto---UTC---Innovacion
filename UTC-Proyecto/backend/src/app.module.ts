@@ -6,6 +6,7 @@ import { PassportModule } from '@nestjs/passport';
 import { DatabaseModule } from './infrastructure/database/database.module';
 import { HealthController } from './presentation/health/health.controller';
 import { AuthModule } from './presentation/auth/auth.module';
+import { ProductsModule } from './presentation/products/products.module';
 import { JwtStrategy } from './infrastructure/auth/jwt.strategy';
 import { JwtAuthGuard } from './presentation/auth/guards/jwt-auth.guard';
 import { RolesGuard } from './presentation/auth/guards/roles.guard';
@@ -17,6 +18,7 @@ import { RolesGuard } from './presentation/auth/guards/roles.guard';
     PassportModule,
     DatabaseModule,
     AuthModule,
+    ProductsModule,
   ],
   controllers: [HealthController],
   // Orden de guards globales: rate-limit → JWT (autenticación) → roles (autorización).

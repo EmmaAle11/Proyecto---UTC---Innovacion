@@ -102,7 +102,7 @@ export function CartScreen({ navigation }: Props) {
                 const Icon = productIcon(it.product.icon);
                 return (
                   <View key={it.product.id} style={{ flexDirection: 'row', gap: 12, alignItems: 'center', backgroundColor: surface.card, borderWidth: 1, borderColor: border.subtle, borderRadius: 16, padding: 10, ...shadow.card }}>
-                    <Media height={56} radius={12} style={{ width: 56 }} source={productImage(it.product.id)} icon={<Icon size={24} color={colors.azul[300]} />} />
+                    <Media height={56} radius={12} style={{ width: 56 }} source={productImage(it.product)} icon={<Icon size={24} color={colors.azul[300]} />} />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Title style={{ fontSize: 14.5 }} numberOfLines={1}>{it.product.name}</Title>
                       <Mono style={{ fontFamily: fonts.monoBold, fontSize: 14, marginTop: 3 }} color={text.heading}>{`$${it.product.price}`}</Mono>
