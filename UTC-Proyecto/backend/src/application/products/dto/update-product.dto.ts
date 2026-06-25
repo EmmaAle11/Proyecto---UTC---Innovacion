@@ -63,10 +63,12 @@ export class UpdateProductDto {
   @IsBoolean()
   isAvailable?: boolean;
 
+  // `null` limpia la reoferta; un número la fija (> 0). `@IsOptional` salta validación
+  // cuando es null/undefined, así que el número se valida y el null pasa a "limpiar".
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0.01, { message: 'El precio de reoferta debe ser mayor a 0' })
-  reofferPrice?: number;
+  reofferPrice?: number | null;
 
   @IsOptional()
   @IsString()

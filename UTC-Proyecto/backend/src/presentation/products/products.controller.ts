@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import { ProductsService } from '../../application/products/products.service';
 import { CreateProductDto } from '../../application/products/dto/create-product.dto';
 import { UpdateProductDto } from '../../application/products/dto/update-product.dto';
@@ -35,7 +43,7 @@ export class ProductsController {
   @Patch(':id')
   @Roles('admin')
   async update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateProductDto,
   ): Promise<ProductResponse> {
     return toProductResponse(await this.products.update(id, dto));

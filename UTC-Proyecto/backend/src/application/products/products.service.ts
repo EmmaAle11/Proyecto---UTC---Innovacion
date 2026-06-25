@@ -72,7 +72,8 @@ export class ProductsService {
     if (dto.status !== undefined) p.status = dto.status;
     if (dto.isAvailable !== undefined) p.isAvailable = dto.isAvailable;
     if (dto.reofferPrice !== undefined)
-      p.reofferPrice = dto.reofferPrice.toFixed(2);
+      p.reofferPrice =
+        dto.reofferPrice === null ? null : dto.reofferPrice.toFixed(2);
 
     if (p.maxStock != null && p.maxStock < p.minStock) {
       throw new BadRequestException(
