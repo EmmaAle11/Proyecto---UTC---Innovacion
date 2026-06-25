@@ -21,6 +21,7 @@
 
 ### 📚 Histórico — archivos de proceso (no vivos)
 - [regresion-2026-06-23.md](historico/regresion-2026-06-23.md) — regresión multi-agente de la Fase 1.
+- [revision-reporte-llm-2026-06-25.md](historico/revision-reporte-llm-2026-06-25.md) — verificación (§0) del reporte de seguridad de un LLM (ChatGPT) contra el código real.
 - [Reporte-Tecnologias-Algoritmo.html](historico/Reporte-Tecnologias-Algoritmo.html) — reporte inicial de tecnologías. *(Su CSS apuntaba a `design-system/`, ya retirado; queda como archivo.)*
 
 ### 📋 Reglas y planes de fase
