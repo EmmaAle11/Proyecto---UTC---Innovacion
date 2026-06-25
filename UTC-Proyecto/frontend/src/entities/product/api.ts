@@ -6,7 +6,7 @@ import { iconForProduct } from './icons';
  * Forma cruda del backend (`GET /products` → `ProductResponse`). El dinero ya
  * viene como `number`; `icon`/`readySinceMin` son de display y los pone el front.
  */
-interface ApiProduct {
+export interface ApiProduct {
   id: string;
   name: string;
   description: string | null;

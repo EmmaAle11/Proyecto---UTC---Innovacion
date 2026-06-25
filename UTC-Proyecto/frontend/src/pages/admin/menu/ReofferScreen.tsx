@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Tag, ArrowDown } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -9,6 +9,7 @@ import { Chip } from '../../../shared/ui/Chip';
 import { PrimaryButton } from '../../../shared/ui/PrimaryButton';
 import { colors, text, surface, border, shadow, fonts } from '../../../shared/theme';
 import { useCatalogStore } from '../../../features/admin/model/catalog.store';
+import { useSessionStore } from '../../../features/auth/model/session.store';
 import { PRODUCT_STATUS_META } from '../../../entities/product/admin-mock';
 import type { ProductStatus } from '../../../entities/product/model/types';
 
@@ -22,8 +23,10 @@ export function ReofferScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
   const products = useCatalogStore((s) => s.products);
   const applyReoffer = useCatalogStore((s) => s.applyReoffer);
+  const token = useSessionStore((s) => s.session?.accessToken);
   const product = products.find((p) => p.id === route.params.productId);
 
+  const [saving, setSaving] = useState(false);
   const [reoffer, setReoffer] = useState<string>(product?.reofferPrice != null ? String(product.reofferPrice) : '');
   const [status, setStatus] = useState<ProductStatus>(
     product && REOFFER_OPTIONS.includes(product.status) ? product.status : 'calentando',
@@ -37,15 +40,25 @@ export function ReofferScreen({ route, navigation }: Props) {
     );
   }
 
-  const parsed = parseInt(reoffer.replace(/[^0-9]/g, ''), 10);
-  const newPrice = Number.isFinite(parsed) ? parsed : 0;
+  const parsed = parseFloat(reoffer.replace(/[^0-9.]/g, ''));
+  const newPrice = Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : 0;
   const valid = newPrice > 0 && newPrice < product.price;
   const off = product.price > 0 ? Math.round(((product.price - newPrice) / product.price) * 100) : 0;
 
-  const onApply = () => {
-    if (!valid) return;
-    applyReoffer(product.id, newPrice, status);
-    navigation.goBack();
+  const onApply = async () => {
+    if (!valid || saving) return;
+    setSaving(true);
+    try {
+      await applyReoffer(product.id, newPrice, status, token);
+      navigation.goBack();
+    } catch (e) {
+      Alert.alert(
+        'No se pudo aplicar',
+        e instanceof Error ? e.message : 'Intenta de nuevo',
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -112,7 +125,7 @@ export function ReofferScreen({ route, navigation }: Props) {
                 onChangeText={setReoffer}
                 placeholder="0"
                 placeholderTextColor={colors.naranja[200]}
-                keyboardType="number-pad"
+                keyboardType="decimal-pad"
                 style={{ flex: 1, marginLeft: 4, fontSize: 22, color: colors.naranja[700], fontFamily: fonts.monoBold }}
               />
               {valid ? (
@@ -142,9 +155,9 @@ export function ReofferScreen({ route, navigation }: Props) {
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 20, paddingTop: 14, paddingBottom: insets.bottom + 16, backgroundColor: surface.card, borderTopWidth: 1, borderTopColor: border.subtle }}>
         <PrimaryButton
           color={colors.naranja[500]}
-          onPress={onApply}
-          disabled={!valid}
-          label={valid ? `Aplicar reoferta · $${newPrice}` : 'Aplicar reoferta'}
+          onPress={() => void onApply()}
+          disabled={!valid || saving}
+          label={saving ? 'Aplicando…' : valid ? `Aplicar reoferta · $${newPrice}` : 'Aplicar reoferta'}
         />
       </View>
     </View>

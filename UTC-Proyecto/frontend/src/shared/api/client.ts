@@ -31,18 +31,27 @@ export class ApiError extends Error {
   }
 }
 
-/** POST JSON al backend; lanza `ApiError` con el mensaje del servidor si la respuesta no es ok.
- *  Tiene timeout (12 s) para no colgarse si el servidor no es alcanzable (p. ej. en túnel
- *  sin EXPO_PUBLIC_API_URL). El header `bypass-tunnel-reminder` evita la página de aviso
- *  de localtunnel cuando se expone el backend por túnel. */
-export async function postJson<T>(path: string, body: unknown): Promise<T> {
+/** Envía JSON (POST/PATCH) al backend; lanza `ApiError` con el mensaje del servidor si no es ok.
+ *  Adjunta `Authorization: Bearer` si se pasa `token` (rutas protegidas). Timeout 12 s; el header
+ *  `bypass-tunnel-reminder` evita la página de aviso de localtunnel cuando se expone por túnel. */
+async function sendJson<T>(
+  method: 'POST' | 'PATCH',
+  path: string,
+  body: unknown,
+  token?: string,
+): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'bypass-tunnel-reminder': 'true',
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
   let res: Response;
   try {
     res = await fetch(`${API_BASE_URL}${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'bypass-tunnel-reminder': 'true' },
+      method,
+      headers,
       body: JSON.stringify(body),
       signal: controller.signal,
     });
@@ -62,6 +71,16 @@ export async function postJson<T>(path: string, body: unknown): Promise<T> {
     throw new ApiError(message, res.status);
   }
   return data as T;
+}
+
+/** POST JSON (con token opcional para rutas protegidas). */
+export function postJson<T>(path: string, body: unknown, token?: string): Promise<T> {
+  return sendJson<T>('POST', path, body, token);
+}
+
+/** PATCH JSON (edición parcial; token para rutas protegidas). */
+export function patchJson<T>(path: string, body: unknown, token?: string): Promise<T> {
+  return sendJson<T>('PATCH', path, body, token);
 }
 
 /** GET JSON al backend. Adjunta `Authorization: Bearer` si se pasa `token`

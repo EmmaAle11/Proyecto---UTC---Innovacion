@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { View, ScrollView, Pressable } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { View, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Plus, Tag, ChevronRight } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -11,6 +11,7 @@ import { Chip } from '../../../shared/ui/Chip';
 import { Media } from '../../../shared/ui/Media';
 import { colors, text, surface, border, shadow, fonts } from '../../../shared/theme';
 import { useCatalogStore } from '../../../features/admin/model/catalog.store';
+import { useSessionStore } from '../../../features/auth/model/session.store';
 import { PRODUCT_STATUS_META, type AdminProduct } from '../../../entities/product/admin-mock';
 import { productImage } from '../../../entities/product/images';
 import { productIcon } from '../../../entities/product/icons';
@@ -27,9 +28,15 @@ const ALL = 'Todo';
 /** Catálogo del admin (M3): lista de productos con filtro por categoría, toggle de disponibilidad y reoferta. */
 export function MenuScreen() {
   const products = useCatalogStore((s) => s.products);
+  const loading = useCatalogStore((s) => s.loading);
+  const load = useCatalogStore((s) => s.load);
   const toggleAvailable = useCatalogStore((s) => s.toggleAvailable);
+  const token = useSessionStore((s) => s.session?.accessToken);
   const navigation = useNavigation<NativeStackNavigationProp<AdminStackParamList>>();
   const [category, setCategory] = useState<string>(ALL);
+  useEffect(() => {
+    void load(token);
+  }, [token, load]);
 
   // Categorías derivadas de los productos cargados (más "Todo").
   const categories = useMemo(() => {
@@ -66,7 +73,11 @@ export function MenuScreen() {
       </ScrollView>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 2, paddingBottom: 28, gap: 14 }} showsVerticalScrollIndicator={false}>
-        {list.length === 0 ? (
+        {loading && products.length === 0 ? (
+          <View style={{ alignItems: 'center', paddingTop: 48 }}>
+            <ActivityIndicator size="large" color={colors.naranja[500]} />
+          </View>
+        ) : list.length === 0 ? (
           <View style={{ alignItems: 'center', paddingTop: 48 }}>
             <Body color={text.muted}>Sin productos en esta categoría.</Body>
           </View>
@@ -103,7 +114,7 @@ export function MenuScreen() {
 
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: border.subtle }}>
                   <Pressable
-                    onPress={() => toggleAvailable(p.id)}
+                    onPress={() => void toggleAvailable(p.id, token)}
                     hitSlop={6}
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 7, height: 32, paddingHorizontal: 11, borderRadius: 10, backgroundColor: p.isAvailable ? colors.lima[50] : colors.gris[100] }}
                   >

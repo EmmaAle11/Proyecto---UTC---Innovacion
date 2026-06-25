@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, ScrollView, Pressable, TextInput, Switch, KeyboardAvoidingView, Platform, type TextInputProps } from 'react-native';
+import { View, ScrollView, Pressable, TextInput, Switch, KeyboardAvoidingView, Platform, Alert, type TextInputProps } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -9,7 +9,9 @@ import { Chip } from '../../../shared/ui/Chip';
 import { PrimaryButton } from '../../../shared/ui/PrimaryButton';
 import { colors, text, surface, border, shadow, fonts } from '../../../shared/theme';
 import { useCatalogStore } from '../../../features/admin/model/catalog.store';
-import { PRODUCT_STATUS_META, PRODUCT_STATUS_ORDER, type AdminProduct } from '../../../entities/product/admin-mock';
+import { useSessionStore } from '../../../features/auth/model/session.store';
+import { PRODUCT_STATUS_META, PRODUCT_STATUS_ORDER } from '../../../entities/product/admin-mock';
+import type { ProductWritePayload } from '../../../entities/product/admin-api';
 import type { ProductStatus } from '../../../entities/product/model/types';
 
 type Props = NativeStackScreenProps<AdminStackParamList, 'ProductEdit'>;
@@ -18,6 +20,12 @@ type Props = NativeStackScreenProps<AdminStackParamList, 'ProductEdit'>;
 function toInt(v: string): number {
   const n = parseInt(v.replace(/[^0-9]/g, ''), 10);
   return Number.isFinite(n) ? n : 0;
+}
+
+/** Parsea un monto con hasta 2 decimales (el precio admite centavos; vacío → 0). */
+function toMoney(v: string): number {
+  const n = parseFloat(v.replace(/[^0-9.]/g, ''));
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
 }
 
 /** Campo de texto/numérico con etiqueta, mismo estilo editorial que BrandField. */
@@ -75,13 +83,15 @@ function Field({
 export function ProductEditScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
   const products = useCatalogStore((s) => s.products);
-  const upsert = useCatalogStore((s) => s.upsert);
+  const createProduct = useCatalogStore((s) => s.create);
+  const updateProduct = useCatalogStore((s) => s.update);
+  const token = useSessionStore((s) => s.session?.accessToken);
 
   const editing = route.params.productId
     ? products.find((p) => p.id === route.params.productId)
     : undefined;
 
-  const [id] = useState<string>(editing?.id ?? String(Date.now()));
+  const [saving, setSaving] = useState(false);
   const [name, setName] = useState(editing?.name ?? '');
   const [description, setDescription] = useState(editing?.description ?? '');
   const [price, setPrice] = useState(String(editing?.price ?? ''));
@@ -93,12 +103,12 @@ export function ProductEditScreen({ route, navigation }: Props) {
   const [status, setStatus] = useState<ProductStatus>(editing?.status ?? 'por_preparar');
   const [isAvailable, setIsAvailable] = useState(editing?.isAvailable ?? true);
 
-  const onSave = () => {
-    const product: AdminProduct = {
-      id,
+  const onSave = async () => {
+    if (saving) return;
+    const payload: ProductWritePayload = {
       name: name.trim(),
-      description: description.trim(),
-      price: toInt(price),
+      description: description.trim() || undefined,
+      price: toMoney(price),
       category: category.trim(),
       basePrepTimeSeconds: toInt(prepTime),
       stock: toInt(stock),
@@ -106,11 +116,23 @@ export function ProductEditScreen({ route, navigation }: Props) {
       maxStock: maxStock.trim() === '' ? null : toInt(maxStock),
       status,
       isAvailable,
-      reofferPrice: editing?.reofferPrice ?? null,
-      icon: editing?.icon ?? 'utensils',
     };
-    upsert(product);
-    navigation.goBack();
+    setSaving(true);
+    try {
+      if (editing) {
+        await updateProduct(editing.id, payload, token);
+      } else {
+        await createProduct(payload, token);
+      }
+      navigation.goBack();
+    } catch (e) {
+      Alert.alert(
+        'No se pudo guardar',
+        e instanceof Error ? e.message : 'Intenta de nuevo',
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -129,7 +151,7 @@ export function ProductEditScreen({ route, navigation }: Props) {
 
           <View style={{ flexDirection: 'row', gap: 12 }}>
             <View style={{ flex: 1 }}>
-              <Field label="Precio (MXN)" value={price} onChangeText={setPrice} placeholder="0" keyboardType="number-pad" />
+              <Field label="Precio (MXN)" value={price} onChangeText={setPrice} placeholder="0" keyboardType="decimal-pad" />
             </View>
             <View style={{ flex: 1 }}>
               <Field label="Prep. (seg)" value={prepTime} onChangeText={setPrepTime} placeholder="0" keyboardType="number-pad" />
@@ -178,7 +200,12 @@ export function ProductEditScreen({ route, navigation }: Props) {
 
       {/* Barra inferior: guardar */}
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 20, paddingTop: 14, paddingBottom: insets.bottom + 16, backgroundColor: surface.card, borderTopWidth: 1, borderTopColor: border.subtle }}>
-        <PrimaryButton color={colors.naranja[500]} onPress={onSave} label={editing ? 'Guardar cambios' : 'Crear producto'} />
+        <PrimaryButton
+          color={colors.naranja[500]}
+          onPress={() => void onSave()}
+          disabled={saving}
+          label={saving ? 'Guardando…' : editing ? 'Guardar cambios' : 'Crear producto'}
+        />
       </View>
     </View>
   );
