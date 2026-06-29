@@ -44,7 +44,7 @@ Se deben crear dos diseños diferentes para el posible usuario dependiendo del p
 Procederemos a levantar los servicios necesarios como:
 - Node.js
 - Docker
-- Puertos 5132, 8083 , etc.
+- Puertos 5432 (PostgreSQL) y 8080 (Keycloak), etc.
 
 Construiremos las imagenes de Postgre.sql y Keycloack, tecnologías determinadas desde la propuesta.
 
