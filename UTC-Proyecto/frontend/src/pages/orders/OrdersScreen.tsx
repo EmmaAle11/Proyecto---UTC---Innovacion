@@ -1,8 +1,8 @@
-import { useEffect } from 'react';
+import { useCallback } from 'react';
 import { View, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Receipt, ArrowRight, Check, CircleSlash } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { MainStackParamList } from '../../app/navigation/types';
 import { Badge } from '../../shared/ui/Badge';
@@ -26,9 +26,11 @@ export function OrdersScreen() {
   const loadMine = useOrdersStore((s) => s.loadMine);
   const loading = useOrdersStore((s) => s.loading);
   const error = useOrdersStore((s) => s.error);
-  useEffect(() => {
-    void loadMine(token);
-  }, [token, loadMine]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadMine(token);
+    }, [token, loadMine]),
+  );
 
   // El backend ya entrega SOLO mis pedidos (BR-014: aislado por el JWT); los mostramos
   // una vez cargados (evita el flash del mock compartido antes del fetch).

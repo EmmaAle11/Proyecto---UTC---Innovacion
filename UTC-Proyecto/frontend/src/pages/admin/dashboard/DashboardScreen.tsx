@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
+import { useCallback } from 'react';
 import { View, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { ClipboardList, ArrowRight, TrendingUp, ShoppingBag, CheckCircle2, UtensilsCrossed } from 'lucide-react-native';
 import { Display, Heading, Title, Body, Label, Mono } from '../../../shared/ui/Type';
@@ -27,9 +27,11 @@ export function DashboardScreen() {
   const yellow = useSettingsStore((s) => s.semaforoYellow);
   const red = useSettingsStore((s) => s.semaforoRed);
   const branchName = useSettingsStore((s) => s.branchName);
-  useEffect(() => {
-    void loadAll(token);
-  }, [token, loadAll]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadAll(token);
+    }, [token, loadAll]),
+  );
   const sem = selectSemaforo(orders, yellow, red);
   const kpi = selectKpis(orders);
   const s = SEM[sem.level];

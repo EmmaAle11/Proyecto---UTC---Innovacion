@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { View, ScrollView, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Clock, ChevronRight, Check } from 'lucide-react-native';
@@ -6,7 +6,7 @@ import { Heading, Title, Body, Label, Mono } from '../../../shared/ui/Type';
 import { Badge } from '../../../shared/ui/Badge';
 import { Chip } from '../../../shared/ui/Chip';
 import { colors, text, surface, border, shadow, fonts } from '../../../shared/theme';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useOrdersStore } from '../../../features/orders/model/orders.store';
 import { useSessionStore } from '../../../features/auth/model/session.store';
@@ -39,9 +39,11 @@ export function QueueScreen() {
   const loadAll = useOrdersStore((s) => s.loadAll);
   const token = useSessionStore((s) => s.session?.accessToken);
   const [filter, setFilter] = useState<Filter>('En cola');
-  useEffect(() => {
-    void loadAll(token);
-  }, [token, loadAll]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadAll(token);
+    }, [token, loadAll]),
+  );
 
   const onAdvance = (id: string, to: OrderStatus) => {
     void setStatus(id, to, token).catch((e: unknown) =>
