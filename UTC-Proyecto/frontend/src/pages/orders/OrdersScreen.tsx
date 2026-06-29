@@ -1,4 +1,5 @@
-import { View, Pressable, ScrollView } from 'react-native';
+import { useEffect } from 'react';
+import { View, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Receipt, ArrowRight, Check, CircleSlash } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -18,11 +19,20 @@ import { ORDER_STATUS_META, type AdminOrder } from '../../entities/order/admin-m
  */
 export function OrdersScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
-  const email = useSessionStore((s) => s.session?.email ?? '');
+  const token = useSessionStore((s) => s.session?.accessToken);
   const orders = useOrdersStore((s) => s.orders);
+  const loaded = useOrdersStore((s) => s.loaded);
   const setActiveOrder = useOrdersStore((s) => s.setActiveOrder);
+  const loadMine = useOrdersStore((s) => s.loadMine);
+  const loading = useOrdersStore((s) => s.loading);
+  const error = useOrdersStore((s) => s.error);
+  useEffect(() => {
+    void loadMine(token);
+  }, [token, loadMine]);
 
-  const mine = orders.filter((o) => o.email === email);
+  // El backend ya entrega SOLO mis pedidos (BR-014: aislado por el JWT); los mostramos
+  // una vez cargados (evita el flash del mock compartido antes del fetch).
+  const mine = loaded ? orders : [];
   const active = mine.filter((o) => !TERMINAL_STATUSES.includes(o.status));
   const history = mine.filter((o) => TERMINAL_STATUSES.includes(o.status));
 
@@ -40,11 +50,17 @@ export function OrdersScreen() {
           <View style={{ width: 58, height: 6, borderRadius: 3, backgroundColor: colors.naranja[500], marginTop: 10 }} />
         </View>
 
-        {mine.length === 0 ? (
+        {loading && mine.length === 0 ? (
+          <View style={{ alignItems: 'center', paddingVertical: 70 }}>
+            <ActivityIndicator size="large" color={colors.naranja[500]} />
+          </View>
+        ) : mine.length === 0 ? (
           <View style={{ alignItems: 'center', paddingVertical: 70 }}>
             <Receipt size={46} color={colors.gris[300]} />
             <Body color={text.muted} style={{ marginTop: 14, fontSize: 15, textAlign: 'center', lineHeight: 22 }}>
-              Aún no tienes pedidos.{'\n'}Tu próximo antojo aparecerá aquí.
+              {error
+                ? 'No se pudieron cargar tus pedidos.\nRevisa tu conexión e inténtalo de nuevo.'
+                : 'Aún no tienes pedidos.\nTu próximo antojo aparecerá aquí.'}
             </Body>
           </View>
         ) : null}

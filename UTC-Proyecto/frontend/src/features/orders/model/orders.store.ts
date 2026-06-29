@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import { ADMIN_ORDERS, QUEUE_STATUSES, type AdminOrder } from '../../../entities/order/admin-mock';
 import type { OrderStatus } from '../../../entities/order/model/types';
+import {
+  createOrder,
+  fetchMyOrders,
+  type OrderWritePayload,
+} from '../../../entities/order/api';
 
 /**
  * Store ÚNICO de pedidos, compartido por el ADMIN y el CLIENTE (UI-first).
@@ -10,22 +15,22 @@ import type { OrderStatus } from '../../../entities/order/model/types';
  */
 export type Order = AdminOrder;
 
-export interface NewOrderInput {
-  customer: string;
-  email: string;
-  items: { name: string; qty: number }[];
-  total: number;
-  payMethod: AdminOrder['payMethod'];
-}
+/** Cuerpo del checkout: SOLO producto + cantidad + método (el backend pone precio/total). */
+export type NewOrderInput = OrderWritePayload;
 
 interface OrdersState {
   orders: Order[];
   /** Pedido que el cliente sigue ahora mismo (seteado al pagar o al abrir el seguimiento). */
   activeOrderId: string | null;
-  /** Cambia el estado de un pedido (admin: Aceptar/Marcar listo/Entregar). Sincroniza ambos lados. */
+  loading: boolean;
+  loaded: boolean;
+  error: boolean;
+  /** Cambia el estado de un pedido (admin: Aceptar/Marcar listo/Entregar). Mock hasta el Paso 4. */
   setStatus: (id: string, status: OrderStatus) => void;
-  /** El cliente envía un pedido → entra como `pending` a la cola del admin. Devuelve su id. */
-  placeOrder: (input: NewOrderInput) => string;
+  /** El cliente envía un pedido (`POST /orders`); el backend snapshotea precio/total. Devuelve la orden creada. */
+  placeOrder: (input: NewOrderInput, token?: string) => Promise<Order>;
+  /** Carga los pedidos del cliente (`GET /orders`, BR-014). */
+  loadMine: (token?: string) => Promise<void>;
   /** Marca cuál es el pedido activo del cliente (para el seguimiento). */
   setActiveOrder: (id: string) => void;
 }
@@ -33,31 +38,34 @@ interface OrdersState {
 export const useOrdersStore = create<OrdersState>((set, get) => ({
   orders: ADMIN_ORDERS,
   activeOrderId: null,
+  loading: false,
+  loaded: false,
+  error: false,
   setStatus: (id, status) =>
     set((s) => ({ orders: s.orders.map((o) => (o.id === id ? { ...o, status } : o)) })),
   setActiveOrder: (id) => set({ activeOrderId: id }),
-  placeOrder: ({ customer, email, items, total, payMethod }) => {
-    const s = get();
-    const n = s.orders.filter((o) => o.id.startsWith('CLI-')).length + 1;
-    const id = `CLI-${n}`;
-    const code = `A-${210 + n}`;
-    const now = new Date();
-    const createdLabel = `${`${now.getHours()}`.padStart(2, '0')}:${`${now.getMinutes()}`.padStart(2, '0')}`;
-    const order: Order = {
-      id,
-      code,
-      customer,
-      email,
-      status: 'pending',
-      total,
-      items,
-      createdLabel,
-      waitingMin: 0,
-      payMethod,
-      payStatus: payMethod === 'efectivo' ? 'pending' : 'paid',
-    };
-    set((st) => ({ orders: [order, ...st.orders], activeOrderId: id }));
-    return id;
+  placeOrder: async (input, token) => {
+    const created = await createOrder(input, token);
+    set((st) => ({
+      orders: [created, ...st.orders.filter((o) => o.id !== created.id)],
+      activeOrderId: created.id,
+    }));
+    return created;
+  },
+  loadMine: async (token) => {
+    if (get().loading) return;
+    set({ loading: true, error: false });
+    try {
+      const rows = await fetchMyOrders(token);
+      set({ orders: rows, loaded: true });
+    } catch (e) {
+      console.warn('[orders] error al cargar:', e instanceof Error ? e.message : e);
+      // Prod: sin mock (BR-015). Dev: conserva los pedidos actuales (demo).
+      if (!__DEV__) set({ orders: [], error: true });
+      set({ loaded: true });
+    } finally {
+      set({ loading: false });
+    }
   },
 }));
 

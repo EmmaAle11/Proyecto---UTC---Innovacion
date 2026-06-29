@@ -7,6 +7,7 @@ import { DatabaseModule } from './infrastructure/database/database.module';
 import { HealthController } from './presentation/health/health.controller';
 import { AuthModule } from './presentation/auth/auth.module';
 import { ProductsModule } from './presentation/products/products.module';
+import { OrdersModule } from './presentation/orders/orders.module';
 import { JwtStrategy } from './infrastructure/auth/jwt.strategy';
 import { JwtAuthGuard } from './presentation/auth/guards/jwt-auth.guard';
 import { RolesGuard } from './presentation/auth/guards/roles.guard';
@@ -19,6 +20,7 @@ import { RolesGuard } from './presentation/auth/guards/roles.guard';
     DatabaseModule,
     AuthModule,
     ProductsModule,
+    OrdersModule,
   ],
   controllers: [HealthController],
   // Orden de guards globales: rate-limit → JWT (autenticación) → roles (autorización).

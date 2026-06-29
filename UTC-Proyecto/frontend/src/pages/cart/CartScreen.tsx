@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, ScrollView, Pressable } from 'react-native';
+import { View, ScrollView, Pressable, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, MapPin, Wallet, CircleDollarSign, CreditCard, Landmark, Banknote, ArrowRight } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -14,20 +14,9 @@ import { productIcon } from '../../entities/product/icons';
 import { useCartStore, selectTotal } from '../../features/cart/model/cart.store';
 import { useOrdersStore } from '../../features/orders/model/orders.store';
 import { useSessionStore } from '../../features/auth/model/session.store';
-import type { AdminOrder } from '../../entities/order/admin-mock';
+import type { PaymentMethod } from '../../entities/order/model/types';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'Cart'>;
-
-/** Deriva un nombre legible del correo institucional (demo). */
-function customerFromEmail(email: string): string {
-  const local = email.split('@')[0];
-  const name = local
-    .split(/[._-]/)
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
-  return name || 'Cliente';
-}
 
 // Métodos de pago (BR-009). Selector solo VISUAL — pagos diferidos (D-006).
 const METHODS = [
@@ -45,24 +34,34 @@ export function CartScreen({ navigation }: Props) {
   const setQty = useCartStore((s) => s.setQty);
   const clear = useCartStore((s) => s.clear);
   const placeOrder = useOrdersStore((s) => s.placeOrder);
-  const session = useSessionStore((s) => s.session);
+  const token = useSessionStore((s) => s.session?.accessToken);
   const total = selectTotal(items);
   const [pay, setPay] = useState<string>('mercado_pago');
+  const [saving, setSaving] = useState(false);
   const maxPrep = items.reduce((m, it) => Math.max(m, Math.round(it.product.basePrepTimeSeconds / 60)), 0);
 
-  const onPay = () => {
-    // Pago simulado (D-006). Crea el pedido en el store COMPARTIDO → entra a la cola
-    // del admin como `pending` y abre el Seguimiento (sincronización cliente↔admin).
-    const email = session?.email ?? 'cliente@edu.utc.mx';
-    placeOrder({
-      customer: customerFromEmail(email),
-      email,
-      items: items.map((it) => ({ name: it.product.name, qty: it.qty })),
-      total,
-      payMethod: pay as AdminOrder['payMethod'],
-    });
-    clear();
-    navigation.replace('Tracking');
+  const onPay = async () => {
+    if (saving || items.length === 0) return;
+    setSaving(true);
+    try {
+      // El backend snapshotea precio/total (BR-015) y crea orden+pago; abre el Seguimiento.
+      await placeOrder(
+        {
+          items: items.map((it) => ({ productId: it.product.id, quantity: it.qty })),
+          payMethod: pay as PaymentMethod,
+        },
+        token,
+      );
+      clear();
+      navigation.replace('Tracking');
+    } catch (e) {
+      Alert.alert(
+        'No se pudo enviar el pedido',
+        e instanceof Error ? e.message : 'Intenta de nuevo',
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -145,9 +144,10 @@ export function CartScreen({ navigation }: Props) {
             </View>
             <PrimaryButton
               color={colors.naranja[500]}
-              onPress={onPay}
+              onPress={() => void onPay()}
+              disabled={saving}
               icon={<ArrowRight size={18} color="#fff" />}
-              label={pay === 'efectivo' ? 'Confirmar y enviar a cocina' : 'Pagar y enviar a cocina'}
+              label={saving ? 'Enviando…' : pay === 'efectivo' ? 'Confirmar y enviar a cocina' : 'Pagar y enviar a cocina'}
             />
           </View>
         </>
