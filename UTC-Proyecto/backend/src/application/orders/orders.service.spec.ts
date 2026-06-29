@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import type { DataSource } from 'typeorm';
 import { OrdersService } from './orders.service';
 import {
+  OrderStatus,
   PaymentMethod,
   PaymentStatus,
 } from '../../infrastructure/database/entities/enums';
@@ -39,7 +40,11 @@ function product(
 }
 
 /** Arma el servicio con un `DataSource` falso (repos en memoria) para no tocar Postgres. */
-function buildService(opts: { profile?: unknown; products?: AnyProduct[] }) {
+function buildService(opts: {
+  profile?: unknown;
+  products?: AnyProduct[];
+  order?: unknown;
+}) {
   const orderSave = jest.fn((o: unknown) =>
     Promise.resolve({ ...(o as object), id: 'order-1' }),
   );
@@ -59,16 +64,18 @@ function buildService(opts: { profile?: unknown; products?: AnyProduct[] }) {
     OrderEntity: {
       create: jest.fn((x: unknown) => x),
       save: orderSave,
-      findOne: jest.fn().mockResolvedValue({
-        id: 'order-1',
-        status: 'pending',
-        totalAmount: '168.00',
-        items: [],
-        payment: null,
-        user: opts.profile,
-        createdAt: new Date(),
-        readyAt: null,
-      }),
+      findOne: jest.fn().mockResolvedValue(
+        opts.order ?? {
+          id: 'order-1',
+          status: 'pending',
+          totalAmount: '168.00',
+          items: [],
+          payment: null,
+          user: opts.profile,
+          createdAt: new Date(),
+          readyAt: null,
+        },
+      ),
     },
     OrderItemEntity: { create: jest.fn((x: unknown) => x), save: itemSave },
     PaymentEntity: { create: jest.fn((x: unknown) => x), save: paymentSave },
@@ -189,5 +196,64 @@ describe('OrdersService.findMine', () => {
   it('sin perfil aún → lista vacía (no revienta)', async () => {
     const { service } = buildService({ profile: null });
     await expect(service.findMine(USER)).resolves.toEqual([]);
+  });
+});
+
+describe('OrdersService.updateStatus', () => {
+  function orderWith(status: OrderStatus) {
+    return {
+      id: 'o1',
+      status,
+      acceptedAt: null,
+      readyAt: null,
+      pickupDeadline: null,
+      pickedUpAt: null,
+    };
+  }
+
+  it('pending→preparing: válido, fija acceptedAt (hora del servidor, BR-005)', async () => {
+    const { service, orderSave } = buildService({
+      order: orderWith(OrderStatus.PENDING),
+    });
+    await service.updateStatus('o1', OrderStatus.PREPARING);
+    const saved = orderSave.mock.calls[0][0] as {
+      status: OrderStatus;
+      acceptedAt: Date;
+    };
+    expect(saved.status).toBe(OrderStatus.PREPARING);
+    expect(saved.acceptedAt).toBeInstanceOf(Date);
+  });
+
+  it('preparing→ready: fija readyAt + pickupDeadline (+20 min)', async () => {
+    const { service, orderSave } = buildService({
+      order: orderWith(OrderStatus.PREPARING),
+    });
+    await service.updateStatus('o1', OrderStatus.READY);
+    const saved = orderSave.mock.calls[0][0] as {
+      readyAt: Date;
+      pickupDeadline: Date;
+    };
+    expect(saved.readyAt).toBeInstanceOf(Date);
+    expect(saved.pickupDeadline.getTime() - saved.readyAt.getTime()).toBe(
+      20 * 60 * 1000,
+    );
+  });
+
+  it('picked_up→preparing: transición prohibida → BadRequest (BR-004), no persiste', async () => {
+    const { service, orderSave } = buildService({
+      order: orderWith(OrderStatus.PICKED_UP),
+    });
+    await expect(
+      service.updateStatus('o1', OrderStatus.PREPARING),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(orderSave).not.toHaveBeenCalled();
+  });
+
+  it('mismo estado → no-op idempotente (no persiste)', async () => {
+    const { service, orderSave } = buildService({
+      order: orderWith(OrderStatus.READY),
+    });
+    await service.updateStatus('o1', OrderStatus.READY);
+    expect(orderSave).not.toHaveBeenCalled();
   });
 });

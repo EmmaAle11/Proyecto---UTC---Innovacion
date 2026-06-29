@@ -4,6 +4,8 @@ import type { OrderStatus } from '../../../entities/order/model/types';
 import {
   createOrder,
   fetchMyOrders,
+  fetchAllOrders,
+  updateOrderStatus,
   type OrderWritePayload,
 } from '../../../entities/order/api';
 
@@ -15,6 +17,9 @@ import {
  */
 export type Order = AdminOrder;
 
+/** Pedidos con una transición en vuelo: evita PATCH solapados sobre el mismo id (last-writer-wins). */
+const statusInFlight = new Set<string>();
+
 /** Cuerpo del checkout: SOLO producto + cantidad + método (el backend pone precio/total). */
 export type NewOrderInput = OrderWritePayload;
 
@@ -25,12 +30,14 @@ interface OrdersState {
   loading: boolean;
   loaded: boolean;
   error: boolean;
-  /** Cambia el estado de un pedido (admin: Aceptar/Marcar listo/Entregar). Mock hasta el Paso 4. */
-  setStatus: (id: string, status: OrderStatus) => void;
+  /** Cambia el estado de un pedido (admin, `PATCH /orders/:id/status`; BR-004 la valida el backend). Optimista con revert. */
+  setStatus: (id: string, status: OrderStatus, token?: string) => Promise<void>;
   /** El cliente envía un pedido (`POST /orders`); el backend snapshotea precio/total. Devuelve la orden creada. */
   placeOrder: (input: NewOrderInput, token?: string) => Promise<Order>;
   /** Carga los pedidos del cliente (`GET /orders`, BR-014). */
   loadMine: (token?: string) => Promise<void>;
+  /** Carga TODOS los pedidos (admin, `GET /orders/all`): cola + dashboard. */
+  loadAll: (token?: string) => Promise<void>;
   /** Marca cuál es el pedido activo del cliente (para el seguimiento). */
   setActiveOrder: (id: string) => void;
 }
@@ -41,8 +48,27 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
   loading: false,
   loaded: false,
   error: false,
-  setStatus: (id, status) =>
-    set((s) => ({ orders: s.orders.map((o) => (o.id === id ? { ...o, status } : o)) })),
+  setStatus: async (id, status, token) => {
+    if (statusInFlight.has(id)) return; // ya hay una transición en curso para este pedido
+    const prev = get().orders.find((o) => o.id === id);
+    if (!prev) return;
+    statusInFlight.add(id);
+    // Optimista: refleja al instante; revierte si el backend rechaza.
+    set((s) => ({ orders: s.orders.map((o) => (o.id === id ? { ...o, status } : o)) }));
+    try {
+      const updated = await updateOrderStatus(id, status, token);
+      set((s) => ({ orders: s.orders.map((o) => (o.id === id ? updated : o)) }));
+    } catch (e) {
+      set((s) => ({
+        orders: s.orders.map((o) =>
+          o.id === id ? { ...o, status: prev.status } : o,
+        ),
+      }));
+      throw e;
+    } finally {
+      statusInFlight.delete(id);
+    }
+  },
   setActiveOrder: (id) => set({ activeOrderId: id }),
   placeOrder: async (input, token) => {
     const created = await createOrder(input, token);
@@ -61,6 +87,23 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     } catch (e) {
       console.warn('[orders] error al cargar:', e instanceof Error ? e.message : e);
       // Prod: sin mock (BR-015). Dev: conserva los pedidos actuales (demo).
+      if (!__DEV__) set({ orders: [], error: true });
+      set({ loaded: true });
+    } finally {
+      set({ loading: false });
+    }
+  },
+  loadAll: async (token) => {
+    if (get().loading) return;
+    set({ loading: true, error: false });
+    try {
+      const rows = await fetchAllOrders(token);
+      set({ orders: rows, loaded: true });
+    } catch (e) {
+      console.warn(
+        '[orders] error al cargar (admin):',
+        e instanceof Error ? e.message : e,
+      );
       if (!__DEV__) set({ orders: [], error: true });
       set({ loaded: true });
     } finally {

@@ -1,4 +1,4 @@
-import { getJson, postJson } from '../../shared/api/client';
+import { getJson, postJson, patchJson } from '../../shared/api/client';
 import type { AdminOrder } from './admin-mock';
 import type {
   OrderStatus,
@@ -79,4 +79,19 @@ export async function createOrder(
 export async function fetchMyOrders(token?: string): Promise<AdminOrder[]> {
   const rows = await getJson<ApiOrder[]>('/orders', token);
   return rows.map(toOrder);
+}
+
+/** GET /orders/all → todos los pedidos (admin: cola/dashboard). */
+export async function fetchAllOrders(token?: string): Promise<AdminOrder[]> {
+  const rows = await getJson<ApiOrder[]>('/orders/all', token);
+  return rows.map(toOrder);
+}
+
+/** PATCH /orders/:id/status → transición de estado (admin, BR-004 la valida el backend). */
+export async function updateOrderStatus(
+  id: string,
+  status: OrderStatus,
+  token?: string,
+): Promise<AdminOrder> {
+  return toOrder(await patchJson<ApiOrder>(`/orders/${id}/status`, { status }, token));
 }

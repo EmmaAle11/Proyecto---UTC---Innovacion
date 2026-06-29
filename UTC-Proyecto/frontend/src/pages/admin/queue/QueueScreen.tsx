@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { View, ScrollView, Pressable } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, ScrollView, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Clock, ChevronRight, Check } from 'lucide-react-native';
 import { Heading, Title, Body, Label, Mono } from '../../../shared/ui/Type';
@@ -9,6 +9,7 @@ import { colors, text, surface, border, shadow, fonts } from '../../../shared/th
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useOrdersStore } from '../../../features/orders/model/orders.store';
+import { useSessionStore } from '../../../features/auth/model/session.store';
 import { ORDER_STATUS_META, QUEUE_STATUSES, type AdminOrder } from '../../../entities/order/admin-mock';
 import type { OrderStatus } from '../../../entities/order/model/types';
 import type { AdminStackParamList } from '../../../app/navigation/types';
@@ -35,7 +36,21 @@ export function QueueScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AdminStackParamList>>();
   const orders = useOrdersStore((s) => s.orders);
   const setStatus = useOrdersStore((s) => s.setStatus);
+  const loadAll = useOrdersStore((s) => s.loadAll);
+  const token = useSessionStore((s) => s.session?.accessToken);
   const [filter, setFilter] = useState<Filter>('En cola');
+  useEffect(() => {
+    void loadAll(token);
+  }, [token, loadAll]);
+
+  const onAdvance = (id: string, to: OrderStatus) => {
+    void setStatus(id, to, token).catch((e: unknown) =>
+      Alert.alert(
+        'No se pudo actualizar',
+        e instanceof Error ? e.message : 'Intenta de nuevo',
+      ),
+    );
+  };
 
   const list = orders.filter((o) => matches(filter, o));
   const inQueue = orders.filter((o) => QUEUE_STATUSES.includes(o.status)).length;
@@ -92,7 +107,7 @@ export function QueueScreen() {
                   </View>
                   {next ? (
                     <Pressable
-                      onPress={() => setStatus(o.id, next.to)}
+                      onPress={() => onAdvance(o.id, next.to)}
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: o.status === 'preparing' ? colors.lima[500] : colors.primary, paddingHorizontal: 14, height: 38, borderRadius: 12 }}
                     >
                       {o.status === 'preparing' ? <Check size={16} color="#fff" /> : null}

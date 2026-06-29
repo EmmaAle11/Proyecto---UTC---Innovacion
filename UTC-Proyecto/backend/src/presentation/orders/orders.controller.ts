@@ -2,6 +2,9 @@ import {
   Body,
   Controller,
   Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
   Post,
   Req,
   UnauthorizedException,
@@ -9,10 +12,12 @@ import {
 import type { Request } from 'express';
 import { OrdersService } from '../../application/orders/orders.service';
 import { CreateOrderDto } from '../../application/orders/dto/create-order.dto';
+import { UpdateOrderStatusDto } from '../../application/orders/dto/update-order-status.dto';
 import {
   OrderResponse,
   toOrderResponse,
 } from '../../application/orders/dto/order-response';
+import { Roles } from '../auth/decorators/roles.decorator';
 import type { JwtUser } from '../../infrastructure/auth/jwt.strategy';
 
 /**
@@ -42,6 +47,24 @@ export class OrdersController {
   ): Promise<OrderResponse[]> {
     const rows = await this.orders.findMine(this.requireUser(req));
     return rows.map(toOrderResponse);
+  }
+
+  /** GET /orders/all → todos los pedidos (admin: cola/dashboard). */
+  @Get('all')
+  @Roles('admin')
+  async findAll(): Promise<OrderResponse[]> {
+    const rows = await this.orders.findAll();
+    return rows.map(toOrderResponse);
+  }
+
+  /** PATCH /orders/:id/status → transición de estado (admin, BR-004). */
+  @Patch(':id/status')
+  @Roles('admin')
+  async updateStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateOrderStatusDto,
+  ): Promise<OrderResponse> {
+    return toOrderResponse(await this.orders.updateStatus(id, dto.status));
   }
 
   private requireUser(req: Request & { user?: JwtUser }): JwtUser {

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { View, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -8,6 +9,7 @@ import { LogoSymbol } from '../../../shared/ui/LogoSymbol';
 import { colors, text, surface, border, shadow, fonts } from '../../../shared/theme';
 import { useOrdersStore, selectSemaforo, selectKpis } from '../../../features/orders/model/orders.store';
 import { useSettingsStore } from '../../../features/admin/model/settings.store';
+import { useSessionStore } from '../../../features/auth/model/session.store';
 import type { AdminTabsParamList } from '../../../app/navigation/types';
 
 const SEM = {
@@ -20,9 +22,14 @@ const SEM = {
 export function DashboardScreen() {
   const navigation = useNavigation<BottomTabNavigationProp<AdminTabsParamList>>();
   const orders = useOrdersStore((s) => s.orders);
+  const loadAll = useOrdersStore((s) => s.loadAll);
+  const token = useSessionStore((s) => s.session?.accessToken);
   const yellow = useSettingsStore((s) => s.semaforoYellow);
   const red = useSettingsStore((s) => s.semaforoRed);
   const branchName = useSettingsStore((s) => s.branchName);
+  useEffect(() => {
+    void loadAll(token);
+  }, [token, loadAll]);
   const sem = selectSemaforo(orders, yellow, red);
   const kpi = selectKpis(orders);
   const s = SEM[sem.level];

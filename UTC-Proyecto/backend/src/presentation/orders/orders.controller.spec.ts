@@ -15,6 +15,17 @@ describe('OrdersController (HTTP)', () => {
   const service = {
     create: jest.fn(),
     findMine: jest.fn().mockResolvedValue([]),
+    findAll: jest.fn().mockResolvedValue([]),
+    updateStatus: jest.fn().mockResolvedValue({
+      id: 'a0000000-0000-4000-8000-000000000001',
+      status: 'preparing',
+      totalAmount: '0',
+      items: [],
+      payment: null,
+      user: { firstName: 'A', lastName: 'B', email: 'a@edu.utc.mx' },
+      createdAt: new Date(),
+      readyAt: null,
+    }),
   };
 
   beforeAll(async () => {
@@ -71,5 +82,29 @@ describe('OrdersController (HTTP)', () => {
         payMethod: 'bitcoin',
       })
       .expect(400);
+  });
+
+  it('PATCH /orders/:id/status con estado inválido → 400 (IsEnum)', async () => {
+    await request(app.getHttpServer() as Server)
+      .patch('/orders/a0000000-0000-4000-8000-000000000001/status')
+      .send({ status: 'volando' })
+      .expect(400);
+    expect(service.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it('PATCH /orders/:id/status con UUID inválido → 400 (ParseUUIDPipe)', async () => {
+    await request(app.getHttpServer() as Server)
+      .patch('/orders/not-a-uuid/status')
+      .send({ status: 'preparing' })
+      .expect(400);
+    expect(service.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it('PATCH /orders/:id/status válido → delega en el service', async () => {
+    await request(app.getHttpServer() as Server)
+      .patch('/orders/a0000000-0000-4000-8000-000000000001/status')
+      .send({ status: 'preparing' })
+      .expect(200);
+    expect(service.updateStatus).toHaveBeenCalledTimes(1);
   });
 });

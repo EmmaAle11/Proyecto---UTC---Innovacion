@@ -25,6 +25,24 @@ const ORDER_RELATIONS = {
   user: true,
 } as const;
 
+/**
+ * Transiciones de estado válidas (BR-004). Un estado terminal no tiene salidas;
+ * la validación vive en el backend (el frontend solo ofrece botones).
+ */
+const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  [OrderStatus.PENDING]: [OrderStatus.PREPARING, OrderStatus.CANCELLED],
+  [OrderStatus.PREPARING]: [OrderStatus.READY],
+  [OrderStatus.READY]: [
+    OrderStatus.PICKED_UP,
+    OrderStatus.NOT_PICKED_UP,
+    OrderStatus.READY_LATER,
+  ],
+  [OrderStatus.READY_LATER]: [OrderStatus.PICKED_UP, OrderStatus.NOT_PICKED_UP],
+  [OrderStatus.PICKED_UP]: [],
+  [OrderStatus.NOT_PICKED_UP]: [],
+  [OrderStatus.CANCELLED]: [],
+};
+
 /** Deriva nombre/apellido del correo institucional (perfiles creados sin registro previo). */
 function deriveName(email: string): { firstName: string; lastName: string } {
   const local = email.split('@')[0] ?? '';
@@ -120,6 +138,47 @@ export class OrdersService {
     });
 
     return this.findOneOwned(orderId, profile.id);
+  }
+
+  /** Todos los pedidos, más recientes primero (admin: cola/dashboard). */
+  findAll(): Promise<OrderEntity[]> {
+    return this.dataSource.getRepository(OrderEntity).find({
+      relations: ORDER_RELATIONS,
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  /**
+   * Cambia el estado de un pedido validando la transición (BR-004) y fijando los
+   * timestamps con la hora del SERVIDOR (BR-005). Operación de una sola tabla (atómica).
+   */
+  async updateStatus(id: string, status: OrderStatus): Promise<OrderEntity> {
+    const repo = this.dataSource.getRepository(OrderEntity);
+    const order = await repo.findOne({
+      where: { id },
+      relations: ORDER_RELATIONS,
+    });
+    if (!order) throw new NotFoundException('Pedido no encontrado');
+    if (order.status === status) return order; // idempotente: mismo estado, no-op
+
+    const allowed = ALLOWED_TRANSITIONS[order.status] ?? [];
+    if (!allowed.includes(status)) {
+      throw new BadRequestException(
+        `Transición no permitida: ${order.status} → ${status}`,
+      );
+    }
+
+    const now = new Date(); // BR-005: hora del servidor, nunca del frontend
+    order.status = status;
+    if (status === OrderStatus.PREPARING) order.acceptedAt = now;
+    if (status === OrderStatus.READY) {
+      order.readyAt = now;
+      order.pickupDeadline = new Date(now.getTime() + 20 * 60 * 1000); // +20 min (D-005)
+    }
+    if (status === OrderStatus.PICKED_UP) order.pickedUpAt = now;
+
+    await repo.save(order);
+    return order;
   }
 
   /** Pedidos del usuario autenticado, más recientes primero (BR-014). */

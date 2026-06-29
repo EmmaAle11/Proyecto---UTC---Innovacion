@@ -1,4 +1,4 @@
-import { View, ScrollView, Pressable } from 'react-native';
+import { View, ScrollView, Pressable, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, ChevronRight, Check, Clock } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -6,6 +6,7 @@ import { Display, Title, Body, Label, Mono } from '../../../shared/ui/Type';
 import { Badge } from '../../../shared/ui/Badge';
 import { colors, text, surface, border, shadow, fonts } from '../../../shared/theme';
 import { useOrdersStore } from '../../../features/orders/model/orders.store';
+import { useSessionStore } from '../../../features/auth/model/session.store';
 import {
   ORDER_STATUS_META,
   PAY_METHOD_LABEL,
@@ -38,6 +39,16 @@ export function OrderDetailScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
   const orders = useOrdersStore((s) => s.orders);
   const setStatus = useOrdersStore((s) => s.setStatus);
+  const token = useSessionStore((s) => s.session?.accessToken);
+
+  const onAdvance = (id: string, to: OrderStatus) => {
+    void setStatus(id, to, token).catch((e: unknown) =>
+      Alert.alert(
+        'No se pudo actualizar',
+        e instanceof Error ? e.message : 'Intenta de nuevo',
+      ),
+    );
+  };
 
   const order = orders.find((o) => o.id === orderId);
 
@@ -153,7 +164,7 @@ export function OrderDetailScreen({ route, navigation }: Props) {
         {/* Transición de estado (BR-004) */}
         {next ? (
           <Pressable
-            onPress={() => setStatus(order.id, next.to)}
+            onPress={() => onAdvance(order.id, next.to)}
             style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: order.status === 'preparing' ? colors.lima[500] : colors.primary, height: 54, borderRadius: 16, ...shadow.card }}
           >
             {order.status === 'preparing' ? <Check size={18} color="#fff" /> : null}
