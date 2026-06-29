@@ -35,7 +35,8 @@ export interface ProductWritePayload {
   maxStock?: number | null;
   status: ProductStatus;
   isAvailable?: boolean;
-  reofferPrice?: number;
+  /** `null` limpia la reoferta; un número (> 0) la fija. El backend ya lo soporta. */
+  reofferPrice?: number | null;
 }
 
 /** Catálogo completo para el admin (mismo `GET /products`; incluye no disponibles). */

@@ -39,6 +39,7 @@ export function HomeScreen() {
   const token = useSessionStore((s) => s.session?.accessToken);
   const products = useCatalogStore((s) => s.products);
   const loading = useCatalogStore((s) => s.loading);
+  const error = useCatalogStore((s) => s.error);
   const loadCatalog = useCatalogStore((s) => s.load);
   useEffect(() => {
     void loadCatalog(token);
@@ -85,6 +86,15 @@ export function HomeScreen() {
         {loading ? (
           <View style={{ paddingVertical: 40, alignItems: 'center' }}>
             <ActivityIndicator size="large" color={colors.primary} />
+          </View>
+        ) : null}
+
+        {/* Error de carga (prod: sin fallback a mock, BR-015) */}
+        {!loading && error && products.length === 0 ? (
+          <View style={{ paddingVertical: 40, paddingHorizontal: 20, alignItems: 'center' }}>
+            <Body color={text.muted} style={{ textAlign: 'center' }}>
+              No pudimos cargar el menú. Revisa tu conexión e inténtalo de nuevo.
+            </Body>
           </View>
         ) : null}
 

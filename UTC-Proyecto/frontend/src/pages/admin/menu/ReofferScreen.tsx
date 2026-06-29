@@ -61,6 +61,22 @@ export function ReofferScreen({ route, navigation }: Props) {
     }
   };
 
+  const onClear = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await applyReoffer(product.id, null, status, token); // null = quitar reoferta
+      navigation.goBack();
+    } catch (e) {
+      Alert.alert(
+        'No se pudo quitar',
+        e instanceof Error ? e.message : 'Intenta de nuevo',
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: surface.page }}>
       <View style={{ paddingTop: insets.top + 6, paddingHorizontal: 20, paddingBottom: 6 }}>
@@ -159,6 +175,17 @@ export function ReofferScreen({ route, navigation }: Props) {
           disabled={!valid || saving}
           label={saving ? 'Aplicando…' : valid ? `Aplicar reoferta · $${newPrice}` : 'Aplicar reoferta'}
         />
+        {product.reofferPrice != null ? (
+          <Pressable
+            onPress={() => void onClear()}
+            disabled={saving}
+            style={{ alignItems: 'center', paddingVertical: 12, marginTop: 4 }}
+          >
+            <Body color={saving ? text.subtle : colors.rojo[500]} style={{ fontSize: 13.5 }}>
+              Quitar reoferta
+            </Body>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );

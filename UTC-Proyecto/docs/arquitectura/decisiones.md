@@ -146,3 +146,14 @@ Registro único y canónico de decisiones (estilo ADR ligero). Para añadir una 
   - **Cuenta del administrador:** se agregó **cerrar sesión**, una sección de **accesibilidad** (texto grande, alto contraste, reducir movimiento) y de **personalización funcional**: el administrador edita el **nombre y el horario** de la cooperativa y los **umbrales del semáforo**, y el cambio se aplica **al instante** (los umbrales mueven el color del semáforo en el Dashboard; el nombre se refleja en el panel).
 - Verificación (§0): recorrido completo del flujo — el alumno paga, el administrador marca listo y el alumno lo ve reflejado.
 - Pendiente: hoy la sincronización ocurre en un mismo equipo; entre dispositivos distintos se completa al conectar la base de datos (turno de datos).
+
+## D-022 · Endurecimiento tras auditoría (pre-Paso 3)
+- Fecha: 2026-06-29 · Estado: vigente.
+- Contexto: antes de seguir con el turno de datos (Paso 3, pedidos) se corrió una auditoría (alineación de formularios, RLS, cohesión, ingeniería inversa de seguridad). No salieron bugs críticos ni vulnerabilidades explotables; sí varias mejoras de bajo riesgo que se aplicaron.
+- Decisión:
+  - **Producción sin datos de mock (BR-015):** los catálogos del cliente y del administrador ya **no** caen al mock cuando el backend falla; el mock queda **solo en desarrollo**. En producción el catálogo queda vacío con un aviso de error ("no se pudo cargar"), para no operar nunca sobre datos ficticios.
+  - **RLS en Postgres: fuera de alcance, por diseño.** No se usa Row-Level Security; la propiedad de los pedidos (un alumno solo ve los suyos, BR-014) se garantiza en el backend a partir del token. Para un proyecto escolar de una sola app es lo proporcional; se documenta como decisión consciente, no como pendiente.
+  - **Validaciones que ahorran viajes y cierran huecos:** el formulario de alta/edición valida en el dispositivo (precio y tiempo > 0, nombre y categoría obligatorios) antes de enviar; la foto del producto solo acepta rutas de asset válidas; la reoferta ahora se puede **quitar** desde el panel (no solo poner/bajar).
+  - **Validación opcional de audience del token (defensa OIDC):** queda disponible como opción de configuración, **apagada por defecto** para no afectar el inicio de sesión actual.
+- Verificación (§0/§22): backend `lint`/`build`/`test` verdes (incluye prueba de regresión de la validación de la foto); frontend `tsc` verde; auditoría + guard anti-regresión con confianza ≥95%.
+- Reflejo en docs (rule #24): corrección de puertos en ejecución §3; esta entrada. El círculo y los pasos no cambian de alcance (es endurecimiento interno).

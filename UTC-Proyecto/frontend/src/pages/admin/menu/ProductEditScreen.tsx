@@ -105,12 +105,27 @@ export function ProductEditScreen({ route, navigation }: Props) {
 
   const onSave = async () => {
     if (saving) return;
+    // Validación local (espejo del backend) para no viajar al servidor por un error trivial.
+    const priceValue = toMoney(price);
+    const prepValue = toInt(prepTime);
+    if (!name.trim() || !category.trim()) {
+      Alert.alert('Faltan datos', 'El nombre y la categoría son obligatorios.');
+      return;
+    }
+    if (priceValue < 0.01) {
+      Alert.alert('Precio inválido', 'El precio debe ser mayor a 0.');
+      return;
+    }
+    if (prepValue < 1) {
+      Alert.alert('Tiempo inválido', 'El tiempo de preparación debe ser mayor a 0 segundos.');
+      return;
+    }
     const payload: ProductWritePayload = {
       name: name.trim(),
       description: description.trim() || undefined,
-      price: toMoney(price),
+      price: priceValue,
       category: category.trim(),
-      basePrepTimeSeconds: toInt(prepTime),
+      basePrepTimeSeconds: prepValue,
       stock: toInt(stock),
       minStock: toInt(minStock),
       maxStock: maxStock.trim() === '' ? null : toInt(maxStock),

@@ -29,6 +29,7 @@ const ALL = 'Todo';
 export function MenuScreen() {
   const products = useCatalogStore((s) => s.products);
   const loading = useCatalogStore((s) => s.loading);
+  const error = useCatalogStore((s) => s.error);
   const load = useCatalogStore((s) => s.load);
   const toggleAvailable = useCatalogStore((s) => s.toggleAvailable);
   const token = useSessionStore((s) => s.session?.accessToken);
@@ -79,7 +80,11 @@ export function MenuScreen() {
           </View>
         ) : list.length === 0 ? (
           <View style={{ alignItems: 'center', paddingTop: 48 }}>
-            <Body color={text.muted}>Sin productos en esta categoría.</Body>
+            <Body color={text.muted}>
+              {error
+                ? 'No se pudo cargar el menú. Revisa tu conexión.'
+                : 'Sin productos en esta categoría.'}
+            </Body>
           </View>
         ) : (
           list.map((p) => {

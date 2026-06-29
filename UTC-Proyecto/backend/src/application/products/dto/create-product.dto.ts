@@ -5,11 +5,19 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   Min,
   MinLength,
 } from 'class-validator';
 import { ProductStatus } from '../../../infrastructure/database/entities/enums';
+
+/**
+ * `image_url` es una RUTA de asset local (p. ej. `products/quesadilla-tinga.png`),
+ * NO una URL externa. Restringir el formato bloquea inyecciones tipo `javascript:`,
+ * URLs remotas arbitrarias y path-traversal (`../`). Defensa en profundidad.
+ */
+export const IMAGE_URL_PATTERN = /^products\/[a-z0-9-]+\.(png|jpg|jpeg|webp)$/;
 
 /** Alta de producto (rules §7: precio>0, prep>0, stock≥0, estado∈enum). */
 export class CreateProductDto {
@@ -66,5 +74,9 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   @MaxLength(200)
+  @Matches(IMAGE_URL_PATTERN, {
+    message:
+      'imageUrl debe ser una ruta de asset válida (products/<nombre>.png)',
+  })
   imageUrl?: string;
 }

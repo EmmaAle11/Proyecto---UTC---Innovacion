@@ -31,11 +31,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const realm = config.getOrThrow<string>('KEYCLOAK_REALM');
     const issuer = `${baseUrl}/realms/${realm}`;
     const clientId = config.getOrThrow<string>('KEYCLOAK_CLIENT_ID');
+    // Validación de `aud` (defensa OIDC canónica), OPT-IN por env: si `KEYCLOAK_AUDIENCE`
+    // está definida, el token debe incluir ese audience; si no, se conserva el
+    // comportamiento actual (firma+JWKS+issuer+azp) sin riesgo de romper el login.
+    // Para activarla: configurar el client en Keycloak para emitir ese `aud` y verificar
+    // con un token real antes de fijar la variable.
+    const audience = config.get<string>('KEYCLOAK_AUDIENCE');
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       algorithms: ['RS256'],
       issuer,
+      ...(audience ? { audience } : {}),
       secretOrKeyProvider: passportJwtSecret({
         cache: true,
         rateLimit: true,

@@ -5,11 +5,13 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   Min,
   MinLength,
 } from 'class-validator';
 import { ProductStatus } from '../../../infrastructure/database/entities/enums';
+import { IMAGE_URL_PATTERN } from './create-product.dto';
 
 /** Edición parcial de producto: todos los campos opcionales (sin mapped-types). */
 export class UpdateProductDto {
@@ -73,5 +75,9 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   @MaxLength(200)
+  @Matches(IMAGE_URL_PATTERN, {
+    message:
+      'imageUrl debe ser una ruta de asset válida (products/<nombre>.png)',
+  })
   imageUrl?: string;
 }
