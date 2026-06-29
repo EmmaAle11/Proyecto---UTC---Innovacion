@@ -18,7 +18,7 @@ type Props = {
   containerStyle?: StyleProp<ViewStyle>;
 };
 
-const ACCENT = '#E34100';
+const ACCENT = '#0A2E7A'; // foco: navy sutil (antes naranja fuerte)
 const IDLE = '#DEE2EA';
 
 /**

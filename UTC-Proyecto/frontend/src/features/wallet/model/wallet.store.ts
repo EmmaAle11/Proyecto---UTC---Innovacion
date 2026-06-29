@@ -38,12 +38,10 @@ function fromKind(kind: CardKind): { brand: string; color: CardColor } {
   return { brand: meta.label, color: meta.color };
 }
 
-/** Cartera del cliente (UI-first, en memoria). Pagos reales en una versión futura (D-006). */
+/** Cartera del cliente (UI-first, en memoria). Arranca SIN tarjetas: el alumno agrega
+ *  las suyas. El efectivo es fijo (se muestra aparte). Pagos reales a futuro (D-006). */
 export const useWalletStore = create<WalletState>((set) => ({
-  cards: [
-    { id: 'seed-mp', brand: 'Mercado Pago', kind: 'mercado_pago', holder: 'ALUMNO UTC', last4: '4242', color: 'azul500' },
-    { id: 'seed-pp', brand: 'PayPal', kind: 'paypal', holder: 'alumno@edu.utc.mx', last4: '0094', color: 'white' },
-  ],
+  cards: [],
   add: ({ kind, holder, last4 }) =>
     set((s) => ({
       cards: [...s.cards, { id: makeId(), holder, last4, kind, ...fromKind(kind) }],

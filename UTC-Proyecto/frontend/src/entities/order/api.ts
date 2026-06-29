@@ -87,6 +87,19 @@ export async function fetchAllOrders(token?: string): Promise<AdminOrder[]> {
   return rows.map(toOrder);
 }
 
+/** Semáforo de congestión calculado en el servidor (D-019). */
+export interface ApiCongestion {
+  count: number;
+  level: 'verde' | 'amarillo' | 'rojo';
+  yellow: number;
+  red: number;
+}
+
+/** GET /orders/congestion → semáforo global (el cliente lo ve sin acceder a pedidos ajenos). */
+export async function fetchCongestion(token?: string): Promise<ApiCongestion> {
+  return getJson<ApiCongestion>('/orders/congestion', token);
+}
+
 /** PATCH /orders/:id/status → transición de estado (admin, BR-004 la valida el backend). */
 export async function updateOrderStatus(
   id: string,

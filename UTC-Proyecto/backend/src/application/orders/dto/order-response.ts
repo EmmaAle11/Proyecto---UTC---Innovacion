@@ -5,6 +5,14 @@ import {
   PaymentStatus,
 } from '../../../infrastructure/database/entities/enums';
 
+/** Semáforo de congestión calculado en el servidor (D-019). */
+export interface CongestionResponse {
+  count: number;
+  level: 'verde' | 'amarillo' | 'rojo';
+  yellow: number;
+  red: number;
+}
+
 /** Línea del pedido expuesta al cliente (dinero ya como `number`). */
 export interface OrderItemResponse {
   productId: string;

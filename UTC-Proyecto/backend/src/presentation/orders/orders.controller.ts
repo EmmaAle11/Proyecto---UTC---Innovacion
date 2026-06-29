@@ -15,6 +15,7 @@ import { CreateOrderDto } from '../../application/orders/dto/create-order.dto';
 import { UpdateOrderStatusDto } from '../../application/orders/dto/update-order-status.dto';
 import {
   OrderResponse,
+  CongestionResponse,
   toOrderResponse,
 } from '../../application/orders/dto/order-response';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -55,6 +56,15 @@ export class OrdersController {
   async findAll(): Promise<OrderResponse[]> {
     const rows = await this.orders.findAll();
     return rows.map(toOrderResponse);
+  }
+
+  /**
+   * GET /orders/congestion → semáforo de congestión (D-019), calculado en el servidor.
+   * Autenticado, ambos roles: el CLIENTE lo usa en el checkout sin ver pedidos ajenos (BR-014).
+   */
+  @Get('congestion')
+  congestion(): Promise<CongestionResponse> {
+    return this.orders.congestion();
   }
 
   /** PATCH /orders/:id/status → transición de estado (admin, BR-004). */

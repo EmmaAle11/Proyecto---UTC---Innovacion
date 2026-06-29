@@ -3,12 +3,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { DataSource, In } from 'typeorm';
+import { DataSource, In, type EntityManager } from 'typeorm';
 import { OrderEntity } from '../../infrastructure/database/entities/order.entity';
 import { OrderItemEntity } from '../../infrastructure/database/entities/order-item.entity';
 import { PaymentEntity } from '../../infrastructure/database/entities/payment.entity';
 import { ProductEntity } from '../../infrastructure/database/entities/product.entity';
 import { UserProfileEntity } from '../../infrastructure/database/entities/user-profile.entity';
+import { PreparationTimeEntity } from '../../infrastructure/database/entities/preparation-time.entity';
+import type { CongestionResponse } from './dto/order-response';
 import {
   OrderStatus,
   PaymentMethod,
@@ -42,6 +44,16 @@ const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   [OrderStatus.NOT_PICKED_UP]: [],
   [OrderStatus.CANCELLED]: [],
 };
+
+/** Umbrales del semáforo de congestión (D-019), calculado en el servidor. */
+const CONGESTION_YELLOW = 5;
+const CONGESTION_RED = 10;
+/** Estados que cuentan como "en cola" para el semáforo (no terminales). */
+const QUEUE_STATUSES = [
+  OrderStatus.PENDING,
+  OrderStatus.PREPARING,
+  OrderStatus.READY,
+];
 
 /** Deriva nombre/apellido del correo institucional (perfiles creados sin registro previo). */
 function deriveName(email: string): { firstName: string; lastName: string } {
@@ -153,32 +165,77 @@ export class OrdersService {
    * timestamps con la hora del SERVIDOR (BR-005). Operación de una sola tabla (atómica).
    */
   async updateStatus(id: string, status: OrderStatus): Promise<OrderEntity> {
-    const repo = this.dataSource.getRepository(OrderEntity);
-    const order = await repo.findOne({
-      where: { id },
-      relations: ORDER_RELATIONS,
+    // Transacción: cambio de estado + (si pasa a "listo") registro de tiempos, atómico.
+    return this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(OrderEntity);
+      const order = await repo.findOne({
+        where: { id },
+        relations: ORDER_RELATIONS,
+      });
+      if (!order) throw new NotFoundException('Pedido no encontrado');
+      if (order.status === status) return order; // idempotente: mismo estado, no-op
+
+      const allowed = ALLOWED_TRANSITIONS[order.status] ?? [];
+      if (!allowed.includes(status)) {
+        throw new BadRequestException(
+          `Transición no permitida: ${order.status} → ${status}`,
+        );
+      }
+
+      const now = new Date(); // BR-005: hora del servidor, nunca del frontend
+      order.status = status;
+      if (status === OrderStatus.PREPARING) order.acceptedAt = now;
+      if (status === OrderStatus.READY) {
+        order.readyAt = now;
+        order.pickupDeadline = new Date(now.getTime() + 20 * 60 * 1000); // +20 min (D-005)
+      }
+      if (status === OrderStatus.PICKED_UP) order.pickedUpAt = now;
+
+      await repo.save(order);
+      if (status === OrderStatus.READY) {
+        await this.recordPrepTimes(manager, order, now); // BR-007
+      }
+      return order;
     });
-    if (!order) throw new NotFoundException('Pedido no encontrado');
-    if (order.status === status) return order; // idempotente: mismo estado, no-op
+  }
 
-    const allowed = ALLOWED_TRANSITIONS[order.status] ?? [];
-    if (!allowed.includes(status)) {
-      throw new BadRequestException(
-        `Transición no permitida: ${order.status} → ${status}`,
-      );
-    }
+  /**
+   * Registra el tiempo REAL de preparación por línea (BR-007), al pasar a "listo".
+   * duration = ready_at − accepted_at (hora del servidor). Alimenta los promedios.
+   */
+  private async recordPrepTimes(
+    manager: EntityManager,
+    order: OrderEntity,
+    readyAt: Date,
+  ): Promise<void> {
+    const started = order.acceptedAt ?? order.createdAt;
+    const duration = Math.max(
+      1,
+      Math.round((readyAt.getTime() - new Date(started).getTime()) / 1000),
+    );
+    const repo = manager.getRepository(PreparationTimeEntity);
+    const rows = (order.items ?? []).map((it) =>
+      repo.create({
+        product: it.product,
+        orderItem: it,
+        durationSeconds: duration,
+      }),
+    );
+    if (rows.length) await repo.save(rows);
+  }
 
-    const now = new Date(); // BR-005: hora del servidor, nunca del frontend
-    order.status = status;
-    if (status === OrderStatus.PREPARING) order.acceptedAt = now;
-    if (status === OrderStatus.READY) {
-      order.readyAt = now;
-      order.pickupDeadline = new Date(now.getTime() + 20 * 60 * 1000); // +20 min (D-005)
-    }
-    if (status === OrderStatus.PICKED_UP) order.pickedUpAt = now;
-
-    await repo.save(order);
-    return order;
+  /** Semáforo de congestión (D-019), calculado en el SERVIDOR: cola = pending+preparing+ready. */
+  async congestion(): Promise<CongestionResponse> {
+    const count = await this.dataSource
+      .getRepository(OrderEntity)
+      .count({ where: { status: In(QUEUE_STATUSES) } });
+    const level =
+      count < CONGESTION_YELLOW
+        ? 'verde'
+        : count <= CONGESTION_RED
+          ? 'amarillo'
+          : 'rojo';
+    return { count, level, yellow: CONGESTION_YELLOW, red: CONGESTION_RED };
   }
 
   // Nota: cancelOwn/extendOwn NO reusan ALLOWED_TRANSITIONS (esa es la política del

@@ -44,12 +44,14 @@ function buildService(opts: {
   profile?: unknown;
   products?: AnyProduct[];
   order?: unknown;
+  queueCount?: number;
 }) {
   const orderSave = jest.fn((o: unknown) =>
     Promise.resolve({ ...(o as object), id: 'order-1' }),
   );
   const itemSave = jest.fn((x: unknown) => Promise.resolve(x));
   const paymentSave = jest.fn((p: unknown) => Promise.resolve(p));
+  const prepSave = jest.fn((x: unknown) => Promise.resolve(x));
   const repos: Record<string, unknown> = {
     UserProfileEntity: {
       findOne: jest.fn().mockResolvedValue(opts.profile ?? null),
@@ -64,6 +66,7 @@ function buildService(opts: {
     OrderEntity: {
       create: jest.fn((x: unknown) => x),
       save: orderSave,
+      count: jest.fn().mockResolvedValue(opts.queueCount ?? 0),
       findOne: jest.fn().mockResolvedValue(
         opts.order ?? {
           id: 'order-1',
@@ -79,6 +82,10 @@ function buildService(opts: {
     },
     OrderItemEntity: { create: jest.fn((x: unknown) => x), save: itemSave },
     PaymentEntity: { create: jest.fn((x: unknown) => x), save: paymentSave },
+    PreparationTimeEntity: {
+      create: jest.fn((x: unknown) => x),
+      save: prepSave,
+    },
   };
   const getRepository = (e: { name: string }) => repos[e.name];
   const dataSource = {
@@ -92,6 +99,7 @@ function buildService(opts: {
     orderSave,
     itemSave,
     paymentSave,
+    prepSave,
   };
 }
 
@@ -255,6 +263,57 @@ describe('OrdersService.updateStatus', () => {
     });
     await service.updateStatus('o1', OrderStatus.READY);
     expect(orderSave).not.toHaveBeenCalled();
+  });
+
+  it('preparing→ready: registra preparation_times por línea (BR-007)', async () => {
+    const accepted = new Date(Date.now() - 600_000); // hace ~10 min
+    const order = {
+      id: 'o1',
+      status: OrderStatus.PREPARING,
+      acceptedAt: accepted,
+      createdAt: accepted,
+      readyAt: null,
+      pickupDeadline: null,
+      pickedUpAt: null,
+      items: [
+        { id: 'it1', product: { id: 'p1' } },
+        { id: 'it2', product: { id: 'p2' } },
+      ],
+    };
+    const { service, prepSave } = buildService({ order });
+    await service.updateStatus('o1', OrderStatus.READY);
+    expect(prepSave).toHaveBeenCalledTimes(1);
+    const rows = prepSave.mock.calls[0][0] as Array<{
+      durationSeconds: number;
+    }>;
+    expect(rows).toHaveLength(2);
+    expect(rows[0].durationSeconds).toBeGreaterThan(0);
+  });
+});
+
+describe('OrdersService.congestion', () => {
+  it('< 5 en cola → verde', async () => {
+    const { service } = buildService({ queueCount: 3 });
+    await expect(service.congestion()).resolves.toMatchObject({
+      count: 3,
+      level: 'verde',
+      yellow: 5,
+      red: 10,
+    });
+  });
+
+  it('5–10 en cola → amarillo', async () => {
+    const { service } = buildService({ queueCount: 7 });
+    await expect(service.congestion()).resolves.toMatchObject({
+      level: 'amarillo',
+    });
+  });
+
+  it('> 10 en cola → rojo', async () => {
+    const { service } = buildService({ queueCount: 12 });
+    await expect(service.congestion()).resolves.toMatchObject({
+      level: 'rojo',
+    });
   });
 });
 

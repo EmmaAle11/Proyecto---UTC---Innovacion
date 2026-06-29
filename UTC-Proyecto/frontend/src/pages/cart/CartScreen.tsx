@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, ScrollView, Pressable, Text, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,9 +24,17 @@ import { productIcon } from '../../entities/product/icons';
 import { useCartStore, selectTotal } from '../../features/cart/model/cart.store';
 import { useOrdersStore, type Order } from '../../features/orders/model/orders.store';
 import { useSessionStore } from '../../features/auth/model/session.store';
+import { fetchCongestion, type ApiCongestion } from '../../entities/order/api';
 import type { PaymentMethod } from '../../entities/order/model/types';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'Cart'>;
+
+// Semáforo discreto en el checkout (D-019): el cliente decide si avanza con el pago.
+const SEM_META = {
+  verde: { dot: colors.lima[500], label: 'Cooperativa tranquila', sub: 'buen momento para pedir' },
+  amarillo: { dot: colors.mango[400], label: 'Cooperativa concurrida', sub: 'puede tardar un poco' },
+  rojo: { dot: colors.rojo[500], label: 'Cooperativa llena', sub: 'quizá conviene esperar' },
+} as const;
 
 // Métodos de pago (BR-009). Selector solo VISUAL — pagos diferidos (D-006).
 const METHODS = [
@@ -127,6 +135,20 @@ export function CartScreen({ navigation }: Props) {
   const total = selectTotal(items);
   const [pay, setPay] = useState<string>('mercado_pago');
   const [saving, setSaving] = useState(false);
+  const [congestion, setCongestion] = useState<ApiCongestion | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetchCongestion(token)
+      .then((c) => {
+        if (alive) setCongestion(c);
+      })
+      .catch(() => {
+        /* sin semáforo si no hay backend; no estorba el checkout */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [token]);
   const maxPrep = items.reduce(
     (m, it) => Math.max(m, Math.round(it.product.basePrepTimeSeconds / 60)),
     0,
@@ -202,6 +224,15 @@ export function CartScreen({ navigation }: Props) {
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: insets.bottom + 28 }} showsVerticalScrollIndicator={false}>
+          {/* Semáforo discreto (D-019): ¿conviene pedir ahora? */}
+          {congestion ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', backgroundColor: surface.card, borderWidth: 1, borderColor: border.subtle, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, marginBottom: 12, ...shadow.card }}>
+              <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: SEM_META[congestion.level].dot }} />
+              <Body style={{ fontSize: 12, fontFamily: fonts.bodySemi }} color={text.heading}>{SEM_META[congestion.level].label}</Body>
+              <Body color={text.muted} style={{ fontSize: 11.5 }}>· {SEM_META[congestion.level].sub}</Body>
+            </View>
+          ) : null}
+
           {/* ── Tarjeta 1: Productos ── */}
           <View
             style={{
