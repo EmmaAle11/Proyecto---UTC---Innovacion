@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Pressable, ScrollView, Switch } from 'react-native';
+import { View, Pressable, ScrollView, Switch, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -19,6 +19,7 @@ import { Display, Heading, Title, Body, Label, Mono } from '../../shared/ui/Type
 import { colors, text, border, surface, shadow, fonts } from '../../shared/theme';
 import { useSessionStore } from '../../features/auth/model/session.store';
 import { useClientSettingsStore } from '../../features/profile/model/settings.store';
+import { requestNotificationPermission } from '../../shared/notifications/notify';
 import type { MainStackParamList } from '../../app/navigation/types';
 
 /** Fila de ajuste reutilizable (acción a la derecha: chevron o switch). */
@@ -84,6 +85,24 @@ export function ProfileScreen() {
   const track = { false: colors.gris[200], true: colors.naranja[300] };
   const thumb = (on: boolean) => (on ? colors.naranja[500] : colors.gris[100]);
 
+  // Al ACTIVAR avisos pide el permiso del SO (en web debe salir del gesto del tap);
+  // sólo queda en ON si el permiso fue concedido. Al apagar, no pide nada.
+  const onToggleNotify = (v: boolean) => {
+    if (!v) {
+      settings.set({ notifyReady: false });
+      return;
+    }
+    void requestNotificationPermission().then((ok) => {
+      settings.set({ notifyReady: ok });
+      if (!ok) {
+        Alert.alert(
+          'Avisos no activados',
+          'Tu navegador o dispositivo no concedió el permiso. Actívalo en los ajustes del sistema para recibir avisos de tu pedido.',
+        );
+      }
+    });
+  };
+
   const card = { backgroundColor: surface.card, borderRadius: 18, borderWidth: 1, borderColor: border.subtle, paddingHorizontal: 16, ...shadow.card } as const;
 
   return (
@@ -132,8 +151,8 @@ export function ProfileScreen() {
         {/* Avisos + Ayuda */}
         <Label style={{ marginBottom: 10 }}>Avisos y ayuda</Label>
         <View style={[card, { marginBottom: 18 }]}>
-          <Row icon={<Bell size={19} color={colors.naranja[600]} />} label="Avisos de pedido" sub="Cuando tu pedido esté listo"
-            right={<Switch value={settings.notifyReady} onValueChange={(v) => settings.set({ notifyReady: v })} trackColor={track} thumbColor={thumb(settings.notifyReady)} accessibilityLabel="Avisos de pedido" />} />
+          <Row icon={<Bell size={19} color={colors.naranja[600]} />} label="Avisos de pedido" sub="Aceptado, listo y cambios de tu pedido"
+            right={<Switch value={settings.notifyReady} onValueChange={onToggleNotify} trackColor={track} thumbColor={thumb(settings.notifyReady)} accessibilityLabel="Avisos de pedido" />} />
           <Row
             icon={<CircleHelp size={19} color={colors.azul[600]} />}
             label="Ayuda"

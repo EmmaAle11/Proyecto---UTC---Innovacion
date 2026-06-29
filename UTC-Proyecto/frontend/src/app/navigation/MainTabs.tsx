@@ -4,11 +4,17 @@ import { HomeScreen } from '../../pages/home/HomeScreen';
 import { OrdersScreen } from '../../pages/orders/OrdersScreen';
 import { ProfileScreen } from '../../pages/profile/ProfileScreen';
 import { FloatingTabBar } from './FloatingTabBar';
+import { useSessionStore } from '../../features/auth/model/session.store';
+import { useOrderNotifications } from '../../features/notifications/model/useOrderNotifications';
 
 const Tab = createBottomTabNavigator();
 
 /** Tab bar principal de la app (tras iniciar sesión): píldora flotante (FloatingTabBar). */
 export function MainTabs() {
+  // Avisos del pedido (BR-012): sondea el backend y notifica las transiciones del cliente.
+  const token = useSessionStore((s) => s.session?.accessToken);
+  useOrderNotifications(token);
+
   return (
     <Tab.Navigator
       tabBar={(props) => <FloatingTabBar {...props} />}

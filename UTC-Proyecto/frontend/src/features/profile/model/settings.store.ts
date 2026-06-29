@@ -17,6 +17,7 @@ export const useClientSettingsStore = create<ClientSettings>((set) => ({
   largeText: false,
   highContrast: false,
   reduceMotion: false,
-  notifyReady: true,
+  // Arranca apagado: encenderlo PIDE el permiso del SO (no puede estar "on" sin permiso).
+  notifyReady: false,
   set: (patch) => set(patch),
 }));
