@@ -814,6 +814,41 @@ agregar secciones sin su número (dejarlas "volando")
 ```
 
 ---
+
+# 38. REGLA DE ORO — EXPLICACIONES EN DOBLE FRENTE (TECNICO + ALEGORIA)
+
+> Decision 2026-06-25. Cuando el usuario pida una EXPLICACION (cualquier forma:
+> "explicame", "mas explicacion", "que es", "como funciona", "no entiendo",
+> "detalla", "profundiza"), Claude DEBE responder desde DOS frentes obligatorios.
+
+```txt
+1. FRENTE TECNICO
+   - Preciso y anclado al codigo real (archivos, funciones, flujo, orden de
+     pasos, edge cases, propiedades de seguridad). Respeta #0 EVIDENCE OR BLOCK:
+     nada inventado; si no se verifico, marcarlo.
+
+2. FRENTE ALEGORICO (analogia)
+   - Una metafora concreta de la vida cotidiana que MAPEE FIELMENTE la realidad
+     tecnica, pieza por pieza. La alegoria sirve para iluminar, no para adornar.
+```
+
+Reglas del doble frente:
+
+```txt
+- Los dos frentes son OBLIGATORIOS cuando se pide explicacion (no uno u otro).
+- La alegoria NO puede contradecir ni distorsionar el frente tecnico (#7 No
+  Fabrication sigue vigente). Si una pieza tecnica no tiene buen mapeo, decirlo
+  ("aqui la analogia se rompe porque...") en vez de forzarla.
+- Cada elemento clave del frente tecnico deberia tener su contraparte en la
+  alegoria (keyId -> X, dominio -> Y, cache -> Z), idealmente explicitado.
+- Escala la longitud a la complejidad: explicaciones simples = alegoria breve.
+- No aplica a respuestas que NO son explicacion (un status, un diff, un comando
+  listo para pegar). Aplica cuando el objetivo es que el usuario ENTIENDA algo.
+```
+
+Cierre: una explicacion no esta completa si falta cualquiera de los dos frentes.
+
+---
 ---
 
 # BUSINESS RULES — UTC PICK SAZÓN (BR)
