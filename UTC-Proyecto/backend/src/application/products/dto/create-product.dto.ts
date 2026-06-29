@@ -11,13 +11,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { ProductStatus } from '../../../infrastructure/database/entities/enums';
-
-/**
- * `image_url` es una RUTA de asset local (p. ej. `products/quesadilla-tinga.png`),
- * NO una URL externa. Restringir el formato bloquea inyecciones tipo `javascript:`,
- * URLs remotas arbitrarias y path-traversal (`../`). Defensa en profundidad.
- */
-export const IMAGE_URL_PATTERN = /^products\/[a-z0-9-]+\.(png|jpg|jpeg|webp)$/;
+import { IMAGE_URL_PATTERN } from './product.constants';
 
 /** Alta de producto (rules §7: precio>0, prep>0, stock≥0, estado∈enum). */
 export class CreateProductDto {

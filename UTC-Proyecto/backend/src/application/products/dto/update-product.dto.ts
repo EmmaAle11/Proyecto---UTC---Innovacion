@@ -11,7 +11,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { ProductStatus } from '../../../infrastructure/database/entities/enums';
-import { IMAGE_URL_PATTERN } from './create-product.dto';
+import { IMAGE_URL_PATTERN } from './product.constants';
 
 /** Edición parcial de producto: todos los campos opcionales (sin mapped-types). */
 export class UpdateProductDto {

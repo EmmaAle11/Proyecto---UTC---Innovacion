@@ -10,12 +10,12 @@ import {
   updateProduct,
   type ProductWritePayload,
 } from '../../../entities/product/admin-api';
+import {
+  createCatalogLoader,
+  type LoadableCatalogState,
+} from '../../../shared/lib/catalog-loader';
 
-interface CatalogState {
-  products: AdminProduct[];
-  loading: boolean;
-  loaded: boolean;
-  error: boolean;
+interface AdminCatalogState extends LoadableCatalogState<AdminProduct> {
   /** Carga el catálogo desde `GET /products`; en dev cae al mock, en prod marca `error` (BR-015). */
   load: (token?: string) => Promise<void>;
   /** Alta (`POST /products`). */
@@ -41,34 +41,19 @@ interface CatalogState {
 }
 
 /** Catálogo del admin contra el backend (fuente de verdad: la respuesta reemplaza el local). */
-export const useCatalogStore = create<CatalogState>((set, get) => ({
+export const useAdminCatalogStore = create<AdminCatalogState>((set, get) => ({
   products: [],
   loading: false,
   loaded: false,
   error: false,
 
-  load: async (token) => {
-    if (get().loading) return; // de-dup
-    set({ loading: true, error: false });
-    try {
-      const rows = await fetchAdminProducts(token);
-      set({ products: rows, loaded: true });
-    } catch (e) {
-      console.warn(
-        '[admin/catalog] error al cargar:',
-        e instanceof Error ? e.message : e,
-      );
-      // En prod NO caemos al mock: el admin operaría sobre ids ficticios ('1'..'10')
-      // y un PATCH/POST posterior referenciaría productos inexistentes (BR-015).
-      if (__DEV__) {
-        set({ products: ADMIN_PRODUCTS, loaded: true });
-      } else {
-        set({ products: [], loaded: true, error: true });
-      }
-    } finally {
-      set({ loading: false });
-    }
-  },
+  load: createCatalogLoader<AdminProduct, AdminCatalogState>(
+    set,
+    get,
+    fetchAdminProducts,
+    ADMIN_PRODUCTS,
+    'admin/catalog',
+  ),
 
   create: async (payload, token) => {
     const created = await createProduct(payload, token);

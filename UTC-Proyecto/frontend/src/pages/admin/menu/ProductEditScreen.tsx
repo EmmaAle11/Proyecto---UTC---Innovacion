@@ -8,7 +8,7 @@ import { Display, Title, Body, Label } from '../../../shared/ui/Type';
 import { Chip } from '../../../shared/ui/Chip';
 import { PrimaryButton } from '../../../shared/ui/PrimaryButton';
 import { colors, text, surface, border, shadow, fonts } from '../../../shared/theme';
-import { useCatalogStore } from '../../../features/admin/model/catalog.store';
+import { useAdminCatalogStore } from '../../../features/admin/model/catalog.store';
 import { useSessionStore } from '../../../features/auth/model/session.store';
 import { PRODUCT_STATUS_META, PRODUCT_STATUS_ORDER } from '../../../entities/product/admin-mock';
 import type { ProductWritePayload } from '../../../entities/product/admin-api';
@@ -82,9 +82,9 @@ function Field({
 /** Alta/edición de producto (M3): formulario con TODOS los campos del AdminProduct. */
 export function ProductEditScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const products = useCatalogStore((s) => s.products);
-  const createProduct = useCatalogStore((s) => s.create);
-  const updateProduct = useCatalogStore((s) => s.update);
+  const products = useAdminCatalogStore((s) => s.products);
+  const createProduct = useAdminCatalogStore((s) => s.create);
+  const updateProduct = useAdminCatalogStore((s) => s.update);
   const token = useSessionStore((s) => s.session?.accessToken);
 
   const editing = route.params.productId

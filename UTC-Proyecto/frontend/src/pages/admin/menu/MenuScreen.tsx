@@ -10,7 +10,7 @@ import { Badge } from '../../../shared/ui/Badge';
 import { Chip } from '../../../shared/ui/Chip';
 import { Media } from '../../../shared/ui/Media';
 import { colors, text, surface, border, shadow, fonts } from '../../../shared/theme';
-import { useCatalogStore } from '../../../features/admin/model/catalog.store';
+import { useAdminCatalogStore } from '../../../features/admin/model/catalog.store';
 import { useSessionStore } from '../../../features/auth/model/session.store';
 import { PRODUCT_STATUS_META, type AdminProduct } from '../../../entities/product/admin-mock';
 import { productImage } from '../../../entities/product/images';
@@ -27,11 +27,11 @@ const ALL = 'Todo';
 
 /** Catálogo del admin (M3): lista de productos con filtro por categoría, toggle de disponibilidad y reoferta. */
 export function MenuScreen() {
-  const products = useCatalogStore((s) => s.products);
-  const loading = useCatalogStore((s) => s.loading);
-  const error = useCatalogStore((s) => s.error);
-  const load = useCatalogStore((s) => s.load);
-  const toggleAvailable = useCatalogStore((s) => s.toggleAvailable);
+  const products = useAdminCatalogStore((s) => s.products);
+  const loading = useAdminCatalogStore((s) => s.loading);
+  const error = useAdminCatalogStore((s) => s.error);
+  const load = useAdminCatalogStore((s) => s.load);
+  const toggleAvailable = useAdminCatalogStore((s) => s.toggleAvailable);
   const token = useSessionStore((s) => s.session?.accessToken);
   const navigation = useNavigation<NativeStackNavigationProp<AdminStackParamList>>();
   const [category, setCategory] = useState<string>(ALL);

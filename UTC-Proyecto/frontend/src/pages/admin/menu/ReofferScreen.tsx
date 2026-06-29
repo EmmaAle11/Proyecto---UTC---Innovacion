@@ -8,7 +8,7 @@ import { Display, Heading, Title, Body, Label, Mono } from '../../../shared/ui/T
 import { Chip } from '../../../shared/ui/Chip';
 import { PrimaryButton } from '../../../shared/ui/PrimaryButton';
 import { colors, text, surface, border, shadow, fonts } from '../../../shared/theme';
-import { useCatalogStore } from '../../../features/admin/model/catalog.store';
+import { useAdminCatalogStore } from '../../../features/admin/model/catalog.store';
 import { useSessionStore } from '../../../features/auth/model/session.store';
 import { PRODUCT_STATUS_META } from '../../../entities/product/admin-mock';
 import type { ProductStatus } from '../../../entities/product/model/types';
@@ -21,8 +21,8 @@ const REOFFER_OPTIONS: ProductStatus[] = ['calentando', 'sin_tiempo_espera'];
 /** Reoferta / "Pon tu precio" (§3.11): baja el precio para vender antes de perderlo. */
 export function ReofferScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const products = useCatalogStore((s) => s.products);
-  const applyReoffer = useCatalogStore((s) => s.applyReoffer);
+  const products = useAdminCatalogStore((s) => s.products);
+  const applyReoffer = useAdminCatalogStore((s) => s.applyReoffer);
   const token = useSessionStore((s) => s.session?.accessToken);
   const product = products.find((p) => p.id === route.params.productId);
 

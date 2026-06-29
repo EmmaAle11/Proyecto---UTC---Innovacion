@@ -1,4 +1,4 @@
-import type { OrderStatus } from './model/types';
+import type { OrderStatus, PaymentMethod, PaymentStatus } from './model/types';
 import type { BadgeTone } from '../../shared/ui/Badge';
 
 /**
@@ -21,8 +21,8 @@ export interface AdminOrder {
   items: AdminOrderItem[];
   createdLabel: string; // hora del servidor 'HH:MM'
   waitingMin: number; // minutos en cola
-  payMethod: 'mercado_pago' | 'paypal' | 'tdc' | 'tdd' | 'efectivo';
-  payStatus: 'paid' | 'pending' | 'failed' | 'refunded';
+  payMethod: PaymentMethod;
+  payStatus: PaymentStatus;
 }
 
 /** Etiqueta + tono de píldora por estado de pedido (enum order_status). */
@@ -36,7 +36,7 @@ export const ORDER_STATUS_META: Record<OrderStatus, { label: string; tone: Badge
   ready_later: { label: 'Para después', tone: 'primary' },
 };
 
-export const PAY_METHOD_LABEL: Record<AdminOrder['payMethod'], string> = {
+export const PAY_METHOD_LABEL: Record<PaymentMethod, string> = {
   mercado_pago: 'Mercado Pago',
   paypal: 'PayPal',
   tdc: 'Tarjeta crédito',
@@ -44,7 +44,7 @@ export const PAY_METHOD_LABEL: Record<AdminOrder['payMethod'], string> = {
   efectivo: 'Efectivo',
 };
 
-export const PAY_STATUS_LABEL: Record<AdminOrder['payStatus'], string> = {
+export const PAY_STATUS_LABEL: Record<PaymentStatus, string> = {
   paid: 'Pagado',
   pending: 'Pendiente',
   failed: 'Rechazado',
