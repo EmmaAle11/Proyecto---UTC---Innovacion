@@ -1,25 +1,79 @@
-import { View, Pressable, ScrollView } from 'react-native';
+import { useState } from 'react';
+import { View, Pressable, ScrollView, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Wallet, Bell, ShieldCheck, CircleHelp, ChevronRight, LogOut } from 'lucide-react-native';
-import { Display, Heading, Title, Body, Mono } from '../../shared/ui/Type';
+import {
+  Wallet,
+  Bell,
+  ChevronRight,
+  ChevronDown,
+  LogOut,
+  Type as TypeIcon,
+  Contrast,
+  Activity,
+  CircleHelp,
+} from 'lucide-react-native';
+import type { ReactNode } from 'react';
+import { Display, Heading, Title, Body, Label, Mono } from '../../shared/ui/Type';
 import { colors, text, border, surface, shadow, fonts } from '../../shared/theme';
 import { useSessionStore } from '../../features/auth/model/session.store';
+import { useClientSettingsStore } from '../../features/profile/model/settings.store';
 import type { MainStackParamList } from '../../app/navigation/types';
 
-const ROWS = [
-  { i: Wallet, l: 'Métodos de pago', s: 'Mercado Pago, PayPal, TDC/TDD, efectivo', to: 'Wallet' as const },
-  { i: Bell, l: 'Notificaciones', s: 'Avisos de "listo para recoger"' },
-  { i: ShieldCheck, l: 'Cuenta y seguridad', s: 'Sesión con tu correo @edu.utc.mx' },
-  { i: CircleHelp, l: 'Ayuda', s: 'Sobre la cooperativa y el Pick Up' },
-] as const;
+/** Fila de ajuste reutilizable (acción a la derecha: chevron o switch). */
+function Row({
+  icon,
+  label,
+  sub,
+  right,
+  onPress,
+  last,
+}: {
+  icon: ReactNode;
+  label: string;
+  sub?: string;
+  right?: ReactNode;
+  onPress?: () => void;
+  last?: boolean;
+}) {
+  const style = {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 13,
+    paddingVertical: 13,
+    borderTopWidth: 0,
+    borderBottomWidth: last ? 0 : 1,
+    borderBottomColor: border.subtle,
+  } as const;
+  const inner = (
+    <>
+      <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: colors.naranja[50], alignItems: 'center', justifyContent: 'center' }}>
+        {icon}
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Title style={{ fontSize: 14.5 }} numberOfLines={1}>{label}</Title>
+        {sub ? <Body color={text.muted} style={{ fontSize: 12, marginTop: 1 }} numberOfLines={1}>{sub}</Body> : null}
+      </View>
+      {right}
+    </>
+  );
+  return onPress ? (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} style={style}>
+      {inner}
+    </Pressable>
+  ) : (
+    <View accessibilityLabel={label} style={style}>{inner}</View>
+  );
+}
 
-/** Pestaña Perfil: tarjeta de cuenta + ajustes + cerrar sesión (vuelve a Welcome). */
+/** Pestaña Perfil: cuenta + cartera + accesibilidad (funcional) + ayuda + cerrar sesión. */
 export function ProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const session = useSessionStore((s) => s.session);
   const clear = useSessionStore((s) => s.clear);
+  const settings = useClientSettingsStore();
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const email = session?.email ?? '';
   const localPart = email.split('@')[0] ?? '';
@@ -27,16 +81,20 @@ export function ProfileScreen() {
   const name = words.slice(0, 2).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || 'Alumno UTC';
   const initials = ((words[0]?.[0] ?? 'U') + (words[1]?.[0] ?? '')).toUpperCase();
 
+  const track = { false: colors.gris[200], true: colors.naranja[300] };
+  const thumb = (on: boolean) => (on ? colors.naranja[500] : colors.gris[100]);
+
+  const card = { backgroundColor: surface.card, borderRadius: 18, borderWidth: 1, borderColor: border.subtle, paddingHorizontal: 16, ...shadow.card } as const;
+
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: surface.page }}>
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
-        {/* TÍTULO editorial con barrita de acento */}
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 28 }} showsVerticalScrollIndicator={false}>
         <View style={{ paddingTop: 4, paddingBottom: 18 }}>
           <Display>Tu cuenta</Display>
           <View style={{ width: 58, height: 6, borderRadius: 3, backgroundColor: colors.naranja[500], marginTop: 10 }} />
         </View>
 
-        {/* TARJETA DE PERFIL — cabecera navy editorial */}
+        {/* Identidad (navy) */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, backgroundColor: surface.ink, borderRadius: 20, marginBottom: 18, ...shadow.card }}>
           <View style={{ width: 58, height: 58, borderRadius: 29, backgroundColor: colors.naranja[500], alignItems: 'center', justifyContent: 'center' }}>
             <Mono style={{ fontFamily: fonts.monoBold, fontSize: 21 }} color={text.onInk}>{initials}</Mono>
@@ -47,34 +105,58 @@ export function ProfileScreen() {
           </View>
         </View>
 
-        {/* LISTA DE AJUSTES */}
-        <View style={{ backgroundColor: surface.card, borderWidth: 1, borderColor: border.subtle, borderRadius: 18, overflow: 'hidden', marginBottom: 18, ...shadow.card }}>
-          {ROWS.map((r, i) => {
-            const Icon = r.i;
-            const to = 'to' in r ? r.to : undefined;
-            return (
-              <Pressable
-                key={r.l}
-                onPress={to ? () => navigation.navigate(to) : undefined}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 13, padding: 14, borderTopWidth: i ? 1 : 0, borderTopColor: border.subtle }}
-              >
-                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.naranja[50], alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon size={19} color={colors.naranja[600]} />
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Title style={{ fontSize: 15 }} numberOfLines={1}>{r.l}</Title>
-                  <Body color={text.muted} style={{ fontSize: 12.5, marginTop: 1 }} numberOfLines={1}>{r.s}</Body>
-                </View>
-                <ChevronRight size={18} color={text.subtle} />
-              </Pressable>
-            );
-          })}
+        {/* Pago */}
+        <Label style={{ marginBottom: 10 }}>Pago</Label>
+        <View style={[card, { marginBottom: 18 }]}>
+          <Row
+            icon={<Wallet size={19} color={colors.naranja[600]} />}
+            label="Mi cartera"
+            sub="Tarjetas y efectivo · agregar o quitar"
+            right={<ChevronRight size={18} color={text.subtle} />}
+            onPress={() => navigation.navigate('Wallet')}
+            last
+          />
         </View>
 
-        {/* CERRAR SESIÓN — destructivo sobrio */}
+        {/* Accesibilidad (funcional) */}
+        <Label style={{ marginBottom: 10 }}>Accesibilidad</Label>
+        <View style={[card, { marginBottom: 18 }]}>
+          <Row icon={<TypeIcon size={19} color={colors.azul[600]} />} label="Texto grande" sub="Aumenta el tamaño de la letra"
+            right={<Switch value={settings.largeText} onValueChange={(v) => settings.set({ largeText: v })} trackColor={track} thumbColor={thumb(settings.largeText)} accessibilityLabel="Texto grande" />} />
+          <Row icon={<Contrast size={19} color={colors.azul[600]} />} label="Alto contraste" sub="Más contraste para leer mejor"
+            right={<Switch value={settings.highContrast} onValueChange={(v) => settings.set({ highContrast: v })} trackColor={track} thumbColor={thumb(settings.highContrast)} accessibilityLabel="Alto contraste" />} />
+          <Row icon={<Activity size={19} color={colors.azul[600]} />} label="Reducir movimiento" sub="Menos animaciones"
+            right={<Switch value={settings.reduceMotion} onValueChange={(v) => settings.set({ reduceMotion: v })} trackColor={track} thumbColor={thumb(settings.reduceMotion)} accessibilityLabel="Reducir movimiento" />} last />
+        </View>
+
+        {/* Avisos + Ayuda */}
+        <Label style={{ marginBottom: 10 }}>Avisos y ayuda</Label>
+        <View style={[card, { marginBottom: 18 }]}>
+          <Row icon={<Bell size={19} color={colors.naranja[600]} />} label="Avisos de pedido" sub="Cuando tu pedido esté listo"
+            right={<Switch value={settings.notifyReady} onValueChange={(v) => settings.set({ notifyReady: v })} trackColor={track} thumbColor={thumb(settings.notifyReady)} accessibilityLabel="Avisos de pedido" />} />
+          <Row
+            icon={<CircleHelp size={19} color={colors.azul[600]} />}
+            label="Ayuda"
+            sub="Cómo funciona el Pick Up"
+            right={helpOpen ? <ChevronDown size={18} color={text.subtle} /> : <ChevronRight size={18} color={text.subtle} />}
+            onPress={() => setHelpOpen((v) => !v)}
+            last
+          />
+          {helpOpen ? (
+            <View style={{ paddingBottom: 14, paddingLeft: 51, paddingRight: 4 }}>
+              <Body color={text.muted} style={{ fontSize: 12.5, lineHeight: 19 }}>
+                Arma tu pedido en el menú, paga (o elige efectivo al recoger) y te avisamos con tu turno cuando esté listo. Recoges en la cooperativa mostrando tu código — sin filas.
+              </Body>
+            </View>
+          ) : null}
+        </View>
+
+        {/* Cerrar sesión */}
         <Pressable
           onPress={() => clear()}
-          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 52, borderRadius: 14, borderWidth: 1.5, borderColor: colors.rojo[500] }}
+          accessibilityRole="button"
+          accessibilityLabel="Cerrar sesión"
+          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 52, borderRadius: 14, borderWidth: 1.5, borderColor: colors.rojo[500], backgroundColor: colors.rojo[50] }}
         >
           <LogOut size={18} color={colors.rojo[500]} />
           <Title style={{ fontSize: 15 }} color={colors.rojo[500]}>Cerrar sesión</Title>

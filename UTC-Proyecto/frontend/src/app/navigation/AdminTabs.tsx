@@ -5,21 +5,16 @@ import { DashboardScreen } from '../../pages/admin/dashboard/DashboardScreen';
 import { QueueScreen } from '../../pages/admin/queue/QueueScreen';
 import { MenuScreen } from '../../pages/admin/menu/MenuScreen';
 import { AdminAccountScreen } from '../../pages/admin/account/AdminAccountScreen';
-import { colors, text, fonts } from '../../shared/theme';
+import { FloatingTabBar } from './FloatingTabBar';
 
 const Tab = createBottomTabNavigator<AdminTabsParamList>();
 
-/** Tab bar del panel de administración (rol admin). Color de rol = azul institucional. */
+/** Tab bar del panel de administración (rol admin): misma píldora flotante que el cliente. */
 export function AdminTabs() {
   return (
     <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.azul[700],
-        tabBarInactiveTintColor: text.subtle,
-        tabBarStyle: { height: 62, paddingTop: 6, paddingBottom: 8 },
-        tabBarLabelStyle: { fontSize: 12, fontFamily: fonts.bodySemi },
-      }}
+      tabBar={(props) => <FloatingTabBar {...props} />}
+      screenOptions={{ headerShown: false }}
     >
       <Tab.Screen
         name="Inicio"

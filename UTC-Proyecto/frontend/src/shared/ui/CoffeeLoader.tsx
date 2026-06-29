@@ -35,8 +35,9 @@ function Smoke({ left, delay }: { left: number; delay: number }) {
           toValue: 1,
           duration: 3000,
           easing: Easing.linear,
-          useNativeDriver: true,
+          useNativeDriver: false, // false: el bucle se repite también en react-native-web
         }),
+        Animated.timing(v, { toValue: 0, duration: 0, useNativeDriver: false }),
       ]),
     );
     loop.start();
@@ -65,23 +66,28 @@ function Smoke({ left, delay }: { left: number; delay: number }) {
 }
 
 export function CoffeeLoader() {
-  // Chorro de café: cae en bucle desde la salida hacia la taza.
+  // Chorro de café: cae desde la salida hacia la taza y se REPITE cada 3 s.
   const pour = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(
-      Animated.timing(pour, {
-        toValue: 1,
-        duration: 1300,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
+      Animated.sequence([
+        Animated.timing(pour, {
+          toValue: 1,
+          duration: 1400,
+          easing: Easing.linear,
+          useNativeDriver: false, // false: relooping fiable en web
+        }),
+        Animated.timing(pour, { toValue: 0, duration: 0, useNativeDriver: false }),
+        Animated.delay(1600), // pausa hasta completar el ciclo de 3 s
+      ]),
     );
     loop.start();
     return () => loop.stop();
   }, [pour]);
-  const pourY = pour.interpolate({ inputRange: [0, 1], outputRange: [-40, 40] });
+  // Cae DESDE la boquilla (translateY 0) HACIA la taza (translateY +50), no desde arriba.
+  const pourY = pour.interpolate({ inputRange: [0, 1], outputRange: [0, 50] });
   const pourOpacity = pour.interpolate({
-    inputRange: [0, 0.1, 0.9, 1],
+    inputRange: [0, 0.15, 0.85, 1],
     outputRange: [0, 1, 1, 0],
   });
 
@@ -148,14 +154,14 @@ export function CoffeeLoader() {
           <View style={{ width: 46, height: 14, backgroundColor: C.black, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 }} />
           <View style={{ width: 10, height: 8, backgroundColor: C.black }} />
         </View>
-        {/* chorro de café */}
+        {/* chorro de café: nace en la boquilla (top 40, centrado bajo la salida) y cae */}
         <Animated.View
           style={{
             position: 'absolute',
-            top: 52,
+            top: 40,
             left: 71,
-            width: 6,
-            height: 26,
+            width: 5,
+            height: 20,
             borderRadius: 3,
             backgroundColor: C.liquid,
             opacity: pourOpacity,

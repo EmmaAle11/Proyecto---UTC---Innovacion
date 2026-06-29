@@ -34,8 +34,16 @@ interface OrdersState {
   error: boolean;
   /** Cambia el estado de un pedido (admin, `PATCH /orders/:id/status`; BR-004 la valida el backend). Optimista con revert. */
   setStatus: (id: string, status: OrderStatus, token?: string) => Promise<void>;
-  /** El cliente envía un pedido (`POST /orders`); el backend snapshotea precio/total. Devuelve la orden creada. */
-  placeOrder: (input: NewOrderInput, token?: string) => Promise<Order>;
+  /**
+   * El cliente envía un pedido (`POST /orders`); el backend snapshotea precio/total.
+   * `buildDemo` (opcional) sólo se usa en `__DEV__` si el backend no responde: crea un
+   * pedido local para que el flujo de checkout funcione en la demo sin servidor.
+   */
+  placeOrder: (
+    input: NewOrderInput,
+    token?: string,
+    buildDemo?: () => Order,
+  ) => Promise<Order>;
   /** Carga los pedidos del cliente (`GET /orders`, BR-014). */
   loadMine: (token?: string) => Promise<void>;
   /** Carga TODOS los pedidos (admin, `GET /orders/all`): cola + dashboard. */
@@ -76,13 +84,23 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     }
   },
   setActiveOrder: (id) => set({ activeOrderId: id }),
-  placeOrder: async (input, token) => {
-    const created = await createOrder(input, token);
-    set((st) => ({
-      orders: [created, ...st.orders.filter((o) => o.id !== created.id)],
-      activeOrderId: created.id,
-    }));
-    return created;
+  placeOrder: async (input, token, buildDemo) => {
+    try {
+      const created = await createOrder(input, token);
+      set((st) => ({
+        orders: [created, ...st.orders.filter((o) => o.id !== created.id)],
+        activeOrderId: created.id,
+      }));
+      return created;
+    } catch (e) {
+      // Sin backend en la demo (dev): crea un pedido local para no dejar muerto el checkout.
+      if (__DEV__ && buildDemo) {
+        const local = buildDemo();
+        set((st) => ({ orders: [local, ...st.orders], activeOrderId: local.id }));
+        return local;
+      }
+      throw e;
+    }
   },
   loadMine: async (token) => {
     if (get().loading) return;

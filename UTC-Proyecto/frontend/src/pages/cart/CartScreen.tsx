@@ -22,7 +22,7 @@ import { colors, text, border, surface, shadow, fonts } from '../../shared/theme
 import { productImage } from '../../entities/product/images';
 import { productIcon } from '../../entities/product/icons';
 import { useCartStore, selectTotal } from '../../features/cart/model/cart.store';
-import { useOrdersStore } from '../../features/orders/model/orders.store';
+import { useOrdersStore, type Order } from '../../features/orders/model/orders.store';
 import { useSessionStore } from '../../features/auth/model/session.store';
 import type { PaymentMethod } from '../../entities/order/model/types';
 
@@ -123,6 +123,7 @@ export function CartScreen({ navigation }: Props) {
   const clear = useCartStore((s) => s.clear);
   const placeOrder = useOrdersStore((s) => s.placeOrder);
   const token = useSessionStore((s) => s.session?.accessToken);
+  const email = useSessionStore((s) => s.session?.email ?? 'demo@edu.utc.mx');
   const total = selectTotal(items);
   const [pay, setPay] = useState<string>('mercado_pago');
   const [saving, setSaving] = useState(false);
@@ -131,6 +132,26 @@ export function CartScreen({ navigation }: Props) {
     0,
   );
   const selected = METHODS.find((m) => m.k === pay) ?? METHODS[0];
+
+  /** Pedido local de respaldo (solo demo en dev, si el backend no responde). */
+  const buildDemoOrder = (): Order => {
+    const now = new Date();
+    const hh = `${now.getHours()}`.padStart(2, '0');
+    const mm = `${now.getMinutes()}`.padStart(2, '0');
+    return {
+      id: `demo-${now.getTime()}`,
+      code: `A-${String(now.getTime()).slice(-3)}`,
+      customer: 'Tú (demo)',
+      email,
+      status: 'pending',
+      total,
+      items: items.map((it) => ({ name: it.product.name, qty: it.qty })),
+      createdLabel: `${hh}:${mm}`,
+      waitingMin: 0,
+      payMethod: pay as PaymentMethod,
+      payStatus: pay === 'efectivo' ? 'pending' : 'paid',
+    };
+  };
 
   const onPay = async () => {
     if (saving || items.length === 0) return;
@@ -143,6 +164,7 @@ export function CartScreen({ navigation }: Props) {
           payMethod: pay as PaymentMethod,
         },
         token,
+        buildDemoOrder,
       );
       clear();
       navigation.replace('Tracking');
@@ -198,13 +220,14 @@ export function CartScreen({ navigation }: Props) {
               {items.map((it) => {
                 const Icon = productIcon(it.product.icon);
                 return (
-                  <View key={it.product.id} style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
-                    <Media height={56} radius={13} style={{ width: 56 }} source={productImage(it.product)} icon={<Icon size={24} color={colors.azul[300]} />} />
+                  <View key={it.product.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Media height={52} radius={12} style={{ width: 52 }} source={productImage(it.product)} icon={<Icon size={22} color={colors.azul[300]} />} />
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Title style={{ fontSize: 14.5 }} numberOfLines={1}>{it.product.name}</Title>
-                      <Mono style={{ fontFamily: fonts.monoBold, fontSize: 14, marginTop: 3 }} color={colors.naranja[600]}>{`$${it.product.price}`}</Mono>
+                      <Title style={{ fontSize: 14 }} numberOfLines={1}>{it.product.name}</Title>
+                      <Body color={text.muted} style={{ fontSize: 11, marginTop: 2 }} numberOfLines={1}>{it.product.category}</Body>
                     </View>
                     <Stepper value={it.qty} min={0} max={10} onChange={(v) => setQty(it.product.id, v)} />
+                    <Mono style={{ fontFamily: fonts.monoBold, fontSize: 13.5, minWidth: 46, textAlign: 'right' }} color={text.heading}>{`$${it.product.price}`}</Mono>
                   </View>
                 );
               })}
