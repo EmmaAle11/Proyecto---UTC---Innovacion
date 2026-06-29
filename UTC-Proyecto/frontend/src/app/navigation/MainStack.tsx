@@ -4,6 +4,7 @@ import { MainTabs } from './MainTabs';
 import { ProductScreen } from '../../pages/product/ProductScreen';
 import { CartScreen } from '../../pages/cart/CartScreen';
 import { TrackingScreen } from '../../pages/tracking/TrackingScreen';
+import { WalletScreen } from '../../pages/wallet/WalletScreen';
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
@@ -18,6 +19,7 @@ export function MainStack() {
       <Stack.Screen name="Product" component={ProductScreen} />
       <Stack.Screen name="Cart" component={CartScreen} />
       <Stack.Screen name="Tracking" component={TrackingScreen} />
+      <Stack.Screen name="Wallet" component={WalletScreen} />
     </Stack.Navigator>
   );
 }

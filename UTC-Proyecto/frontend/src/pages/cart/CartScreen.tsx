@@ -1,12 +1,22 @@
 import { useState } from 'react';
-import { View, ScrollView, Pressable, Alert } from 'react-native';
+import { View, ScrollView, Pressable, Text, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, MapPin, Wallet, CircleDollarSign, CreditCard, Landmark, Banknote, ArrowRight } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import {
+  ArrowLeft,
+  MapPin,
+  Wallet,
+  CircleDollarSign,
+  CreditCard,
+  Landmark,
+  Banknote,
+  ArrowRight,
+  Minus,
+  Plus,
+} from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { MainStackParamList } from '../../app/navigation/types';
 import { Media } from '../../shared/ui/Media';
-import { QtyStepper } from '../../shared/ui/QtyStepper';
-import { PrimaryButton } from '../../shared/ui/PrimaryButton';
 import { Display, Title, Body, Label, Mono } from '../../shared/ui/Type';
 import { colors, text, border, surface, shadow, fonts } from '../../shared/theme';
 import { productImage } from '../../entities/product/images';
@@ -24,10 +34,88 @@ const METHODS = [
   { k: 'paypal', l: 'PayPal', s: 'Tu cuenta PayPal', Icon: CircleDollarSign },
   { k: 'tdc', l: 'Tarjeta de crédito (TDC)', s: 'Visa · Mastercard · Amex', Icon: CreditCard },
   { k: 'tdd', l: 'Tarjeta de débito (TDD)', s: 'Débito de tu banco', Icon: Landmark },
-  { k: 'efectivo', l: 'Efectivo al recoger', s: 'Paga en el mostrador de la cooperativa', Icon: Banknote },
+  { k: 'efectivo', l: 'Efectivo al recoger', s: 'Paga en el mostrador', Icon: Banknote },
 ] as const;
 
-/** Carrito / checkout: aviso de pickup, ítems editables, método de pago (visual) y total. */
+// Degradado de marca para botones de acción (estilo "premium" del favorito, en naranja UTC).
+const BTN_GRADIENT: [string, string, string] = [
+  colors.naranja[400],
+  colors.naranja[500],
+  colors.naranja[600],
+];
+
+/** Título de tarjeta estilo "recibo": etiqueta editorial + línea inferior. */
+function CardTitle({ children }: { children: string }) {
+  return (
+    <View
+      style={{
+        height: 42,
+        justifyContent: 'center',
+        paddingHorizontal: 18,
+        borderBottomWidth: 1,
+        borderBottomColor: border.subtle,
+      }}
+    >
+      <Label>{children}</Label>
+    </View>
+  );
+}
+
+/** Stepper de cantidad en píldora bordeada (− N +), inspirado en el favorito. */
+function Stepper({
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  onChange: (v: number) => void;
+}) {
+  const btn = (label: 'minus' | 'plus', target: number, off: boolean) => (
+    <Pressable
+      onPress={off ? undefined : () => onChange(target)}
+      disabled={off}
+      style={{ width: 34, height: 34, alignItems: 'center', justifyContent: 'center' }}
+    >
+      {label === 'minus' ? (
+        <Minus size={15} color={off ? text.subtle : colors.azul[700]} />
+      ) : (
+        <Plus size={15} color={off ? text.subtle : colors.azul[700]} />
+      )}
+    </Pressable>
+  );
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: border.default,
+        borderRadius: 9,
+        backgroundColor: surface.card,
+      }}
+    >
+      {btn('minus', value - 1, value <= min)}
+      <Text
+        style={{
+          minWidth: 24,
+          textAlign: 'center',
+          fontFamily: fonts.monoBold,
+          fontSize: 15,
+          color: text.heading,
+          fontVariant: ['tabular-nums'],
+        }}
+      >
+        {value}
+      </Text>
+      {btn('plus', value + 1, value >= max)}
+    </View>
+  );
+}
+
+/** Carrito / checkout (estética "recibo apilado"): productos, método de pago y resumen. */
 export function CartScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const items = useCartStore((s) => s.items);
@@ -38,7 +126,11 @@ export function CartScreen({ navigation }: Props) {
   const total = selectTotal(items);
   const [pay, setPay] = useState<string>('mercado_pago');
   const [saving, setSaving] = useState(false);
-  const maxPrep = items.reduce((m, it) => Math.max(m, Math.round(it.product.basePrepTimeSeconds / 60)), 0);
+  const maxPrep = items.reduce(
+    (m, it) => Math.max(m, Math.round(it.product.basePrepTimeSeconds / 60)),
+    0,
+  );
+  const selected = METHODS.find((m) => m.k === pay) ?? METHODS[0];
 
   const onPay = async () => {
     if (saving || items.length === 0) return;
@@ -66,6 +158,7 @@ export function CartScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: surface.page }}>
+      {/* Header editorial */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 6, paddingBottom: 4 }}>
         <Pressable
           onPress={() => navigation.goBack()}
@@ -86,71 +179,123 @@ export function CartScreen({ navigation }: Props) {
           </Body>
         </View>
       ) : (
-        <>
-          <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-            <View style={{ flexDirection: 'row', gap: 12, padding: 14, backgroundColor: colors.azul[50], borderWidth: 1, borderColor: colors.azul[100], borderRadius: 16, marginBottom: 18 }}>
-              <MapPin size={22} color={colors.azul[700]} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Title style={{ fontSize: 14 }} color={text.heading}>Recoges en Cooperativa UTC</Title>
-                <Body color={colors.gris[600]} style={{ fontSize: 12.5, marginTop: 2 }}>{`Listo en ~${maxPrep} min · ventana de recogida 10–20 min`}</Body>
-              </View>
-            </View>
-
-            <View style={{ gap: 12 }}>
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: insets.bottom + 28 }} showsVerticalScrollIndicator={false}>
+          {/* ── Tarjeta 1: Productos ── */}
+          <View
+            style={{
+              backgroundColor: surface.card,
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              borderBottomLeftRadius: 8,
+              borderBottomRightRadius: 8,
+              marginBottom: 5,
+              overflow: 'hidden',
+              ...shadow.card,
+            }}
+          >
+            <CardTitle>Productos</CardTitle>
+            <View style={{ padding: 12, gap: 12 }}>
               {items.map((it) => {
                 const Icon = productIcon(it.product.icon);
                 return (
-                  <View key={it.product.id} style={{ flexDirection: 'row', gap: 12, alignItems: 'center', backgroundColor: surface.card, borderWidth: 1, borderColor: border.subtle, borderRadius: 16, padding: 10, ...shadow.card }}>
-                    <Media height={56} radius={12} style={{ width: 56 }} source={productImage(it.product)} icon={<Icon size={24} color={colors.azul[300]} />} />
+                  <View key={it.product.id} style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                    <Media height={56} radius={13} style={{ width: 56 }} source={productImage(it.product)} icon={<Icon size={24} color={colors.azul[300]} />} />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Title style={{ fontSize: 14.5 }} numberOfLines={1}>{it.product.name}</Title>
-                      <Mono style={{ fontFamily: fonts.monoBold, fontSize: 14, marginTop: 3 }} color={text.heading}>{`$${it.product.price}`}</Mono>
+                      <Mono style={{ fontFamily: fonts.monoBold, fontSize: 14, marginTop: 3 }} color={colors.naranja[600]}>{`$${it.product.price}`}</Mono>
                     </View>
-                    <QtyStepper value={it.qty} min={0} max={10} size="sm" onChange={(v) => setQty(it.product.id, v)} />
+                    <Stepper value={it.qty} min={0} max={10} onChange={(v) => setQty(it.product.id, v)} />
                   </View>
                 );
               })}
             </View>
-
-            <Label style={{ marginTop: 24, marginBottom: 11 }}>Método de pago</Label>
-            <View style={{ gap: 10 }}>
-              {METHODS.map((m) => {
-                const on = pay === m.k;
-                const Icon = m.Icon;
-                return (
-                  <Pressable
-                    key={m.k}
-                    onPress={() => setPay(m.k)}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 13, borderRadius: 16, backgroundColor: surface.card, borderWidth: on ? 2 : 1, borderColor: on ? colors.naranja[500] : border.subtle, ...shadow.card }}
-                  >
-                    <View style={{ width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? colors.naranja[50] : colors.gris[100] }}>
-                      <Icon size={19} color={on ? colors.naranja[600] : colors.azul[700]} />
-                    </View>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Title style={{ fontSize: 14.5 }} numberOfLines={1}>{m.l}</Title>
-                      <Body color={text.muted} style={{ fontSize: 11.5, marginTop: 1 }}>{m.s}</Body>
-                    </View>
-                    <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: on ? 6 : 2, borderColor: on ? colors.naranja[500] : border.strong }} />
-                  </Pressable>
-                );
-              })}
-            </View>
-          </ScrollView>
-
-          <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: insets.bottom + 16, backgroundColor: surface.card, borderTopWidth: 1, borderTopColor: border.subtle }}>
-            <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
-              <Label>Total</Label>
-              <Mono style={{ fontFamily: fonts.monoBold, fontSize: 26, letterSpacing: 0.5 }} color={text.heading}>{`$${total}`}</Mono>
-            </View>
-            <PrimaryButton
-              color={colors.naranja[500]}
-              onPress={() => void onPay()}
-              disabled={saving}
-              icon={<ArrowRight size={18} color="#fff" />}
-              label={saving ? 'Enviando…' : pay === 'efectivo' ? 'Confirmar y enviar a cocina' : 'Pagar y enviar a cocina'}
-            />
           </View>
-        </>
+
+          {/* ── Tarjeta 2: Método de pago (píldoras compactas) ── */}
+          <View style={{ backgroundColor: surface.card, borderRadius: 8, marginBottom: 5, overflow: 'hidden', ...shadow.card }}>
+            <CardTitle>Método de pago</CardTitle>
+            <View style={{ padding: 12 }}>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {METHODS.map((m) => {
+                  const on = pay === m.k;
+                  const Icon = m.Icon;
+                  return (
+                    <Pressable
+                      key={m.k}
+                      onPress={() => setPay(m.k)}
+                      style={{
+                        flex: 1,
+                        height: 46,
+                        borderRadius: 10,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: on ? colors.naranja[50] : colors.gris[100],
+                        borderWidth: on ? 1.5 : 1,
+                        borderColor: on ? colors.naranja[500] : border.subtle,
+                      }}
+                    >
+                      <Icon size={19} color={on ? colors.naranja[600] : colors.azul[400]} />
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <View style={{ marginTop: 11 }}>
+                <Title style={{ fontSize: 14 }}>{selected.l}</Title>
+                <Body color={text.muted} style={{ fontSize: 11.5, marginTop: 1 }}>{selected.s}</Body>
+              </View>
+            </View>
+          </View>
+
+          {/* ── Tarjeta 3: Resumen + recogida + checkout ── */}
+          <View
+            style={{
+              backgroundColor: surface.card,
+              borderTopLeftRadius: 8,
+              borderTopRightRadius: 8,
+              borderBottomLeftRadius: 20,
+              borderBottomRightRadius: 20,
+              overflow: 'hidden',
+              ...shadow.card,
+            }}
+          >
+            <CardTitle>Resumen</CardTitle>
+            <View style={{ padding: 14, gap: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Body color={text.muted} style={{ fontSize: 13 }}>Subtotal ({items.length} {items.length === 1 ? 'producto' : 'productos'})</Body>
+                <Mono style={{ fontFamily: fonts.monoBold, fontSize: 14 }} color={text.heading}>{`$${total}`}</Mono>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <MapPin size={15} color={colors.azul[600]} />
+                <Body color={text.muted} style={{ fontSize: 12.5, flex: 1 }}>{`Recoges en Cooperativa UTC · listo ~${maxPrep} min`}</Body>
+              </View>
+            </View>
+
+            {/* Footer del recibo: total grande + botón con degradado */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, backgroundColor: colors.gris[100] }}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                <Mono style={{ fontFamily: fonts.monoBold, fontSize: 14, marginTop: 4 }} color={text.heading}>$</Mono>
+                <Mono style={{ fontFamily: fonts.monoBold, fontSize: 28, letterSpacing: 0.5 }} color={text.heading}>{`${total}`}</Mono>
+              </View>
+              <Pressable
+                onPress={() => void onPay()}
+                disabled={saving}
+                style={{ borderRadius: 10, overflow: 'hidden', opacity: saving ? 0.7 : 1, ...shadow.card }}
+              >
+                <LinearGradient
+                  colors={BTN_GRADIENT}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 46, paddingHorizontal: 20 }}
+                >
+                  <Text style={{ color: '#fff', fontFamily: fonts.bodyBold, fontSize: 14 }}>
+                    {saving ? 'Enviando…' : pay === 'efectivo' ? 'Confirmar pedido' : 'Pagar pedido'}
+                  </Text>
+                  {!saving ? <ArrowRight size={17} color="#fff" /> : null}
+                </LinearGradient>
+              </Pressable>
+            </View>
+          </View>
+        </ScrollView>
       )}
     </SafeAreaView>
   );

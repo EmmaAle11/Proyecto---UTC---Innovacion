@@ -1,12 +1,15 @@
 import { View, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Wallet, Bell, ShieldCheck, CircleHelp, ChevronRight, LogOut } from 'lucide-react-native';
 import { Display, Heading, Title, Body, Mono } from '../../shared/ui/Type';
 import { colors, text, border, surface, shadow, fonts } from '../../shared/theme';
 import { useSessionStore } from '../../features/auth/model/session.store';
+import type { MainStackParamList } from '../../app/navigation/types';
 
 const ROWS = [
-  { i: Wallet, l: 'Métodos de pago', s: 'Mercado Pago, PayPal, TDC/TDD, efectivo' },
+  { i: Wallet, l: 'Métodos de pago', s: 'Mercado Pago, PayPal, TDC/TDD, efectivo', to: 'Wallet' as const },
   { i: Bell, l: 'Notificaciones', s: 'Avisos de "listo para recoger"' },
   { i: ShieldCheck, l: 'Cuenta y seguridad', s: 'Sesión con tu correo @edu.utc.mx' },
   { i: CircleHelp, l: 'Ayuda', s: 'Sobre la cooperativa y el Pick Up' },
@@ -14,6 +17,7 @@ const ROWS = [
 
 /** Pestaña Perfil: tarjeta de cuenta + ajustes + cerrar sesión (vuelve a Welcome). */
 export function ProfileScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const session = useSessionStore((s) => s.session);
   const clear = useSessionStore((s) => s.clear);
 
@@ -47,8 +51,13 @@ export function ProfileScreen() {
         <View style={{ backgroundColor: surface.card, borderWidth: 1, borderColor: border.subtle, borderRadius: 18, overflow: 'hidden', marginBottom: 18, ...shadow.card }}>
           {ROWS.map((r, i) => {
             const Icon = r.i;
+            const to = 'to' in r ? r.to : undefined;
             return (
-              <View key={r.l} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, padding: 14, borderTopWidth: i ? 1 : 0, borderTopColor: border.subtle }}>
+              <Pressable
+                key={r.l}
+                onPress={to ? () => navigation.navigate(to) : undefined}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 13, padding: 14, borderTopWidth: i ? 1 : 0, borderTopColor: border.subtle }}
+              >
                 <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.naranja[50], alignItems: 'center', justifyContent: 'center' }}>
                   <Icon size={19} color={colors.naranja[600]} />
                 </View>
@@ -57,7 +66,7 @@ export function ProfileScreen() {
                   <Body color={text.muted} style={{ fontSize: 12.5, marginTop: 1 }} numberOfLines={1}>{r.s}</Body>
                 </View>
                 <ChevronRight size={18} color={text.subtle} />
-              </View>
+              </Pressable>
             );
           })}
         </View>

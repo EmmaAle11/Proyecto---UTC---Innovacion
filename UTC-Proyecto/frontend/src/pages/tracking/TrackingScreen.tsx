@@ -4,6 +4,7 @@ import { ChefHat, CircleCheckBig, Timer, PackageCheck, Receipt, CircleSlash } fr
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { MainStackParamList } from '../../app/navigation/types';
 import { OrderTracker } from '../../shared/ui/OrderTracker';
+import { CoffeeLoader } from '../../shared/ui/CoffeeLoader';
 import { PrimaryButton } from '../../shared/ui/PrimaryButton';
 import { Display, Heading, Body, Label, Mono } from '../../shared/ui/Type';
 import { colors, text, border, surface, shadow, fonts, radius, space, state } from '../../shared/theme';
@@ -90,6 +91,16 @@ export function TrackingScreen({ navigation }: Props) {
           <View style={{ width: 58, height: 6, borderRadius: 3, backgroundColor: hero.accent, marginTop: space[3], marginBottom: space[4] }} />
           <Body color={text.muted} style={{ fontSize: 15, lineHeight: 22 }}>{hero.sub}</Body>
         </View>
+
+        {/* Cafetera en marcha mientras la cocina prepara (estado preparing) */}
+        {order.status === 'preparing' ? (
+          <View style={{ alignItems: 'center', marginBottom: space[5] }}>
+            <CoffeeLoader />
+            <Body color={text.muted} style={{ fontSize: 13, marginTop: space[2] }}>
+              Tu pedido se está preparando…
+            </Body>
+          </View>
+        ) : null}
 
         {/* TARJETA DE CÓDIGO DE RECOGIDA — ticket navy */}
         <View style={{ backgroundColor: surface.ink, borderRadius: radius.card, paddingVertical: space[6], paddingHorizontal: space[5], marginBottom: space[5], ...shadow.floating }}>

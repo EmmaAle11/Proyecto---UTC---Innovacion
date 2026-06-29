@@ -11,6 +11,7 @@ export type MainStackParamList = {
   Product: { productId: string };
   Cart: undefined;
   Tracking: undefined;
+  Wallet: undefined;
 };
 
 /** Tabs del panel de administración (rol admin). */
