@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import type { DataSource } from 'typeorm';
 import { OrdersService } from './orders.service';
 import {
@@ -255,5 +255,54 @@ describe('OrdersService.updateStatus', () => {
     });
     await service.updateStatus('o1', OrderStatus.READY);
     expect(orderSave).not.toHaveBeenCalled();
+  });
+});
+
+describe('OrdersService.cancelOwn / extendOwn (cliente)', () => {
+  it('cancela un pedido propio pending → cancelled', async () => {
+    const { service, orderSave } = buildService({
+      profile: PROFILE,
+      order: { id: 'o1', status: OrderStatus.PENDING },
+    });
+    const out = await service.cancelOwn('o1', USER);
+    expect(out.status).toBe(OrderStatus.CANCELLED);
+    expect(orderSave).toHaveBeenCalledTimes(1);
+  });
+
+  it('no cancela un pedido en preparación → BadRequest (§5), no persiste', async () => {
+    const { service, orderSave } = buildService({
+      profile: PROFILE,
+      order: { id: 'o1', status: OrderStatus.PREPARING },
+    });
+    await expect(service.cancelOwn('o1', USER)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(orderSave).not.toHaveBeenCalled();
+  });
+
+  it('sin perfil (o pedido ajeno) → NotFound (BR-014: no revela existencia)', async () => {
+    const { service } = buildService({ profile: null });
+    await expect(service.cancelOwn('o1', USER)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('extiende un pedido propio ready → ready_later', async () => {
+    const { service } = buildService({
+      profile: PROFILE,
+      order: { id: 'o1', status: OrderStatus.READY },
+    });
+    const out = await service.extendOwn('o1', USER);
+    expect(out.status).toBe(OrderStatus.READY_LATER);
+  });
+
+  it('no extiende un pedido que no está listo → BadRequest', async () => {
+    const { service } = buildService({
+      profile: PROFILE,
+      order: { id: 'o1', status: OrderStatus.PENDING },
+    });
+    await expect(service.extendOwn('o1', USER)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 });

@@ -95,3 +95,13 @@ export async function updateOrderStatus(
 ): Promise<AdminOrder> {
   return toOrder(await patchJson<ApiOrder>(`/orders/${id}/status`, { status }, token));
 }
+
+/** PATCH /orders/:id/cancel → el cliente cancela SU pedido (§3.8, solo si pending). */
+export async function cancelOrder(id: string, token?: string): Promise<AdminOrder> {
+  return toOrder(await patchJson<ApiOrder>(`/orders/${id}/cancel`, {}, token));
+}
+
+/** PATCH /orders/:id/extend → el cliente difiere SU pedido (§3.10, ready→ready_later). */
+export async function extendOrder(id: string, token?: string): Promise<AdminOrder> {
+  return toOrder(await patchJson<ApiOrder>(`/orders/${id}/extend`, {}, token));
+}

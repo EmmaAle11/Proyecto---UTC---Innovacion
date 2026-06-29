@@ -6,6 +6,8 @@ import {
   fetchMyOrders,
   fetchAllOrders,
   updateOrderStatus,
+  cancelOrder,
+  extendOrder,
   type OrderWritePayload,
 } from '../../../entities/order/api';
 
@@ -38,6 +40,10 @@ interface OrdersState {
   loadMine: (token?: string) => Promise<void>;
   /** Carga TODOS los pedidos (admin, `GET /orders/all`): cola + dashboard. */
   loadAll: (token?: string) => Promise<void>;
+  /** El cliente cancela SU pedido (`PATCH /orders/:id/cancel`, §3.8: solo si pending). */
+  cancelMine: (id: string, token?: string) => Promise<void>;
+  /** El cliente difiere SU pedido (`PATCH /orders/:id/extend`, §3.10: ready→ready_later). */
+  extendMine: (id: string, token?: string) => Promise<void>;
   /** Marca cuál es el pedido activo del cliente (para el seguimiento). */
   setActiveOrder: (id: string) => void;
 }
@@ -109,6 +115,14 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     } finally {
       set({ loading: false });
     }
+  },
+  cancelMine: async (id, token) => {
+    const updated = await cancelOrder(id, token);
+    set((s) => ({ orders: s.orders.map((o) => (o.id === id ? updated : o)) }));
+  },
+  extendMine: async (id, token) => {
+    const updated = await extendOrder(id, token);
+    set((s) => ({ orders: s.orders.map((o) => (o.id === id ? updated : o)) }));
   },
 }));
 

@@ -67,6 +67,28 @@ export class OrdersController {
     return toOrderResponse(await this.orders.updateStatus(id, dto.status));
   }
 
+  /** PATCH /orders/:id/cancel → el cliente cancela SU pedido (§3.8, solo si `pending`). */
+  @Patch(':id/cancel')
+  async cancel(
+    @Req() req: Request & { user?: JwtUser },
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<OrderResponse> {
+    return toOrderResponse(
+      await this.orders.cancelOwn(id, this.requireUser(req)),
+    );
+  }
+
+  /** PATCH /orders/:id/extend → el cliente difiere SU pedido (§3.10, `ready → ready_later`). */
+  @Patch(':id/extend')
+  async extend(
+    @Req() req: Request & { user?: JwtUser },
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<OrderResponse> {
+    return toOrderResponse(
+      await this.orders.extendOwn(id, this.requireUser(req)),
+    );
+  }
+
   private requireUser(req: Request & { user?: JwtUser }): JwtUser {
     if (!req.user) throw new UnauthorizedException();
     return req.user;

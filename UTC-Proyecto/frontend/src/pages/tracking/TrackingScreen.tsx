@@ -1,4 +1,4 @@
-import { View, ScrollView } from 'react-native';
+import { View, ScrollView, Pressable, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChefHat, CircleCheckBig, Timer, PackageCheck, Receipt, CircleSlash } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -8,6 +8,7 @@ import { PrimaryButton } from '../../shared/ui/PrimaryButton';
 import { Display, Heading, Body, Label, Mono } from '../../shared/ui/Type';
 import { colors, text, border, surface, shadow, fonts, radius, space, state } from '../../shared/theme';
 import { useOrdersStore, trackerStep } from '../../features/orders/model/orders.store';
+import { useSessionStore } from '../../features/auth/model/session.store';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'Tracking'>;
 
@@ -18,6 +19,9 @@ type Props = NativeStackScreenProps<MainStackParamList, 'Tracking'>;
 export function TrackingScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const order = useOrdersStore((s) => s.orders.find((o) => o.id === s.activeOrderId));
+  const cancelMine = useOrdersStore((s) => s.cancelMine);
+  const extendMine = useOrdersStore((s) => s.extendMine);
+  const token = useSessionStore((s) => s.session?.accessToken);
 
   // Sin pedido en curso (nunca se envió uno): estado vacío.
   if (!order) {
@@ -41,6 +45,30 @@ export function TrackingScreen({ navigation }: Props) {
   const ready = order.status === 'ready' || order.status === 'ready_later';
   const done = order.status === 'picked_up';
   const failed = order.status === 'cancelled' || order.status === 'not_picked_up';
+
+  const onCancel = () => {
+    Alert.alert('Cancelar pedido', '¿Seguro que quieres cancelar tu pedido?', [
+      { text: 'No', style: 'cancel' },
+      {
+        text: 'Sí, cancelar',
+        style: 'destructive',
+        onPress: () =>
+          void cancelMine(order.id, token).catch((e: unknown) =>
+            Alert.alert(
+              'No se pudo cancelar',
+              e instanceof Error ? e.message : 'Intenta de nuevo',
+            ),
+          ),
+      },
+    ]);
+  };
+  const onExtend = () =>
+    void extendMine(order.id, token).catch((e: unknown) =>
+      Alert.alert(
+        'No se pudo extender',
+        e instanceof Error ? e.message : 'Intenta de nuevo',
+      ),
+    );
 
   const hero = failed
     ? { icon: <CircleSlash size={38} color={colors.rojo[500]} />, bg: colors.rojo[50], accent: colors.rojo[500], title: order.status === 'cancelled' ? 'Pedido\ncancelado' : 'No se\nrecogió', sub: 'Si fue un error, vuelve a pedir desde el menú.' }
@@ -92,6 +120,21 @@ export function TrackingScreen({ navigation }: Props) {
       </ScrollView>
 
       <View style={{ paddingHorizontal: space[5], paddingTop: space[4], paddingBottom: insets.bottom + space[2], backgroundColor: surface.card, borderTopWidth: 1, borderTopColor: border.subtle }}>
+        {/* Acciones del cliente sobre SU pedido (§3.8/§3.10) */}
+        {order.status === 'ready' ? (
+          <Pressable onPress={onExtend} style={{ alignItems: 'center', paddingVertical: 12, marginBottom: 2 }}>
+            <Body color={colors.naranja[600]} style={{ fontSize: 14, fontFamily: fonts.bodySemi }}>
+              Extender para recoger después
+            </Body>
+          </Pressable>
+        ) : null}
+        {order.status === 'pending' ? (
+          <Pressable onPress={onCancel} style={{ alignItems: 'center', paddingVertical: 12, marginBottom: 2 }}>
+            <Body color={colors.rojo[500]} style={{ fontSize: 14, fontFamily: fonts.bodySemi }}>
+              Cancelar pedido
+            </Body>
+          </Pressable>
+        ) : null}
         <PrimaryButton
           color={ready || done ? colors.naranja[500] : colors.azul[700]}
           onPress={() => navigation.popToTop()}

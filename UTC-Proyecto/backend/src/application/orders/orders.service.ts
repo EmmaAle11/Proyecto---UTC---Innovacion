@@ -181,6 +181,42 @@ export class OrdersService {
     return order;
   }
 
+  // Nota: cancelOwn/extendOwn NO reusan ALLOWED_TRANSITIONS (esa es la política del
+  // ADMIN). La del cliente es un subconjunto más estricto (§5): solo cancelar `pending`
+  // y extender `ready`; por eso la validación es explícita y separada a propósito.
+
+  /**
+   * Cancela un pedido PROPIO (§3.8/§5: solo si aún no está en preparación → estado
+   * `pending`). Propiedad por JWT (BR-014). Una sola tabla (atómica).
+   */
+  async cancelOwn(id: string, user: JwtUser): Promise<OrderEntity> {
+    const order = await this.findOwnedByUser(id, user);
+    if (order.status !== OrderStatus.PENDING) {
+      throw new BadRequestException(
+        'Solo puedes cancelar un pedido que aún no está en preparación',
+      );
+    }
+    order.status = OrderStatus.CANCELLED;
+    await this.dataSource.getRepository(OrderEntity).save(order);
+    return order;
+  }
+
+  /**
+   * Extiende un pedido PROPIO para recogerlo después (§3.10: `ready → ready_later`).
+   * Propiedad por JWT (BR-014). Una sola tabla (atómica).
+   */
+  async extendOwn(id: string, user: JwtUser): Promise<OrderEntity> {
+    const order = await this.findOwnedByUser(id, user);
+    if (order.status !== OrderStatus.READY) {
+      throw new BadRequestException(
+        'Solo puedes extender un pedido que está listo para recoger',
+      );
+    }
+    order.status = OrderStatus.READY_LATER;
+    await this.dataSource.getRepository(OrderEntity).save(order);
+    return order;
+  }
+
   /** Pedidos del usuario autenticado, más recientes primero (BR-014). */
   async findMine(user: JwtUser): Promise<OrderEntity[]> {
     const profile = await this.dataSource
@@ -205,6 +241,19 @@ export class OrdersService {
     });
     if (!order) throw new NotFoundException('Pedido no encontrado');
     return order;
+  }
+
+  /** Carga un pedido propio resolviendo el perfil desde el JWT (BR-014). */
+  private async findOwnedByUser(
+    id: string,
+    user: JwtUser,
+  ): Promise<OrderEntity> {
+    const profile = await this.dataSource
+      .getRepository(UserProfileEntity)
+      .findOne({ where: { keycloakId: user.sub } });
+    // No filtrar por perfil inexistente revelaría pedidos ajenos: tratamos como no encontrado.
+    if (!profile) throw new NotFoundException('Pedido no encontrado');
+    return this.findOneOwned(id, profile.id);
   }
 
   /** Asegura el `user_profile` del JWT (lo crea desde el token si no existe). */
