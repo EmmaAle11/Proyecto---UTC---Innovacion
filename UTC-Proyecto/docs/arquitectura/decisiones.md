@@ -157,3 +157,36 @@ Registro único y canónico de decisiones (estilo ADR ligero). Para añadir una 
   - **Validación opcional de audience del token (defensa OIDC):** queda disponible como opción de configuración, **apagada por defecto** para no afectar el inicio de sesión actual.
 - Verificación (§0/§22): backend `lint`/`build`/`test` verdes (incluye prueba de regresión de la validación de la foto); frontend `tsc` verde; auditoría + guard anti-regresión con confianza ≥95%.
 - Reflejo en docs (rule #24): corrección de puertos en ejecución §3; esta entrada. El círculo y los pasos no cambian de alcance (es endurecimiento interno).
+
+## D-023 · Semilla mínima (solo admin + productos) y arranque limpio
+- Fecha: 2026-06-29 · Estado: vigente.
+- Contexto: para demostrar el flujo real en vivo (crear cuenta → pedir → el admin lo ve) se quería un arranque **sin datos precargados** que confundan.
+- Decisión: `infra/postgres/seed-demo.sql` se recorta a **`products` (10) + un solo `user_profile`: `admin@picksazon.app`** (sin pedidos/pagos/tiempos ni alumnos demo). Los alumnos se crean **al registrarse en vivo**. Se limpia con `TRUNCATE payments, preparation_times, order_items, orders RESTART IDENTITY CASCADE` (documentado en `docs/datos/psql-cheatsheet.md §5`). La BD viva y Keycloak se dejaron también con **solo el admin** (borrado de cuentas de prueba vía el service-account `backend-svc`).
+- Verificación (§0): conteos antes/después → 0 pedidos, único usuario `admin@picksazon.app` en `user_profile` y en el realm `utc-food`.
+- Reflejo en docs (rule #24): `datos/datos-demo.md`, `datos/psql-cheatsheet.md`.
+
+## D-024 · Notificaciones de pedido (Opción A: locales, sin push remota) — afina la parte "push" de D-006
+- Fecha: 2026-07-01 · Estado: vigente.
+- Contexto: BR-012 pide avisar eventos del pedido (aceptado, listo, cancelado, no recogido). D-006 difería "push". Se quería que funcionara también en **web (Chrome)** y se viera como push en teléfono, **sin** construir infraestructura de push remota (Expo Push + registro de tokens + dev-build), que no es verificable en este entorno.
+- Decisión: **notificaciones locales del SO disparadas por sondeo al backend** (no push remota con la app cerrada). Dos frentes: **web** = API `Notification` del navegador; **nativo** = `expo-notifications` (notificación local; Expo Go ya no soporta push remota desde SDK 53). Mapa puro `notificationFor` (4 eventos BR-012 + de-dup) + hook que sondea `loadMine` y notifica transiciones; toggle en Perfil que **pide permiso**; `notifyReady` arranca en `false`. La push remota real queda **diferida** (necesita dev-build + `projectId` + dispositivo).
+- Verificación (§0/§22): `notificationFor` 10/10; `tsc` 0; bundle web 0; 3 agentes de regresión (35% → 85% → 97%). El "ver la notificación" real queda como validación visual (dispositivo/navegador).
+- Reflejo en docs (rule #24): círculo §3.1 (aviso en teléfono o navegador); ejecución §8.
+
+## D-025 · Número de pedido secuencial (U-00001) reemplaza el código derivado del UUID
+- Fecha: 2026-07-01 · Estado: vigente.
+- Contexto: el código de recogida se derivaba del UUID (ej. "A-5C33"): poco legible y no correlativo. Se quería un número de pedido legible tipo **U-00001**.
+- Decisión: columna `order_number` en `orders`, **autoincremental** (secuencia Postgres + `@Generated('increment')`, `UNIQUE`), generada por la BD; el backend la expone en `OrderResponse.orderNumber` y el frontend la formatea `U-` + 5 dígitos (`formatOrderCode`). Es a la vez el **código de recogida**. Migración `AddOrderNumber`.
+- Verificación (§0/§22): backend 40/40; migración `exit 0`; e2e `POST /orders` → `orderNumber:1` = U-00001; frontend `tsc`/bundle 0; agente de regresión gate §22 (fix de códigos mock `A-`→`U-`).
+- Reflejo en docs (rule #24): círculo §1/§3.1/§3.4; ejecución §5/§14.
+
+## D-026 · Pedido programado con hora fija + prioridad "glaciar" (MVP)
+- Fecha: 2026-07-01 · Estado: vigente.
+- Contexto: la Propuesta incluía "programar tu pedido". Faltaba concretar la política: anticipación, cómo avisar al negocio y cómo interactúa con el semáforo.
+- Decisión (MVP):
+  - El cliente **fija la hora de recogida** al pagar; el backend valida **≥30 min de anticipación** y **mismo día** (hora del servidor, BR-005). Columna `scheduled_for` (migración `AddScheduledFor`).
+  - **Hora de empezar** = `scheduled_for − prep estimada` (máx de `prep_time_seconds` de las líneas), derivada en la respuesta (`startBy`).
+  - **Aviso al negocio:** notificación **local en el dispositivo del admin** cuando llega `startBy` (mismo mecanismo que D-024, no push remota); la cola del admin ordena por **holgura ("glaciar")** y resalta "⏰ Empezar ahora".
+  - **Semáforo:** un pedido programado **entra a la cola solo dentro de los 20 min previos** a la recogida (no infla la congestión antes).
+  - Limitación documentada: "mismo día" en la zona horaria del **servidor** (despliegue single-locale; multi-TZ requeriría fijar la zona de la cooperativa).
+- Verificación (§0/§22): backend 45/45; migración `exit 0`; e2e (válido +45 min → `startBy` −15 min; +10 min → 400; `congestion` excluye programado → count 0); frontend `tsc`/bundle 0; `scheduleView` 5/5; agente de regresión gate §22 (88% → fix E1 + test de cobertura de `congestion`).
+- Reflejo en docs (rule #24): círculo §3.15; ejecución §13.

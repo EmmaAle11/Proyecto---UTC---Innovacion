@@ -1,25 +1,34 @@
 # Datos de demostración — UTC Pick Sazón
 
-> **Pide fácil, recoge con sabor.** Este documento presenta el **conjunto de datos** con el que se pueblan las **6 tablas** de la base `UTC_PROJECT_DB` (PostgreSQL en Docker). Los datos son **coherentes con el esquema materializado** (migración TypeORM `1782168106072-Init`) y están pensados para la demo: **ejercitan todos los tipos enumerados y las reglas de negocio** del [círculo de innovación](../propuesta/algoritmo-circulo-innovacion.md).
+> **Pide fácil, recoge con sabor.** Este documento tiene **dos partes**:
+> 1. **La semilla de fábrica** (lo que `seed-demo.sql` carga al arrancar): **mínima**, solo **productos (10)** + **un usuario admin**. Decisión 2026-06-29 (D-023): arranque **limpio** para demostrar el flujo real en vivo (crear cuenta → pedir → el admin lo ve).
+> 2. **Un ejemplo ilustrativo** (§3–§6) de cómo se ven las tablas **transaccionales** (pedidos, líneas, pagos, tiempos) cuando la cooperativa ha tenido actividad. ⚠️ **Ese ejemplo NO se siembra**: esas tablas **arrancan vacías** y se llenan **en vivo** al usar la app. Se conserva aquí porque explica el modelo y ejercita todos los enums y reglas de negocio del [círculo de innovación](../propuesta/algoritmo-circulo-innovacion.md).
 >
-> - **Esquema de referencia:** [`architecture-propuesta.md`](../arquitectura/architecture-propuesta.md) §5.
-> - **Cómo integrarlos / consultarlos:** seed en [`infra/postgres/seed-demo.sql`](../../infra/postgres/seed-demo.sql); consultas en [`consultas-sql.md`](consultas-sql.md).
-> - **Hora oficial:** todos los `timestamptz` son **hora del servidor en UTC** (BR-005). El "recreo" de la demo ocurre el **24-jun-2026** por la mañana.
+> - **Esquema de referencia:** [`architecture-propuesta.md`](../arquitectura/architecture-propuesta.md) §5. Migraciones: `1782168106072-Init` + `AddOrderNumber` (número `U-00001`, D-025) + `AddScheduledFor` (pedido programado, D-026).
+> - **Cómo cargar / consultar / limpiar:** seed en [`infra/postgres/seed-demo.sql`](../../infra/postgres/seed-demo.sql); consultas y comandos `\d`/TRUNCATE en [`psql-cheatsheet.md`](psql-cheatsheet.md) y [`consultas-sql.md`](consultas-sql.md).
+> - **Hora oficial:** todos los `timestamptz` son **hora del servidor** (BR-005). El "recreo" del ejemplo ilustrativo ocurre por la mañana.
 
 ---
 
 ## 0. Resumen y cobertura
 
-| Tabla | Filas | Qué representa |
-| --- | ---: | --- |
-| `user_profile` | **9** | 3 clientes **reales** (ya registrados) + 5 alumnos demo + 1 administrador |
-| `products` | **10** | menú inicial de la cooperativa (círculo §3.13) |
-| `orders` | **11** | pedidos del recreo, cubriendo los 7 estados |
-| `order_items` | **18** | líneas de esos pedidos |
-| `payments` | **11** | un pago por pedido (5 métodos, 4 estados) |
-| `preparation_times` | **20** | histórico real de preparación (BR-007) |
+**Lo que SIEMBRA `seed-demo.sql` (de fábrica):**
 
-**Los datos ejercitan los 5 tipos enumerados del modelo:**
+| Tabla | Filas sembradas | Qué representa |
+| --- | ---: | --- |
+| `user_profile` | **1** | solo el **administrador** (`admin@picksazon.app`). Los alumnos se crean al registrarse en vivo. |
+| `products` | **10** | menú inicial de la cooperativa (círculo §3.13) |
+
+**Lo que arranca VACÍO y se llena EN VIVO** (no se siembra; el ejemplo ilustrativo de §3–§6 muestra cómo se ven con actividad):
+
+| Tabla | Al arrancar | Se llena cuando… |
+| --- | ---: | --- |
+| `orders` | **0** | un alumno hace un pedido (número `U-00001`, `U-00002`, …) |
+| `order_items` | **0** | se crean las líneas de cada pedido |
+| `payments` | **0** | se registra el pago (5 métodos, 4 estados) |
+| `preparation_times` | **0** | el admin marca un pedido `ready` (histórico real, BR-007) |
+
+**El ejemplo ilustrativo (§3–§6) ejercita los 5 tipos enumerados del modelo:**
 
 | Enum | Valores presentes en los datos |
 | --- | --- |
@@ -35,23 +44,28 @@
 
 ---
 
-## 1. `user_profile` — alumnos y administrador
+## 1. `user_profile` — administrador (sembrado) y alumnos (en vivo)
 
 Perfil local enlazado a Keycloak (`keycloak_id` = `sub` del JWT). La **autoridad real del rol es el JWT**; la columna `role` es una copia de conveniencia (§5.1).
 
-| Cód. | email | Nombre | `role` | Origen |
-| --- | --- | --- | --- | --- |
-| U01 | `prueba@edu.utc.mx` | Emmanuel Alejandre | `user` | registrado (migrado de `@utc.edu.mx`) |
-| U02 | `prueba.func.1782226408@edu.utc.mx` | Prueba Funcional | `user` | registrado (migrado) |
-| U03 | `sec.test.1782236599@edu.utc.mx` | Sec Test | `user` | registrado (migrado) |
-| U04 | `valeria.ramirez@edu.utc.mx` | Valeria Ramírez | `user` | demo |
-| U05 | `diego.hernandez@edu.utc.mx` | Diego Hernández | `user` | demo |
-| U06 | `sofia.martinez@edu.utc.mx` | Sofía Martínez | `user` | demo |
-| U07 | `carlos.lopez@edu.utc.mx` | Carlos López | `user` | demo |
-| U08 | `ana.torres@edu.utc.mx` | Ana Torres | `user` | demo |
-| U09 | `admin@picksazon.app` | Coop Admin | `admin` | demo (operador de la cooperativa) |
+**Lo único sembrado (D-023):**
 
-> **Dominio (D-011):** el dataset usa el correo institucional **`@edu.utc.mx`**. Los perfiles U01–U03 se habían registrado como `@utc.edu.mx` y se **migraron** a `@edu.utc.mx`; sus cuentas viejas de Keycloak quedan obsoletas, así que para entrar a la app se registra una `@edu.utc.mx` nueva. El admin (`coop-admin`) vive en Keycloak con MFA (D-016); aquí va su **espejo local** para mostrar el rol `admin`. El resto son alumnos demo con `keycloak_id` de relleno (solo pueblan el modelo de datos).
+| email | Nombre | `role` | Origen |
+| --- | --- | --- | --- |
+| `admin@picksazon.app` | Coop Admin | `admin` | semilla (operador de la cooperativa) |
+
+**Alumnos del ejemplo ilustrativo (§3–§6)** — ⚠️ **no** se siembran; en la app real se crean **al registrarse en vivo** (dominio `@edu.utc.mx`). Se listan aquí solo para que se entiendan los pedidos del ejemplo:
+
+| Cód. | email | Nombre |
+| --- | --- | --- |
+| U01 | `emmanuel.alejandre@edu.utc.mx` | Emmanuel Alejandre |
+| U04 | `valeria.ramirez@edu.utc.mx` | Valeria Ramírez |
+| U05 | `diego.hernandez@edu.utc.mx` | Diego Hernández |
+| U06 | `sofia.martinez@edu.utc.mx` | Sofía Martínez |
+| U07 | `carlos.lopez@edu.utc.mx` | Carlos López |
+| U08 | `ana.torres@edu.utc.mx` | Ana Torres |
+
+> **Dominio (D-011):** los alumnos usan el correo institucional **`@edu.utc.mx`** (auto-registro validado en el backend). El admin (`coop-admin`) vive en Keycloak con MFA (D-016); en la BD va su **espejo local** para mostrar el rol `admin`.
 
 ---
 
@@ -81,15 +95,17 @@ Precios en MXN; `base_prep_time_seconds` en **segundos** (tiempo base de prepara
 
 ---
 
-## 3. `orders` — pedidos del recreo (24-jun)
+## 3. `orders` — pedidos del recreo (⚠️ ejemplo ilustrativo, NO semilla)
 
-Horas en formato `hh:mm` (UTC). El número de turno se asigna cuando el admin marca **`ready`** (círculo §3.4). `pickup_deadline` = `ready_at` + 20 min (D-005).
+> **§3 a §6 son un ejemplo ilustrativo**, no datos sembrados: en la BD real estas tablas **arrancan vacías** y se llenan al usar la app. Sirven para entender el modelo y ejercitar los enums/reglas.
+
+Horas en formato `hh:mm`. En la app real cada pedido recibe un **número secuencial** al crearse — `U-00001`, `U-00002`, … (D-025) — que es su **código de recogida**; los códigos `O-###` de abajo son solo abreviatura de este documento. `pickup_deadline` = `ready_at` + 20 min (D-005). Un pedido puede además tener **`scheduled_for`** (recogida programada, D-026): entra al semáforo solo dentro de los 20 min previos a su hora.
 
 | Cód. | Alumno | `status` | `total` | creado | listo (`ready_at`) | recogido | Qué muestra |
 | --- | --- | --- | ---: | :---: | :---: | :---: | --- |
 | O-001 | U01 Emmanuel | `picked_up` | $56.00 | 09:31 | 09:43 | 09:48 | flujo feliz completo |
 | O-002 | U04 Valeria | `preparing` | $123.00 | 09:50 | — | — | en cocina ahora mismo |
-| O-003 | U05 Diego | `ready` | $50.00 | 09:40 | 09:55 | — | listo, con turno; paga al recoger |
+| O-003 | U05 Diego | `ready` | $50.00 | 09:40 | 09:55 | — | listo, con su número; paga al recoger |
 | O-004 | U06 Sofía | `pending` | $59.00 | 10:02 | — | — | recién enviado, sin aceptar |
 | O-005 | U07 Carlos | `not_picked_up` | $50.00 | 09:20 | 09:30 | — | no se recogió → alimenta la reoferta P04 |
 | O-006 | U08 Ana | `cancelled` | $38.00 | 09:15 | — | — | cancelado por **pago rechazado** |
@@ -175,7 +191,7 @@ Cada fila es un **tiempo real medido** (en segundos) de un producto. Las de hoy 
 
 ## 7. Cómo integrarlo y consultarlo
 
-**Cargar los datos en la BD** (idempotente, se puede re-correr):
+**Cargar la semilla mínima** (productos + admin; idempotente, se puede re-correr):
 ```bash
 docker exec -i utc_postgres psql -U UTC_PROJECT -d UTC_PROJECT_DB < infra/postgres/seed-demo.sql
 ```
@@ -197,4 +213,9 @@ SELECT method, status, count(*), sum(amount)
 FROM payments GROUP BY method, status ORDER BY method;
 ```
 
-> **Reiniciar los datos demo:** el seed trae al final un bloque `REINICIO` (comentado) que borra solo lo demo y conserva los 3 clientes reales.
+> **Limpiar lo generado en vivo** (dejar 0 pedidos, conservar productos + admin; reinicia la numeración a `U-00001`):
+> ```bash
+> docker exec -i utc_postgres psql -U UTC_PROJECT -d UTC_PROJECT_DB -c \
+>   "TRUNCATE payments, preparation_times, order_items, orders RESTART IDENTITY CASCADE;"
+> ```
+> Detalle y más comandos (`\d`, consultas en vivo) en [`psql-cheatsheet.md`](psql-cheatsheet.md).
