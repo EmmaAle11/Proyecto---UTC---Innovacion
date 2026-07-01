@@ -17,7 +17,8 @@
 - [consultas-sql.md](datos/consultas-sql.md) — consultas SQL listas para la demo.
 
 ### ⚙️ Operación — cómo correrlo
-- [Read/levantar-proyecto.md](Read/levantar-proyecto.md) — **solo los comandos para levantar todo, en orden** (INFRA → BACKEND → FRONTEND). Inicio rápido.
+- [Read/levantar-proyecto.md](Read/levantar-proyecto.md) — **solo los comandos para levantar todo, en orden** (INFRA → BACKEND → FRONTEND). Inicio rápido + **build APK con notificaciones (§4)**.
+- [Read/demo-dos-telefonos.md](Read/demo-dos-telefonos.md) — **demo cliente ↔ admin en dos teléfonos** (cómo apuntan al mismo backend, guion y qué es real vs demo).
 - [correr-en-otra-pc.md](operacion/correr-en-otra-pc.md) — **plan completo para clonar y correr el proyecto en otra laptop** (prerrequisitos, runbook paso a paso y trampas verificadas).
 
 ### 📚 Histórico — archivos de proceso (no vivos)

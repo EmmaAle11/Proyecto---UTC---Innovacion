@@ -74,6 +74,33 @@ Nuestras notificaciones son **locales** (las dispara la app al cambiar el estado
 pedido), así que **NO necesitan Firebase/FCM**. El build se hace en la nube con **EAS**
 (no requiere Android Studio ni SDK local).
 
+### 4.0) Primera vez en la Mac — clonar e instalar dependencias
+
+`node_modules` **NO viaja en git**: al clonar el proyecto en la Mac hay que **instalar
+las dependencias** en `frontend/` y `backend/` (obligatorio en cada equipo nuevo).
+Los `.env` tampoco se commitean.
+
+```bash
+git clone <repo> && cd UTC-Proyecto
+
+# 1) Dependencias — OBLIGATORIO en cada equipo nuevo:
+cd frontend && npm install
+cd ../backend && npm install
+
+# 2) Variables de entorno (no están en git; se crean a partir del ejemplo):
+cd ../infra && cp .env.example .env      # ajusta puertos/credenciales locales
+# backend/ también necesita su propio .env (DB + Keycloak). Ver infra/.env y decisiones D-013/D-014.
+
+# 3) (OPCIONAL) alinear los parches de los paquetes Expo al SDK 56:
+cd ../frontend && npx expo install --check
+```
+
+> `npm install` es **obligatorio** para correr o buildear. `npx expo install --check`
+> es **opcional** (solo higiene de versiones de parche; no hace falta para nada de esto).
+
+Después: el esquema + semilla de las secciones **1) INFRA** y **2) BACKEND**
+(`docker compose up -d`, `migration:run`, la semilla y `./keycloak/seed-admin.sh`).
+
 ### 4.1) Instalar cloudflared (una vez, según el equipo que HOSPEDA el backend)
 
 ```bash
