@@ -5,8 +5,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../app/navigation/types';
 import { LogoLockup } from '../../shared/ui/LogoLockup';
 import { Title, Body, Label } from '../../shared/ui/Type';
-import { colors, text, surface, shadow, border, fonts } from '../../shared/theme';
-import { useSessionStore } from '../../features/auth/model/session.store';
+import { colors, text, surface, shadow } from '../../shared/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Welcome'>;
 
@@ -16,17 +15,6 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Welcome'>;
  * naranja, y las dos rutas como tarjetas grandes (naranja cliente / navy admin).
  */
 export function WelcomeScreen({ navigation }: Props) {
-  const setSession = useSessionStore((s) => s.setSession);
-  // Acceso SOLO en desarrollo: entra sin tocar el backend (para probar la UI por
-  // túnel cuando el servidor no es alcanzable). No aparece en builds de producción.
-  const devEnter = (role: 'user' | 'admin') =>
-    setSession({
-      accessToken: 'dev',
-      refreshToken: 'dev',
-      email: role === 'admin' ? 'admin@picksazon.app' : 'demo@edu.utc.mx',
-      role,
-    });
-
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: surface.page }}>
       <ScrollView
@@ -119,20 +107,6 @@ export function WelcomeScreen({ navigation }: Props) {
             <ChevronRight color="#fff" size={22} />
           </Pressable>
         </View>
-
-        {__DEV__ ? (
-          <View style={{ marginBottom: 14, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: border.subtle, backgroundColor: surface.card, ...shadow.card }}>
-            <Label style={{ marginBottom: 9 }}>Solo desarrollo · entrar sin servidor</Label>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <Pressable onPress={() => devEnter('user')} style={{ flex: 1, height: 40, borderRadius: 11, borderWidth: 1, borderColor: colors.naranja[300], backgroundColor: colors.naranja[50], alignItems: 'center', justifyContent: 'center' }}>
-                <Body color={colors.naranja[700]} style={{ fontSize: 13.5, fontFamily: fonts.bodyBold }}>Cliente demo</Body>
-              </Pressable>
-              <Pressable onPress={() => devEnter('admin')} style={{ flex: 1, height: 40, borderRadius: 11, borderWidth: 1, borderColor: colors.azul[200], backgroundColor: colors.azul[50], alignItems: 'center', justifyContent: 'center' }}>
-                <Body color={colors.azul[700]} style={{ fontSize: 13.5, fontFamily: fonts.bodyBold }}>Admin demo</Body>
-              </Pressable>
-            </View>
-          </View>
-        ) : null}
 
         <Label style={{ textAlign: 'center', letterSpacing: 0.4, textTransform: 'none' }}>
           Modalidad Pick Up · Solo recogida en tienda

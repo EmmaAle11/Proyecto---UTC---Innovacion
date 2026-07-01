@@ -1,6 +1,13 @@
-import { View, Text, TextInput, type StyleProp, type ViewStyle, type TextInputProps } from 'react-native';
+import { View, Text, TextInput, Platform, type StyleProp, type ViewStyle, type TextStyle, type TextInputProps } from 'react-native';
 import type { ReactNode } from 'react';
 import { fonts } from '../theme';
+
+// En react-native-web el TextInput se renderiza como <input> y el navegador le
+// pinta su anillo de foco (el "margen" azul que aparece al llegar con Tab). Lo
+// quitamos solo en web; `outlineStyle` es una prop de estilo exclusiva de RNW y
+// no existe en TextStyle, de ahí el doble cast.
+const WEB_NO_OUTLINE: TextStyle | undefined =
+  Platform.OS === 'web' ? ({ outlineStyle: 'none' } as unknown as TextStyle) : undefined;
 
 type Props = {
   value: string;
@@ -66,7 +73,7 @@ export function BrandField({
           secureTextEntry={secure}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
-          style={{ flex: 1, fontSize: 15, color: '#021E5E', fontFamily: fonts.bodyMedium }}
+          style={[{ flex: 1, fontSize: 15, color: '#021E5E', fontFamily: fonts.bodyMedium }, WEB_NO_OUTLINE]}
         />
         {rightSlot}
       </View>
