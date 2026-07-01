@@ -144,17 +144,41 @@ ORDER BY o.created_at DESC LIMIT 5;
 
 ---
 
-## 5) Reiniciar a un arranque limpio (productos + usuarios, 0 pedidos)
+## 5) Limpiar los pedidos en vivo (dejar 0 pedidos, conservar productos + usuarios)
 
-Borra lo generado en vivo y deja solo la semilla mínima
-(`infra/postgres/seed-demo.sql`):
+Borra **todo lo generado en vivo** (pedidos, líneas, pagos, tiempos) sin tocar el
+menú ni las cuentas. Recomendado: **`TRUNCATE`** — más rápido que `DELETE` y
+**`RESTART IDENTITY`** reinicia los contadores (para que el próximo número de pedido
+vuelva a arrancar desde el principio; relevante con la numeración `U-00001`).
+`CASCADE` resuelve el orden de las llaves foráneas automáticamente:
+
+```bash
+docker exec -i utc_postgres psql -U UTC_PROJECT -d UTC_PROJECT_DB -c \
+  "TRUNCATE payments, preparation_times, order_items, orders RESTART IDENTITY CASCADE;"
+```
+
+> Verificado 2026-06-29: pasó de 4 pedidos / 5 líneas / 4 pagos / 2 tiempos → 0,
+> conservando 10 productos y los usuarios. NO toca `products` ni `user_profile`
+> (son tablas padre; `TRUNCATE ... CASCADE` solo vacía las hijas listadas).
+
+Confirmar que quedó limpio:
+
+```bash
+docker exec -i utc_postgres psql -U UTC_PROJECT -d UTC_PROJECT_DB -c \
+  "SELECT (SELECT count(*) FROM orders) AS pedidos, (SELECT count(*) FROM products) AS productos, (SELECT count(*) FROM user_profile) AS usuarios;"
+```
+
+Alternativa con `DELETE` (equivalente, sin reiniciar contadores):
 
 ```bash
 docker exec -i utc_postgres psql -U UTC_PROJECT -d UTC_PROJECT_DB -c \
   "DELETE FROM preparation_times; DELETE FROM payments; DELETE FROM order_items; DELETE FROM orders;"
 ```
 
-(Para borrar también un pedido puntual: `DELETE FROM orders WHERE id='<uuid>';` — la
-línea y el pago se borran en cascada.)
+(Para borrar un pedido puntual: `DELETE FROM orders WHERE id='<uuid>';` — la línea
+y el pago se borran en cascada.)
+
+> ⚠️ `TRUNCATE user_profile` o `products` borraría cuentas/menú. Para un reinicio
+> total y recargar la semilla, ver el bloque `REINICIO` en `infra/postgres/seed-demo.sql`.
 
 > Relacionado: `consultas-sql.md` (consultas del modelo) y `datos-demo.md`.

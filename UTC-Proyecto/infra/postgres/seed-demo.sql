@@ -20,14 +20,13 @@ BEGIN;
 
 -- ----------------------------------------------------------------------------
 -- 1) user_profile  (perfil local enlazado a Keycloak)
---    El admin + algunos alumnos demo, dominio @edu.utc.mx (D-011).
+--    ÚNICO usuario sembrado: el admin (admin@picksazon.app). Los alumnos se crean
+--    EN VIVO al registrarse en la app (arranque limpio, decisión 2026-06-29).
 --    keycloak_id es filler (las cuentas REALES se crean al registrarse en la
 --    app). El login real lo maneja Keycloak por separado.
 -- ----------------------------------------------------------------------------
 INSERT INTO user_profile (id, keycloak_id, email, first_name, last_name, role, created_at, updated_at) VALUES
-  ('f0000000-0000-4000-8000-000000000001', 'f1000000-0000-4000-8000-000000000001', 'admin@picksazon.app',        'Coop',    'Admin',   'admin', '2026-06-22 16:00:00+00', '2026-06-22 16:00:00+00'),
-  ('f0000000-0000-4000-8000-000000000002', 'f1000000-0000-4000-8000-000000000002', 'valeria.ramirez@edu.utc.mx', 'Valeria', 'Ramírez', 'user',  '2026-06-24 08:40:00+00', '2026-06-24 08:40:00+00'),
-  ('f0000000-0000-4000-8000-000000000003', 'f1000000-0000-4000-8000-000000000003', 'diego.hernandez@edu.utc.mx', 'Diego',   'Hernández','user', '2026-06-24 08:42:00+00', '2026-06-24 08:42:00+00')
+  ('f0000000-0000-4000-8000-000000000001', 'f1000000-0000-4000-8000-000000000001', 'admin@picksazon.app', 'Coop', 'Admin', 'admin', '2026-06-22 16:00:00+00', '2026-06-22 16:00:00+00')
 ON CONFLICT (email) DO NOTHING;
 
 -- ----------------------------------------------------------------------------
