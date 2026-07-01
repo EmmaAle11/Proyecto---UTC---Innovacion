@@ -32,8 +32,8 @@ Crear una aplicación web/móvil amigable (p. ej. con Expo Go o framework simila
 - Una vez listo, el pedido debe recogerse en ~**10 a 20 minutos**; de lo contrario podrá volver a ofertarse con la tag "Preparados".
 - Estados de producto: *por preparar* (con tiempo estimado de espera) y *preparado* (listo para recoger).
 - Mostrar **cuánto tiempo lleva preparado** cada producto.
-- **Número de fila** — cuando el **administrador de la cooperativa** marca tu pedido como listo, recibes un **número de turno** (ej. el 15). Con ese número en tu celular **no te acercas antes de tiempo**, evitando la congestión en la ventanilla.
-- **Programar tu pedido** — pides con anticipación y recoges a la hora justa, tomando desde antes tu número de turno. 
+- **Número de pedido** — cada pedido trae un **número secuencial** (el primero es **U-00001**, el siguiente U-00002, y así) que es a la vez tu **código de recogida**. Con ese número en tu celular **no te acercas antes de tiempo**, evitando la congestión en la ventanilla.
+- **Programar tu pedido** — pides con anticipación y recoges a la hora justa, tomando desde antes tu número de pedido. 
 - **Semáforo de congestión** — aunque existan los turnos, siempre habrá muchos pedidos, así que un semáforo en vivo detecta cuántos hay en cola: **menos de 5 = Verde**, **de 5 a 10 = Amarillo**, **más de 10 = Rojo** (se detalla en §3.14).
 
 ---
@@ -49,15 +49,15 @@ Todo lo que hará, **todo lo que hará UTC Pick Sazón** — juntando la idea or
 - Entrará con su **correo institucional** (`@edu.utc.mx`), sino tiene cuenta registrada en la app deberá crear una, cuando acceda verá el **menú con fotos**, precios y, lo mejor, **cuánto vas a esperar** por cada cosa. Lo que ya está hecho aparece como *Listo para llevar*.
 - Arma su pedido, elige cómo pagar (Mercado Pago, PayPal, tarjeta (TDC o TDD) o **efectivo al recoger**) y lo manda a la cocina **sin moverse de tu lugar**.
 - Puede **programar su pedido** para que esté listo justo cuando salga (ej. "lo quiero a las 10:00") — así llega y ya está.
-- Cuando esté listo llega una **notificación** con su **número de turno**: con ese número en el celular **no se acerca antes de tiempo**, y se acaba el amontonamiento en la ventanilla.
-- Sigue su pedido en vivo (Pagado → En preparación → Listo → Recogido) y lo recoge mostrando su **código de recogida**.
+- Cuando esté listo llega una **notificación** (en el teléfono o en el navegador) con su **número de pedido**: con ese número en el celular **no se acerca antes de tiempo**, y se acaba el amontonamiento en la ventanilla.
+- Sigue su pedido en vivo (Pagado → En preparación → Listo → Recogido) y lo recoge mostrando su **código de recogida** (el número secuencial, ej. **U-00001**).
 - Antes de pedir puede echarle un ojo al **semáforo de la cooperativa**: 🟢 verde = hay poca fila, 🟡 amarillo = va concurrido, 🔴 rojo = está a tope. Así decide si pide ya o se espera un toque (ver §3.14).
 - ¿No alcanzaste a recogerlo? Puede **cancelar** o **extender para después**; si lo dejas, el alimento se puede **reofertar** como *Preparado | Sin tiempo de espera*.
 
 **Para la cooperativa (panel de admin):**
 
 - Da de alta y edita el **menú** (productos, precios, fotos, stock mínimo/máximo de "Preparados").
-- Marca los pedidos como **listos**, y eso dispara el **turno** del alumno.
+- Marca los pedidos como **listos**, y eso dispara el **aviso** al alumno (con su número de pedido).
 - Ve el **semáforo de congestión en vivo** según la cola (pedidos pendientes + en preparación + listos esperando): 🟢 **Verde (menos de 5)**, 🟡 **Amarillo (de 5 a 10)**, 🔴 **Rojo (más de 10)** — con el **número exacto** para leer cómo viene el recreo y, si hace falta, empujar el **pedido programado** para repartir la llegada. Ese mismo semáforo lo ve también el alumno (ver §3.14).
 - Aprovecha la **reoferta / "Pon tu precio"** para vender lo que ya está hecho antes de perderlo.
 - Con el tiempo, ve **qué se vende más y a qué hora pega el pico** (la app mide los tiempos reales de preparación) para comprar mejor y reforzar la hora pico.
@@ -101,10 +101,10 @@ Usuario inicia sesión
   → revisa tiempo estimado
   → confirma pedido
   → realiza pago
-  → backend registra el pedido
+  → backend registra el pedido (le asigna su número secuencial, ej. U-00001)
   → la dark kitchen prepara el producto
-  → admin cambia estado a "Listo para recoger" (y se asigna el número de turno)
-  → usuario recibe notificación con su turno
+  → admin cambia estado a "Listo para recoger" (y se dispara el aviso al alumno)
+  → usuario recibe notificación con su número de pedido
   → usuario recoge el pedido con su código
 ```
 
@@ -202,6 +202,16 @@ Aunque existan los turnos, en el recreo siempre habrá un montón de pedidos jun
   - **El alumno** ve el **color** (con un textito tipo *"está tranquila / concurrida / llena"*) para decidir si pide ya o se espera un toque.
   - **El admin** ve el **número exacto** además del color, para saber cuándo empujar los pedidos programados y repartir la llegada de todos.
 - **Sin trampas:** el semáforo lo calcula el sistema con la **hora del servidor**, no el teléfono; así todos ven lo mismo.
+
+### 3.15. Pedido programado — recoge a la hora justa
+
+¿Ya sabes a qué hora vas a poder pasar? **Prográmalo.** Al pagar eliges la hora de recogida y la cooperativa lo tiene listo justo para entonces — nada de llegar y esperar, ni de que se enfríe por prepararlo antes.
+
+- **Con tiempo:** se programa con **mínimo 30 minutos de anticipación** (no vale pedir 9:50 para las 10:00; la cocina necesita su tiempo).
+- **Para hoy:** eliges una hora **del mismo día**, dentro del horario de la cooperativa.
+- **La cocina no se adelanta ni se atrasa:** el sistema calcula **cuándo empezar** (tu hora de recogida menos lo que tarda en prepararse) y **le avisa al negocio** justo cuando toca ponerse a cocinar. En el panel del admin ese pedido sube de prioridad y se marca con un **"⏰ Empezar ahora"**.
+- **No infla el semáforo antes de tiempo:** un pedido programado para dentro de un rato **no cuenta** en la cola hasta que **se abre su ventana** (cuando ya toca prepararlo, ~20 min antes de la recogida). Así el semáforo refleja lo que de verdad está pasando ahorita.
+- Igual que cualquier pedido, trae su **número** (ej. U-00001) y lo sigues en vivo hasta recogerlo.
 
 ---
 

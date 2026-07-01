@@ -60,11 +60,11 @@ UTC-Proyecto/
 - Welcome y Login con el correo institucional (@edu.utc.mx).
 - Inicio: el menú con fotos, precios y el tiempo de espera de cada cosa, más el carril de "listos para llevar ya" y el buscador.
 - Detalle del producto, carrito y checkout (pago con Mercado Pago, PayPal, tarjeta o efectivo al recoger).
-- Seguimiento del pedido (con su código de recogida y su número de turno) y las pestañas de Pedidos y Perfil.
+- Seguimiento del pedido (con su código de recogida, que es un número de pedido secuencial tipo U-00001) y las pestañas de Pedidos y Perfil.
 
 6.- Construir el panel del administrador (la cooperativa):
 - Dar de alta y editar el menú (productos, precios, fotos y el stock de "Preparados").
-- Recibir los pedidos y marcarlos como "Listo" (eso le asigna el número de turno al alumno).
+- Recibir los pedidos y marcarlos como "Listo" (eso dispara el aviso al alumno con su número de pedido).
 - Ver el semáforo de congestión en vivo: menos de 5 = Verde, de 5 a 10 = Amarillo, más de 10 = Rojo (parámetros y visibilidad en §12).
 - Manejar la reoferta / "Pon tu precio" para vender lo que ya está hecho.
 - Cerrar sesión y ajustar su cuenta: accesibilidad (texto grande, alto contraste, reducir movimiento) y personalización funcional (nombre y horario de la cooperativa, y los umbrales del semáforo, que cambian el color de la cola al instante).
@@ -74,7 +74,7 @@ UTC-Proyecto/
 - Guardar productos, pedidos, pagos y tiempos en PostgreSQL (las 6 tablas).
 - Que el backend valide quién es quién (alumno o administrador) con Keycloak + JWT antes de dejar hacer nada.
 
-8.- Sumar las funciones que de verdad descongestionan: número de turno, pedido programado y el semáforo, más las notificaciones de "tu pedido está listo".
+8.- Sumar las funciones que de verdad descongestionan: número de pedido secuencial (U-00001), pedido programado (ver §13) y el semáforo, más las notificaciones de "tu pedido está listo" (llegan tanto en el teléfono como en el navegador).
 
 9.- Probar con alumnos reales, corregir lo que confunda y dejar todo listo para la demo a la cooperativa. Tras el arranque se le da un periodo de adopción de 1 mes: si en ese mes una buena parte de los alumnos ya pide por la app y baja la congestión del recreo, se considera un éxito y se amplía.
 
@@ -106,3 +106,14 @@ Umbrales (parámetros ajustables, UMBRAL_AMARILLO = 5 y UMBRAL_ROJO = 10):
 - Amarillo: de 5 a 10 pedidos en cola (5 ≤ n ≤ 10).
 - Rojo: más de 10 pedidos en cola (n > 10).
 Lo ven los dos perfiles: el administrador con el conteo exacto (para decidir cuándo empujar los pedidos programados) y el cliente con el color y una etiqueta (tranquila / concurrida / llena) para decidir cuándo pedir o recoger. El cálculo usa la hora del servidor.
+
+13.- Pedido programado (anticipación y aviso al negocio)
+El cliente puede fijar la hora de recogida al momento de pagar. Reglas, validadas por el backend con la hora del servidor:
+- Se programa con mínimo 30 minutos de anticipación y para el mismo día; si no cumple, el pedido se rechaza.
+- El sistema calcula la hora de empezar a preparar = hora de recogida − el tiempo de preparación estimado del pedido.
+- Cuando llega esa hora, se avisa al negocio (notificación en el dispositivo del administrador) para que empiece; en la cola del administrador esos pedidos suben de prioridad y se marcan con "Empezar ahora".
+- Un pedido programado entra al semáforo de congestión solo cuando se abre su ventana (dentro de los ~20 minutos previos a la recogida), no antes, para no inflar la cola.
+- Como cualquier pedido, lleva su número secuencial (U-00001) y se sigue en vivo hasta recogerlo.
+
+14.- Número de pedido secuencial
+Cada pedido recibe un número correlativo legible al crearse (el primero es U-00001, luego U-00002, y así). Ese número es el código de recogida que ve el cliente y con el que el administrador identifica el pedido en su cola. Lo genera la base de datos, de forma única y en orden.
