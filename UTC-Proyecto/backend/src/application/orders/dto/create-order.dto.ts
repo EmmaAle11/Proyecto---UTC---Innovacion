@@ -4,6 +4,8 @@ import {
   IsArray,
   IsEnum,
   IsInt,
+  IsISO8601,
+  IsOptional,
   IsUUID,
   Min,
   ValidateNested,
@@ -33,4 +35,12 @@ export class CreateOrderDto {
 
   @IsEnum(PaymentMethod, { message: 'Método de pago inválido' })
   payMethod: PaymentMethod;
+
+  /**
+   * Recogida programada (ISO 8601). Opcional: si falta, el pedido es inmediato.
+   * El backend valida ≥30 min de anticipación y mismo día (hora del servidor, BR-005).
+   */
+  @IsOptional()
+  @IsISO8601({}, { message: 'Fecha de recogida inválida' })
+  scheduledFor?: string;
 }

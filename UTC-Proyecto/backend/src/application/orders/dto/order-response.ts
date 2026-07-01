@@ -38,6 +38,10 @@ export interface OrderResponse {
   payment: { method: PaymentMethod; status: PaymentStatus } | null;
   createdAt: string;
   readyAt: string | null;
+  /** Hora de recogida programada (ISO) o `null` si es inmediato (spec #4). */
+  scheduledFor: string | null;
+  /** Hora sugerida para EMPEZAR a preparar (ISO) = `scheduledFor − prep estimada`; `null` si inmediato. */
+  startBy: string | null;
 }
 
 /** Mapea la entidad persistida (con `items.product`, `payment`, `user`) al contrato de API. */
@@ -46,6 +50,19 @@ export function toOrderResponse(o: OrderEntity): OrderResponse {
     .filter(Boolean)
     .join(' ')
     .trim();
+  // spec #4: hora sugerida de inicio = recogida − prep estimada (máx de las líneas).
+  const scheduledFor = o.scheduledFor
+    ? new Date(o.scheduledFor).toISOString()
+    : null;
+  const prepSeconds = (o.items ?? []).reduce(
+    (max, it) => Math.max(max, it.prepTimeSeconds ?? 0),
+    0,
+  );
+  const startBy = o.scheduledFor
+    ? new Date(
+        new Date(o.scheduledFor).getTime() - prepSeconds * 1000,
+      ).toISOString()
+    : null;
   return {
     id: o.id,
     orderNumber: o.orderNumber,
@@ -65,5 +82,7 @@ export function toOrderResponse(o: OrderEntity): OrderResponse {
       : null,
     createdAt: o.createdAt.toISOString(),
     readyAt: o.readyAt ? o.readyAt.toISOString() : null,
+    scheduledFor,
+    startBy,
   };
 }

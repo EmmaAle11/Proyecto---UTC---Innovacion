@@ -47,6 +47,11 @@ export class OrderEntity {
   })
   totalAmount: string;
 
+  // Recogida programada por el cliente (NULL = pedido inmediato). BR-005: se valida
+  // contra la hora del servidor (≥30 min de anticipación, mismo día).
+  @Column('timestamptz', { name: 'scheduled_for', nullable: true })
+  scheduledFor: Date | null;
+
   @Column('timestamptz', { name: 'accepted_at', nullable: true })
   acceptedAt: Date | null;
 

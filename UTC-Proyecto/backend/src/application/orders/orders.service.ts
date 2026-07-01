@@ -55,6 +55,14 @@ const QUEUE_STATUSES = [
   OrderStatus.READY,
 ];
 
+/** Anticipación mínima para programar una recogida (30 min, hora del servidor). */
+const MIN_SCHEDULE_AHEAD_MS = 30 * 60 * 1000;
+/**
+ * Ventana (min) antes de la hora de recogida en la que un pedido programado
+ * "abre": entra a la cola/semáforo y se avisa al negocio para empezar (spec #4).
+ */
+const SCHEDULE_WINDOW_MIN = 20;
+
 /** Deriva nombre/apellido del correo institucional (perfiles creados sin registro previo). */
 function deriveName(email: string): { firstName: string; lastName: string } {
   const local = email.split('@')[0] ?? '';
@@ -75,9 +83,41 @@ function deriveName(email: string): { firstName: string; lastName: string } {
 export class OrdersService {
   constructor(private readonly dataSource: DataSource) {}
 
+  /**
+   * Valida la hora de recogida programada (spec #4): ≥30 min de anticipación y
+   * mismo día (hora del SERVIDOR, BR-005). Devuelve `null` si el pedido es inmediato.
+   */
+  private validateSchedule(raw?: string): Date | null {
+    if (!raw) return null;
+    const target = new Date(raw);
+    if (Number.isNaN(target.getTime())) {
+      throw new BadRequestException('Fecha de recogida inválida');
+    }
+    const now = new Date();
+    if (target.getTime() - now.getTime() < MIN_SCHEDULE_AHEAD_MS) {
+      throw new BadRequestException(
+        'La recogida debe programarse con al menos 30 minutos de anticipación',
+      );
+    }
+    // "Mismo día" en la zona horaria del SERVIDOR. Supuesto del despliegue: servidor y
+    // clientes en el mismo locale (cooperativa escolar). En un despliegue multi-TZ habría
+    // que fijar la zona de la cooperativa explícitamente (limitación conocida).
+    if (
+      target.getFullYear() !== now.getFullYear() ||
+      target.getMonth() !== now.getMonth() ||
+      target.getDate() !== now.getDate()
+    ) {
+      throw new BadRequestException(
+        'Solo puedes programar la recogida para hoy',
+      );
+    }
+    return target;
+  }
+
   /** Crea un pedido del usuario autenticado (atómico). Devuelve el pedido con relaciones. */
   async create(dto: CreateOrderDto, user: JwtUser): Promise<OrderEntity> {
     const profile = await this.ensureProfile(user);
+    const scheduledFor = this.validateSchedule(dto.scheduledFor); // spec #4
 
     const orderId = await this.dataSource.transaction(async (manager) => {
       const ids = dto.items.map((i) => i.productId);
@@ -117,6 +157,7 @@ export class OrdersService {
           user: profile,
           status: OrderStatus.PENDING,
           totalAmount: total.toFixed(2),
+          scheduledFor, // null = inmediato (spec #4)
         }),
       );
 
@@ -224,11 +265,21 @@ export class OrdersService {
     if (rows.length) await repo.save(rows);
   }
 
-  /** Semáforo de congestión (D-019), calculado en el SERVIDOR: cola = pending+preparing+ready. */
+  /**
+   * Semáforo de congestión (D-019), calculado en el SERVIDOR: cola = pending+preparing+ready.
+   * Los pedidos PROGRAMADOS solo cuentan cuando "abren" (dentro de los 20 min previos a
+   * su hora de recogida, spec #4): antes de eso no inflan la congestión.
+   */
   async congestion(): Promise<CongestionResponse> {
+    const cutoff = new Date(Date.now() + SCHEDULE_WINDOW_MIN * 60 * 1000);
     const count = await this.dataSource
       .getRepository(OrderEntity)
-      .count({ where: { status: In(QUEUE_STATUSES) } });
+      .createQueryBuilder('o')
+      .where('o.status IN (:...statuses)', { statuses: QUEUE_STATUSES })
+      .andWhere('(o.scheduledFor IS NULL OR o.scheduledFor <= :cutoff)', {
+        cutoff,
+      })
+      .getCount();
     const level =
       count < CONGESTION_YELLOW
         ? 'verde'

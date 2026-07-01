@@ -27,12 +27,16 @@ export interface ApiOrder {
   payment: { method: PaymentMethod; status: PaymentStatus } | null;
   createdAt: string;
   readyAt: string | null;
+  scheduledFor: string | null;
+  startBy: string | null;
 }
 
 /** Cuerpo de alta: SOLO producto + cantidad + método (el backend pone precios/total). */
 export interface OrderWritePayload {
   items: { productId: string; quantity: number }[];
   payMethod: PaymentMethod;
+  /** Recogida programada (ISO). Opcional: si falta, el pedido es inmediato (spec #4). */
+  scheduledFor?: string;
 }
 
 /** 'HH:MM' (hora local) desde un ISO. */
@@ -70,6 +74,8 @@ export function toOrder(a: ApiOrder): AdminOrder {
     waitingMin: minutesSince(a.createdAt),
     payMethod: a.payment?.method ?? 'efectivo',
     payStatus: a.payment?.status ?? 'pending',
+    scheduledFor: a.scheduledFor,
+    startBy: a.startBy,
   };
 }
 

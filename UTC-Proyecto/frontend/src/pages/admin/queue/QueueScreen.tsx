@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { View, ScrollView, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Clock, ChevronRight, Check } from 'lucide-react-native';
+import { Clock, ChevronRight, Check, AlarmClock } from 'lucide-react-native';
 import { Heading, Title, Body, Label, Mono } from '../../../shared/ui/Type';
 import { Badge } from '../../../shared/ui/Badge';
 import { Chip } from '../../../shared/ui/Chip';
@@ -11,6 +11,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useOrdersStore } from '../../../features/orders/model/orders.store';
 import { useSessionStore } from '../../../features/auth/model/session.store';
 import { ORDER_STATUS_META, QUEUE_STATUSES, type AdminOrder } from '../../../entities/order/admin-mock';
+import { scheduleView } from '../../../entities/order/schedule';
 import type { OrderStatus } from '../../../entities/order/model/types';
 import type { AdminStackParamList } from '../../../app/navigation/types';
 
@@ -54,7 +55,25 @@ export function QueueScreen() {
     );
   };
 
-  const list = orders.filter((o) => matches(filter, o));
+  const now = Date.now();
+  // Prioridad "glaciar" (spec #4): los que YA deben empezar arriba, luego por hora de
+  // empezar; el resto conserva su orden. Solo afecta la presentación de la cola.
+  const rank = (o: AdminOrder): number => {
+    const sv = scheduleView(o, now);
+    return sv.isDue ? 0 : sv.isScheduled ? 1 : 2;
+  };
+  const list = orders
+    .filter((o) => matches(filter, o))
+    .slice()
+    .sort((a, b) => {
+      const ra = rank(a);
+      const rb = rank(b);
+      if (ra !== rb) return ra - rb;
+      const sa = scheduleView(a, now).startByMs;
+      const sb = scheduleView(b, now).startByMs;
+      if (sa !== null && sb !== null) return sa - sb;
+      return 0;
+    });
   const inQueue = orders.filter((o) => QUEUE_STATUSES.includes(o.status)).length;
 
   return (
@@ -89,6 +108,8 @@ export function QueueScreen() {
             const meta = ORDER_STATUS_META[o.status];
             const next = NEXT[o.status];
             const summary = o.items.map((i) => `${i.name}${i.qty > 1 ? ` ×${i.qty}` : ''}`).join(' · ');
+            const sv = scheduleView(o, now);
+            const active = QUEUE_STATUSES.includes(o.status);
             return (
               <Pressable key={o.id} onPress={() => navigation.navigate('OrderDetail', { orderId: o.id })} style={{ backgroundColor: surface.card, borderRadius: 18, borderWidth: 1, borderColor: border.subtle, padding: 14, ...shadow.card }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -101,6 +122,16 @@ export function QueueScreen() {
 
                 <Title style={{ marginTop: 9, fontSize: 15 }}>{o.customer}</Title>
                 <Body color={text.muted} style={{ fontSize: 12.5, marginTop: 2 }} numberOfLines={2}>{summary}</Body>
+
+                {/* Recogida programada (spec #4): resalta "Empezar ahora" cuando ya toca */}
+                {sv.isScheduled && active ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, alignSelf: 'flex-start', backgroundColor: sv.isDue ? colors.naranja[50] : colors.gris[100], borderWidth: 1, borderColor: sv.isDue ? colors.naranja[500] : border.subtle, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5 }}>
+                    <AlarmClock size={13} color={sv.isDue ? colors.naranja[600] : text.subtle} />
+                    <Body style={{ fontSize: 11.5, fontFamily: fonts.bodySemi }} color={sv.isDue ? colors.naranja[600] : text.muted}>
+                      {sv.isDue ? `Empezar ahora · recoge ${sv.pickupLabel}` : `Programado · recoge ${sv.pickupLabel}`}
+                    </Body>
+                  </View>
+                ) : null}
 
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>

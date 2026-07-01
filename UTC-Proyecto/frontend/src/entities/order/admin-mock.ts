@@ -23,6 +23,8 @@ export interface AdminOrder {
   waitingMin: number; // minutos en cola
   payMethod: PaymentMethod;
   payStatus: PaymentStatus;
+  scheduledFor?: string | null; // ISO de recogida programada (spec #4); null/undef = inmediato
+  startBy?: string | null; // ISO: hora sugerida para empezar a preparar (spec #4)
 }
 
 /** Etiqueta + tono de píldora por estado de pedido (enum order_status). */

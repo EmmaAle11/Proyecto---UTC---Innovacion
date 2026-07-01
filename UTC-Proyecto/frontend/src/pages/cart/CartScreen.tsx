@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View, ScrollView, Pressable, Text, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,6 +13,8 @@ import {
   ArrowRight,
   Minus,
   Plus,
+  Clock,
+  Zap,
 } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { MainStackParamList } from '../../app/navigation/types';
@@ -67,6 +69,21 @@ function CardTitle({ children }: { children: string }) {
       <Label>{children}</Label>
     </View>
   );
+}
+
+/** Píldora del selector de recogida (spec #4): resaltada en naranja si está activa. */
+function schedulePill(on: boolean) {
+  return {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    height: 40,
+    paddingHorizontal: 13,
+    borderRadius: 10,
+    backgroundColor: on ? colors.naranja[50] : colors.gris[100],
+    borderWidth: on ? 1.5 : 1,
+    borderColor: on ? colors.naranja[500] : border.subtle,
+  };
 }
 
 /** Stepper de cantidad en píldora bordeada (− N +), inspirado en el favorito. */
@@ -155,6 +172,22 @@ export function CartScreen({ navigation }: Props) {
   );
   const selected = METHODS.find((m) => m.k === pay) ?? METHODS[0];
 
+  // Recogida programada (spec #4): null = lo antes posible. Franjas ≥30 min, hoy.
+  const [scheduledFor, setScheduledFor] = useState<string | null>(null);
+  const slots = useMemo(() => {
+    const now = new Date();
+    return [30, 45, 60, 90]
+      .map((min) => {
+        const d = new Date(now.getTime() + min * 60000);
+        return {
+          iso: d.toISOString(),
+          label: `${`${d.getHours()}`.padStart(2, '0')}:${`${d.getMinutes()}`.padStart(2, '0')}`,
+          sameDay: d.getDate() === now.getDate(),
+        };
+      })
+      .filter((s) => s.sameDay);
+  }, []);
+
   /** Pedido local de respaldo (solo demo en dev, si el backend no responde). */
   const buildDemoOrder = (): Order => {
     const now = new Date();
@@ -172,6 +205,10 @@ export function CartScreen({ navigation }: Props) {
       waitingMin: 0,
       payMethod: pay as PaymentMethod,
       payStatus: pay === 'efectivo' ? 'pending' : 'paid',
+      scheduledFor,
+      startBy: scheduledFor
+        ? new Date(new Date(scheduledFor).getTime() - maxPrep * 60000).toISOString()
+        : null,
     };
   };
 
@@ -184,6 +221,7 @@ export function CartScreen({ navigation }: Props) {
         {
           items: items.map((it) => ({ productId: it.product.id, quantity: it.qty })),
           payMethod: pay as PaymentMethod,
+          ...(scheduledFor ? { scheduledFor } : {}),
         },
         token,
         buildDemoOrder,
@@ -297,6 +335,33 @@ export function CartScreen({ navigation }: Props) {
                 <Title style={{ fontSize: 14 }}>{selected.l}</Title>
                 <Body color={text.muted} style={{ fontSize: 11.5, marginTop: 1 }}>{selected.s}</Body>
               </View>
+            </View>
+          </View>
+
+          {/* ── Tarjeta: ¿Cuándo la recoges? (pedido programado, spec #4) ── */}
+          <View style={{ backgroundColor: surface.card, borderRadius: 8, marginBottom: 5, overflow: 'hidden', ...shadow.card }}>
+            <CardTitle>¿Cuándo la recoges?</CardTitle>
+            <View style={{ padding: 12 }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                <Pressable onPress={() => setScheduledFor(null)} style={schedulePill(scheduledFor === null)}>
+                  <Zap size={15} color={scheduledFor === null ? colors.naranja[600] : colors.azul[400]} />
+                  <Body style={{ fontSize: 12.5, fontFamily: fonts.bodySemi }} color={scheduledFor === null ? colors.naranja[600] : text.heading}>Lo antes posible</Body>
+                </Pressable>
+                {slots.map((s) => {
+                  const on = scheduledFor === s.iso;
+                  return (
+                    <Pressable key={s.iso} onPress={() => setScheduledFor(s.iso)} style={schedulePill(on)}>
+                      <Clock size={15} color={on ? colors.naranja[600] : colors.azul[400]} />
+                      <Body style={{ fontSize: 12.5, fontFamily: fonts.bodySemi }} color={on ? colors.naranja[600] : text.heading}>{s.label}</Body>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Body color={text.muted} style={{ fontSize: 11.5, marginTop: 10 }}>
+                {scheduledFor
+                  ? `Programado para las ${slots.find((s) => s.iso === scheduledFor)?.label ?? ''}. Lo preparamos a tiempo y te avisamos.`
+                  : 'Se prepara en cuanto la cocina lo acepte (mínimo 30 min si programas).'}
+              </Body>
             </View>
           </View>
 

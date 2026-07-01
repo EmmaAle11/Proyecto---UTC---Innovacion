@@ -30,6 +30,7 @@ export const useSettingsStore = create<AdminSettings>((set) => ({
   largeText: false,
   highContrast: false,
   reduceMotion: false,
-  notifyOrders: true,
+  // Arranca apagado: activarlo pide el permiso del SO (no puede notificar sin permiso).
+  notifyOrders: false,
   set: (patch) => set(patch),
 }));

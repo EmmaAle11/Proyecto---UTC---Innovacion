@@ -52,6 +52,8 @@ function buildService(opts: {
   const itemSave = jest.fn((x: unknown) => Promise.resolve(x));
   const paymentSave = jest.fn((p: unknown) => Promise.resolve(p));
   const prepSave = jest.fn((x: unknown) => Promise.resolve(x));
+  // Captura las condiciones `andWhere` del QueryBuilder de congestion (para asertar el filtro).
+  const congestionWhere: string[] = [];
   const repos: Record<string, unknown> = {
     UserProfileEntity: {
       findOne: jest.fn().mockResolvedValue(opts.profile ?? null),
@@ -67,6 +69,21 @@ function buildService(opts: {
       create: jest.fn((x: unknown) => x),
       save: orderSave,
       count: jest.fn().mockResolvedValue(opts.queueCount ?? 0),
+      createQueryBuilder: jest.fn(() => {
+        const qb: {
+          where: jest.Mock;
+          andWhere: jest.Mock;
+          getCount: jest.Mock;
+        } = {
+          where: jest.fn(() => qb),
+          andWhere: jest.fn((sql: string) => {
+            congestionWhere.push(sql);
+            return qb;
+          }),
+          getCount: jest.fn().mockResolvedValue(opts.queueCount ?? 0),
+        };
+        return qb;
+      }),
       findOne: jest.fn().mockResolvedValue(
         opts.order ?? {
           id: 'order-1',
@@ -101,6 +118,7 @@ function buildService(opts: {
     itemSave,
     paymentSave,
     prepSave,
+    congestionWhere,
   };
 }
 
@@ -198,6 +216,70 @@ describe('OrdersService.create', () => {
         USER,
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe('OrdersService.create (programado, spec #4)', () => {
+  const item = { items: [{ productId: 'p1', quantity: 1 }] };
+
+  it('acepta recogida a ≥30 min el mismo día y persiste scheduledFor', async () => {
+    const target = new Date(Date.now() + 45 * 60 * 1000); // +45 min (mismo día salvo ~medianoche)
+    const { service, orderSave } = buildService({
+      profile: PROFILE,
+      products: [product('p1', '38.00')],
+    });
+    await service.create(
+      {
+        ...item,
+        payMethod: PaymentMethod.TDC,
+        scheduledFor: target.toISOString(),
+      },
+      USER,
+    );
+    const saved = orderSave.mock.calls[0][0] as { scheduledFor: Date };
+    expect(saved.scheduledFor).toBeInstanceOf(Date);
+    expect(saved.scheduledFor.getTime()).toBe(target.getTime());
+  });
+
+  it('rechaza recogida con < 30 min de anticipación → BadRequest, no persiste', async () => {
+    const soon = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const { service, orderSave } = buildService({
+      profile: PROFILE,
+      products: [product('p1', '38.00')],
+    });
+    await expect(
+      service.create(
+        { ...item, payMethod: PaymentMethod.TDC, scheduledFor: soon },
+        USER,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(orderSave).not.toHaveBeenCalled();
+  });
+
+  it('rechaza recogida para otro día → BadRequest', async () => {
+    const otherDay = new Date(
+      Date.now() + 2 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const { service } = buildService({
+      profile: PROFILE,
+      products: [product('p1', '38.00')],
+    });
+    await expect(
+      service.create(
+        { ...item, payMethod: PaymentMethod.TDC, scheduledFor: otherDay },
+        USER,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('sin scheduledFor → pedido inmediato (scheduledFor null)', async () => {
+    const { service, orderSave } = buildService({
+      profile: PROFILE,
+      products: [product('p1', '38.00')],
+    });
+    await service.create({ ...item, payMethod: PaymentMethod.TDC }, USER);
+    const saved = orderSave.mock.calls[0][0] as { scheduledFor: Date | null };
+    expect(saved.scheduledFor).toBeNull();
   });
 });
 
@@ -315,6 +397,13 @@ describe('OrdersService.congestion', () => {
     await expect(service.congestion()).resolves.toMatchObject({
       level: 'rojo',
     });
+  });
+
+  it('excluye programados fuera de ventana: la query filtra por scheduledFor (spec #4)', async () => {
+    const { service, congestionWhere } = buildService({ queueCount: 3 });
+    await service.congestion();
+    // El conteo cuenta inmediatos (scheduledFor NULL) + programados dentro de la ventana.
+    expect(congestionWhere.some((s) => s.includes('scheduledFor'))).toBe(true);
   });
 });
 

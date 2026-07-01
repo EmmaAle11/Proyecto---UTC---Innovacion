@@ -1,4 +1,4 @@
-import { View, ScrollView, Pressable, Switch } from 'react-native';
+import { View, ScrollView, Pressable, Switch, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { ReactNode } from 'react';
 import { useNavigation } from '@react-navigation/native';
@@ -12,6 +12,7 @@ import { Display, Heading, Title, Body, Label, Mono } from '../../../shared/ui/T
 import { colors, text, surface, border, shadow, fonts } from '../../../shared/theme';
 import { useSessionStore } from '../../../features/auth/model/session.store';
 import { useSettingsStore } from '../../../features/admin/model/settings.store';
+import { requestNotificationPermission } from '../../../shared/notifications/notify';
 
 /** Fila de ajuste reutilizable (con rol de accesibilidad). */
 function Row({ icon, label, sub, right, onPress, last }: {
@@ -56,6 +57,23 @@ export function AdminAccountScreen() {
 
   const track = { false: colors.gris[200], true: colors.naranja[300] };
   const thumb = (on: boolean) => (on ? colors.naranja[500] : colors.gris[100]);
+
+  // Al ACTIVAR los avisos pide el permiso del SO; solo queda ON si se concede (spec #4).
+  const onToggleNotify = (v: boolean) => {
+    if (!v) {
+      settings.set({ notifyOrders: false });
+      return;
+    }
+    void requestNotificationPermission().then((ok) => {
+      settings.set({ notifyOrders: ok });
+      if (!ok) {
+        Alert.alert(
+          'Avisos no activados',
+          'El dispositivo no concedió el permiso. Actívalo en los ajustes del sistema para recibir avisos de pedidos.',
+        );
+      }
+    });
+  };
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: surface.page }}>
@@ -110,7 +128,7 @@ export function AdminAccountScreen() {
         <Label style={{ marginTop: 22, marginBottom: 10 }}>Avisos y soporte</Label>
         <View style={{ backgroundColor: surface.card, borderRadius: 18, borderWidth: 1, borderColor: border.subtle, paddingHorizontal: 16, ...shadow.card }}>
           <Row icon={<Bell size={19} color={colors.naranja[600]} />} label="Avisos de pedidos" sub="Cuando entra o cambia un pedido"
-            right={<Switch value={settings.notifyOrders} onValueChange={(v) => settings.set({ notifyOrders: v })} trackColor={track} thumbColor={thumb(settings.notifyOrders)} accessibilityLabel="Avisos de pedidos" />} />
+            right={<Switch value={settings.notifyOrders} onValueChange={onToggleNotify} trackColor={track} thumbColor={thumb(settings.notifyOrders)} accessibilityLabel="Avisos de pedidos" />} />
           <Row icon={<HelpCircle size={19} color={colors.azul[600]} />} label="Ayuda y soporte" right={<ChevronRight size={18} color={text.subtle} />} onPress={() => {}} last />
         </View>
 
