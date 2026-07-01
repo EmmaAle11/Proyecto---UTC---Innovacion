@@ -28,6 +28,8 @@ export interface OrderItemResponse {
  */
 export interface OrderResponse {
   id: string;
+  /** Número de pedido secuencial (la app lo muestra como `U-00001`). */
+  orderNumber: number;
   status: OrderStatus;
   total: number;
   customer: string;
@@ -46,6 +48,7 @@ export function toOrderResponse(o: OrderEntity): OrderResponse {
     .trim();
   return {
     id: o.id,
+    orderNumber: o.orderNumber,
     status: o.status,
     total: Number(o.totalAmount),
     customer: fullName || 'Cliente',

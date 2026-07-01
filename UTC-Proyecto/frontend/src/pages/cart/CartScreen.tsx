@@ -162,7 +162,7 @@ export function CartScreen({ navigation }: Props) {
     const mm = `${now.getMinutes()}`.padStart(2, '0');
     return {
       id: `demo-${now.getTime()}`,
-      code: `A-${String(now.getTime()).slice(-3)}`,
+      code: `U-${String(now.getTime()).slice(-5)}`,
       customer: 'Tú (demo)',
       email,
       status: 'pending',

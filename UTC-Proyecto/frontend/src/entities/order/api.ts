@@ -18,6 +18,7 @@ export interface ApiOrderItem {
 /** Pedido del backend (`/orders`). Refleja `OrderResponse` (dinero ya `number`, fechas ISO). */
 export interface ApiOrder {
   id: string;
+  orderNumber: number;
   status: OrderStatus;
   total: number;
   customer: string;
@@ -46,15 +47,20 @@ function minutesSince(iso: string): number {
   return Math.max(0, Math.round(ms / 60000));
 }
 
+/** Código de pedido legible: `U-` + número secuencial a 5 dígitos (U-00001). */
+export function formatOrderCode(orderNumber: number): string {
+  return `U-${String(orderNumber).padStart(5, '0')}`;
+}
+
 /**
  * Mapea el pedido del backend al shape de display `AdminOrder` (el cliente y el admin
- * comparten el mismo modelo de presentación). El `code` se deriva del id (el esquema no
- * guarda turno secuencial); `createdLabel`/`waitingMin` se derivan de los timestamps.
+ * comparten el mismo modelo de presentación). El `code` es el número secuencial real
+ * del backend (U-00001); `createdLabel`/`waitingMin` se derivan de los timestamps.
  */
 export function toOrder(a: ApiOrder): AdminOrder {
   return {
     id: a.id,
-    code: `A-${a.id.replace(/-/g, '').slice(0, 4).toUpperCase()}`,
+    code: formatOrderCode(a.orderNumber),
     customer: a.customer,
     email: a.email,
     status: a.status,

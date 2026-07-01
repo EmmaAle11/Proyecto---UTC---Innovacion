@@ -70,6 +70,7 @@ function buildService(opts: {
       findOne: jest.fn().mockResolvedValue(
         opts.order ?? {
           id: 'order-1',
+          orderNumber: 1,
           status: 'pending',
           totalAmount: '168.00',
           items: [],

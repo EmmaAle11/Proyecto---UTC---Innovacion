@@ -13,7 +13,7 @@ export interface AdminOrderItem {
 
 export interface AdminOrder {
   id: string; // 'O-001'
-  code: string; // turno / código de recogida 'A-201'
+  code: string; // número de pedido 'U-00001'
   customer: string;
   email: string;
   status: OrderStatus;
@@ -55,15 +55,15 @@ export const PAY_STATUS_LABEL: Record<PaymentStatus, string> = {
 export const QUEUE_STATUSES: OrderStatus[] = ['pending', 'preparing', 'ready'];
 
 export const ADMIN_ORDERS: AdminOrder[] = [
-  { id: 'O-001', code: 'A-201', customer: 'Emmanuel Alejandre', email: 'prueba@edu.utc.mx', status: 'picked_up', total: 56, createdLabel: '09:31', waitingMin: 12, payMethod: 'tdc', payStatus: 'paid', items: [{ name: 'Quesadilla de tinga', qty: 1 }, { name: 'Agua de jamaica', qty: 1 }] },
-  { id: 'O-002', code: 'A-208', customer: 'Valeria Ramírez', email: 'valeria.ramirez@edu.utc.mx', status: 'preparing', total: 123, createdLabel: '09:50', waitingMin: 15, payMethod: 'mercado_pago', payStatus: 'paid', items: [{ name: 'Hamburguesa de la casa', qty: 1 }, { name: 'Boneless BBQ', qty: 1 }] },
-  { id: 'O-003', code: 'A-206', customer: 'Diego Hernández', email: 'diego.hernandez@edu.utc.mx', status: 'ready', total: 50, createdLabel: '09:40', waitingMin: 10, payMethod: 'efectivo', payStatus: 'pending', items: [{ name: 'Combo estudiante', qty: 1 }] },
-  { id: 'O-004', code: 'A-210', customer: 'Sofía Martínez', email: 'sofia.martinez@edu.utc.mx', status: 'pending', total: 59, createdLabel: '10:02', waitingMin: 3, payMethod: 'paypal', payStatus: 'pending', items: [{ name: 'Esquites en vaso', qty: 2 }, { name: 'Gelatina de mosaico', qty: 1 }] },
-  { id: 'O-005', code: 'A-203', customer: 'Carlos López', email: 'carlos.lopez@edu.utc.mx', status: 'not_picked_up', total: 50, createdLabel: '09:20', waitingMin: 45, payMethod: 'tdd', payStatus: 'paid', items: [{ name: 'Papas con queso', qty: 1 }, { name: 'Agua de horchata', qty: 1 }] },
+  { id: 'O-001', code: 'U-00001', customer: 'Emmanuel Alejandre', email: 'prueba@edu.utc.mx', status: 'picked_up', total: 56, createdLabel: '09:31', waitingMin: 12, payMethod: 'tdc', payStatus: 'paid', items: [{ name: 'Quesadilla de tinga', qty: 1 }, { name: 'Agua de jamaica', qty: 1 }] },
+  { id: 'O-002', code: 'U-00002', customer: 'Valeria Ramírez', email: 'valeria.ramirez@edu.utc.mx', status: 'preparing', total: 123, createdLabel: '09:50', waitingMin: 15, payMethod: 'mercado_pago', payStatus: 'paid', items: [{ name: 'Hamburguesa de la casa', qty: 1 }, { name: 'Boneless BBQ', qty: 1 }] },
+  { id: 'O-003', code: 'U-00003', customer: 'Diego Hernández', email: 'diego.hernandez@edu.utc.mx', status: 'ready', total: 50, createdLabel: '09:40', waitingMin: 10, payMethod: 'efectivo', payStatus: 'pending', items: [{ name: 'Combo estudiante', qty: 1 }] },
+  { id: 'O-004', code: 'U-00004', customer: 'Sofía Martínez', email: 'sofia.martinez@edu.utc.mx', status: 'pending', total: 59, createdLabel: '10:02', waitingMin: 3, payMethod: 'paypal', payStatus: 'pending', items: [{ name: 'Esquites en vaso', qty: 2 }, { name: 'Gelatina de mosaico', qty: 1 }] },
+  { id: 'O-005', code: 'U-00005', customer: 'Carlos López', email: 'carlos.lopez@edu.utc.mx', status: 'not_picked_up', total: 50, createdLabel: '09:20', waitingMin: 45, payMethod: 'tdd', payStatus: 'paid', items: [{ name: 'Papas con queso', qty: 1 }, { name: 'Agua de horchata', qty: 1 }] },
   { id: 'O-006', code: '—', customer: 'Ana Torres', email: 'ana.torres@edu.utc.mx', status: 'cancelled', total: 38, createdLabel: '09:15', waitingMin: 0, payMethod: 'mercado_pago', payStatus: 'failed', items: [{ name: 'Quesadilla de tinga', qty: 1 }] },
-  { id: 'O-007', code: 'A-205', customer: 'Prueba Funcional', email: 'prueba.func.1782226408@edu.utc.mx', status: 'ready_later', total: 68, createdLabel: '09:25', waitingMin: 25, payMethod: 'tdc', payStatus: 'paid', items: [{ name: 'Combo estudiante', qty: 1 }, { name: 'Agua de jamaica', qty: 1 }] },
-  { id: 'O-008', code: 'A-199', customer: 'Sec Test', email: 'sec.test.1782236599@edu.utc.mx', status: 'picked_up', total: 58, createdLabel: '09:05', waitingMin: 14, payMethod: 'mercado_pago', payStatus: 'paid', items: [{ name: 'Boneless BBQ', qty: 1 }] },
-  { id: 'O-009', code: 'A-197', customer: 'Emmanuel Alejandre', email: 'prueba@edu.utc.mx', status: 'picked_up', total: 97, createdLabel: '08:55', waitingMin: 15, payMethod: 'tdc', payStatus: 'paid', items: [{ name: 'Hamburguesa de la casa', qty: 1 }, { name: 'Papas con queso', qty: 1 }] },
-  { id: 'O-010', code: 'A-202', customer: 'Diego Hernández', email: 'diego.hernandez@edu.utc.mx', status: 'picked_up', total: 40, createdLabel: '09:35', waitingMin: 8, payMethod: 'efectivo', payStatus: 'paid', items: [{ name: 'Esquites en vaso', qty: 1 }, { name: 'Agua de horchata', qty: 1 }] },
+  { id: 'O-007', code: 'U-00007', customer: 'Prueba Funcional', email: 'prueba.func.1782226408@edu.utc.mx', status: 'ready_later', total: 68, createdLabel: '09:25', waitingMin: 25, payMethod: 'tdc', payStatus: 'paid', items: [{ name: 'Combo estudiante', qty: 1 }, { name: 'Agua de jamaica', qty: 1 }] },
+  { id: 'O-008', code: 'U-00008', customer: 'Sec Test', email: 'sec.test.1782236599@edu.utc.mx', status: 'picked_up', total: 58, createdLabel: '09:05', waitingMin: 14, payMethod: 'mercado_pago', payStatus: 'paid', items: [{ name: 'Boneless BBQ', qty: 1 }] },
+  { id: 'O-009', code: 'U-00009', customer: 'Emmanuel Alejandre', email: 'prueba@edu.utc.mx', status: 'picked_up', total: 97, createdLabel: '08:55', waitingMin: 15, payMethod: 'tdc', payStatus: 'paid', items: [{ name: 'Hamburguesa de la casa', qty: 1 }, { name: 'Papas con queso', qty: 1 }] },
+  { id: 'O-010', code: 'U-00010', customer: 'Diego Hernández', email: 'diego.hernandez@edu.utc.mx', status: 'picked_up', total: 40, createdLabel: '09:35', waitingMin: 8, payMethod: 'efectivo', payStatus: 'paid', items: [{ name: 'Esquites en vaso', qty: 1 }, { name: 'Agua de horchata', qty: 1 }] },
   { id: 'O-011', code: '—', customer: 'Valeria Ramírez', email: 'valeria.ramirez@edu.utc.mx', status: 'cancelled', total: 50, createdLabel: '09:48', waitingMin: 0, payMethod: 'mercado_pago', payStatus: 'refunded', items: [{ name: 'Combo estudiante', qty: 1 }] },
 ];

@@ -3,6 +3,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Generated,
   JoinColumn,
   ManyToOne,
   OneToMany,
@@ -21,6 +22,12 @@ import { PaymentEntity } from './payment.entity';
 export class OrderEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  // Número de pedido secuencial legible (la app lo muestra como U-00001). Lo genera
+  // la BD (secuencia + default nextval); el backend nunca lo escribe, solo lo lee.
+  @Column('integer', { name: 'order_number' })
+  @Generated('increment')
+  orderNumber: number;
 
   @ManyToOne(() => UserProfileEntity, (user) => user.orders, {
     onDelete: 'RESTRICT',
