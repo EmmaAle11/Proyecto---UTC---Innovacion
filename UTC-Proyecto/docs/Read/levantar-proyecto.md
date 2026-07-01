@@ -65,6 +65,73 @@ EXPO_PUBLIC_API_URL=https://XXXX.trycloudflare.com npm run tunnel   # = expo sta
 
 ---
 
+## 4) BUILD nativo — APK con NOTIFICACIONES (development build)
+
+**Por qué:** Expo Go (SDK 53+) **removió las notificaciones del SO**, por eso allí no se
+ven (la app las desactiva sola en Expo Go). Para verlas en el teléfono se hace un
+**development build**: un APK propio, tipo Expo Go pero con nuestros módulos nativos.
+Nuestras notificaciones son **locales** (las dispara la app al cambiar el estado del
+pedido), así que **NO necesitan Firebase/FCM**. El build se hace en la nube con **EAS**
+(no requiere Android Studio ni SDK local).
+
+### 4.1) Instalar cloudflared (una vez, según el equipo que HOSPEDA el backend)
+
+```bash
+# macOS (Homebrew) — el equipo de la demo:
+brew install cloudflared
+
+# Linux (Ubuntu/Debian):
+wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+sudo dpkg -i cloudflared-linux-amd64.deb
+```
+
+> En Mac, Docker = **Docker Desktop** corriendo. Node 20 (`brew install node@20`).
+
+### 4.2) Construir el APK (una vez; se repite solo si cambian módulos nativos)
+
+```bash
+npm i -g eas-cli
+cd UTC-Proyecto/frontend
+eas login                                      # cuenta Expo gratis
+eas init                                        # enlaza el proyecto (projectId → app.json) ← solo la 1ª vez
+eas build -p android --profile development      # ~10-20 min en la nube → APK descargable (QR/enlace)
+```
+
+Instala el APK en el teléfono Android (permitir **"orígenes desconocidos"**). La keystore
+de firma la genera EAS sola.
+
+### 4.3) Usar el APK — QUÉ DEBE ESTAR ENCENDIDO (todo a la vez, en la Mac)
+
+El dev build **no trae el JS adentro**: lo carga de Metro por el túnel y llama al backend
+por el túnel de cloudflared. Al abrir la app, en la Mac deben estar corriendo **los 4**:
+
+```bash
+# 1) Docker (Postgres + Keycloak)
+cd UTC-Proyecto/infra && docker compose up -d
+
+# 2) Backend :3001
+cd ../backend && npm run start:dev
+
+# 3) Túnel al backend (deja esta terminal abierta) → copia la URL que imprime
+cloudflared tunnel --url http://localhost:3001    # https://XXXX.trycloudflare.com
+
+# 4) Metro en modo dev-client + túnel, apuntando a esa URL
+cd ../frontend
+EXPO_PUBLIC_API_URL=https://XXXX.trycloudflare.com npx expo start --tunnel --dev-client
+```
+
+Abre la app instalada (**"UTC Pick Sazón"**, ya NO Expo Go) → conecta por el túnel →
+las **notificaciones se ven** al cambiar el estado de un pedido.
+
+- Si apagas Metro **o** cloudflared, la app se queda sin código o sin datos.
+- La URL `trycloudflare.com` **cambia** cada vez que reinicias cloudflared → vuelve a
+  pasarla en `EXPO_PUBLIC_API_URL`. (URL fija = túnel nombrado de Cloudflare, cuenta gratis.)
+- ¿Quieres un APK que abra **sin** Metro (para dejarlo instalado y demostrar solo)? Ese es
+  el perfil `preview` de `eas.json` (`eas build -p android --profile preview`), con la URL
+  del backend **horneada** en `env` (requiere URL estable).
+
+---
+
 ### Notas mínimas
 
 - **Solo la 1ª vez** (o tras `docker compose down -v`): `npm install` en `backend/` y `frontend/`, `./keycloak/seed-admin.sh` en `infra/`, `migration:run` y la semilla. Después, los datos **persisten** en el volumen Docker `infra_pgdata` y basta con `up -d` + `start:dev` + `expo start`.
