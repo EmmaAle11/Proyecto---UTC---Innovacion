@@ -1,27 +1,18 @@
 import { useRef, useState } from 'react';
-import {
-  View,
-  Pressable,
-  Animated,
-  Text,
-  Modal,
-  TextInput,
-  ScrollView,
-} from 'react-native';
+import { View, Pressable, Animated, Text, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
-import { ArrowLeft, Eye, EyeOff, Plus, Pencil, Trash2, X, Banknote } from 'lucide-react-native';
+import { ArrowLeft, Eye, EyeOff, Plus, Trash2, Banknote } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { MainStackParamList } from '../../app/navigation/types';
 import { Display, Title, Body, Label } from '../../shared/ui/Type';
 import { colors, text, border, surface, shadow, fonts } from '../../shared/theme';
 import {
   useWalletStore,
-  CARD_KINDS,
   type CardColor,
-  type CardKind,
   type PaymentCard,
 } from '../../features/wallet/model/wallet.store';
+import { CardForm } from '../../features/wallet/ui/CardForm';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'Wallet'>;
 
@@ -32,8 +23,6 @@ const BG: Record<CardColor, string> = {
 };
 const fgOf = (c: CardColor) => (c === 'white' ? colors.azul[700] : '#ffffff');
 
-type Draft = { id?: string; kind: CardKind; holder: string; last4: string };
-
 function Chip({ tint }: { tint: string }) {
   return <View style={{ width: 30, height: 22, borderRadius: 4, backgroundColor: tint, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }} />;
 }
@@ -41,12 +30,11 @@ function Chip({ tint }: { tint: string }) {
 export function WalletScreen({ navigation }: Props) {
   const cards = useWalletStore((s) => s.cards);
   const add = useWalletStore((s) => s.add);
-  const update = useWalletStore((s) => s.update);
   const remove = useWalletStore((s) => s.remove);
 
   const a = useRef(new Animated.Value(0)).current;
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState<Draft | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   const toggle = () => {
     const next = !open;
@@ -61,13 +49,6 @@ export function WalletScreen({ navigation }: Props) {
     ...cards.map((c) => ({ key: c.id, brand: c.brand, holder: c.holder, masked: `**** ${c.last4}`, bg: BG[c.color], fg: fgOf(c.color) })),
     { key: 'cash', brand: 'Efectivo', holder: 'En mostrador', masked: 'BILLETE', bg: colors.lima[500], fg: '#ffffff' },
   ];
-
-  const save = () => {
-    if (!draft || !draft.holder.trim() || !draft.last4.trim()) return;
-    if (draft.id) update(draft.id, { kind: draft.kind, holder: draft.holder.trim(), last4: draft.last4.trim() });
-    else add({ kind: draft.kind, holder: draft.holder.trim(), last4: draft.last4.trim() });
-    setDraft(null);
-  };
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: surface.page }}>
@@ -134,7 +115,7 @@ export function WalletScreen({ navigation }: Props) {
           <Label style={{ marginBottom: 10 }}>Tus tarjetas</Label>
           <View style={{ backgroundColor: surface.card, borderRadius: 18, borderWidth: 1, borderColor: border.subtle, paddingHorizontal: 14, ...shadow.card }}>
             {cards.map((c, i) => (
-              <CardRow key={c.id} card={c} last={false} onEdit={() => setDraft({ id: c.id, kind: c.kind, holder: c.holder, last4: c.last4 })} onRemove={() => remove(c.id)} firstBorder={i > 0} />
+              <CardRow key={c.id} card={c} onRemove={() => remove(c.id)} firstBorder={i > 0} />
             ))}
             {/* Efectivo fijo */}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, borderTopWidth: cards.length ? 1 : 0, borderTopColor: border.subtle }}>
@@ -149,7 +130,7 @@ export function WalletScreen({ navigation }: Props) {
           </View>
 
           <Pressable
-            onPress={() => setDraft({ kind: 'mercado_pago', holder: '', last4: '' })}
+            onPress={() => setAddOpen(true)}
             style={{ marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 50, borderRadius: 14, borderWidth: 1.5, borderColor: colors.naranja[500], backgroundColor: colors.naranja[50] }}
           >
             <Plus size={18} color={colors.naranja[600]} />
@@ -162,75 +143,20 @@ export function WalletScreen({ navigation }: Props) {
         </View>
       </ScrollView>
 
-      {/* Modal alta/edición */}
-      <Modal visible={draft != null} transparent animationType="fade" onRequestClose={() => setDraft(null)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(2,14,46,0.45)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: surface.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <Title style={{ fontSize: 18 }}>{draft?.id ? 'Editar tarjeta' : 'Agregar tarjeta'}</Title>
-              <Pressable onPress={() => setDraft(null)} hitSlop={10}><X size={22} color={text.muted} /></Pressable>
-            </View>
-
-            {draft ? (
-              <>
-                <Label style={{ marginTop: 12, marginBottom: 8 }}>Tipo</Label>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {CARD_KINDS.map((k) => {
-                    const on = draft.kind === k.kind;
-                    return (
-                      <Pressable key={k.kind} onPress={() => setDraft({ ...draft, kind: k.kind })} style={{ paddingHorizontal: 12, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? colors.naranja[50] : colors.gris[100], borderWidth: on ? 1.5 : 1, borderColor: on ? colors.naranja[500] : border.subtle }}>
-                        <Body style={{ fontSize: 12.5, fontFamily: fonts.bodySemi }} color={on ? colors.naranja[700] : text.heading}>{k.label}</Body>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-
-                <Label style={{ marginTop: 16, marginBottom: 6 }}>Titular o correo</Label>
-                <TextInput
-                  value={draft.holder}
-                  onChangeText={(v) => setDraft({ ...draft, holder: v })}
-                  placeholder="ALUMNO UTC"
-                  placeholderTextColor={colors.gris[400]}
-                  style={{ height: 48, borderRadius: 12, borderWidth: 1.5, borderColor: border.subtle, paddingHorizontal: 14, fontSize: 15, fontFamily: fonts.bodyMedium, color: colors.azul[700], backgroundColor: surface.card }}
-                />
-
-                <Label style={{ marginTop: 14, marginBottom: 6 }}>Últimos 4 dígitos</Label>
-                <TextInput
-                  value={draft.last4}
-                  onChangeText={(v) => setDraft({ ...draft, last4: v.replace(/[^0-9]/g, '').slice(0, 4) })}
-                  placeholder="4242"
-                  placeholderTextColor={colors.gris[400]}
-                  keyboardType="number-pad"
-                  style={{ height: 48, borderRadius: 12, borderWidth: 1.5, borderColor: border.subtle, paddingHorizontal: 14, fontSize: 15, fontFamily: fonts.monoBold, color: colors.azul[700], backgroundColor: surface.card }}
-                />
-
-                <Pressable
-                  onPress={save}
-                  disabled={!draft.holder.trim() || !draft.last4.trim()}
-                  style={{ marginTop: 22, height: 50, borderRadius: 14, backgroundColor: colors.naranja[500], alignItems: 'center', justifyContent: 'center', opacity: !draft.holder.trim() || !draft.last4.trim() ? 0.5 : 1 }}
-                >
-                  <Title color="#fff" style={{ fontSize: 15 }}>{draft.id ? 'Guardar cambios' : 'Agregar'}</Title>
-                </Pressable>
-              </>
-            ) : null}
-          </View>
-        </View>
-      </Modal>
+      {/* Alta de tarjeta/método: MISMO formulario que el checkout (C2). */}
+      <CardForm visible={addOpen} onClose={() => setAddOpen(false)} onAdd={(c) => add(c)} />
     </SafeAreaView>
   );
 }
 
-/** Fila de tarjeta en la lista de gestión: marca + ••••last4 + editar + eliminar. */
+/** Fila de tarjeta en la lista de gestión: marca + ••••last4 + eliminar. */
 function CardRow({
   card,
-  onEdit,
   onRemove,
   firstBorder,
 }: {
   card: PaymentCard;
-  last: boolean;
   firstBorder: boolean;
-  onEdit: () => void;
   onRemove: () => void;
 }) {
   return (
@@ -240,9 +166,6 @@ function CardRow({
         <Title style={{ fontSize: 14.5 }} numberOfLines={1}>{card.brand}</Title>
         <Body color={text.muted} style={{ fontSize: 12 }} numberOfLines={1}>{`•••• ${card.last4} · ${card.holder}`}</Body>
       </View>
-      <Pressable onPress={onEdit} hitSlop={8} style={{ width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.gris[100] }}>
-        <Pencil size={16} color={colors.azul[600]} />
-      </Pressable>
       <Pressable onPress={onRemove} hitSlop={8} style={{ width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.rojo[50] }}>
         <Trash2 size={16} color={colors.rojo[500]} />
       </Pressable>
