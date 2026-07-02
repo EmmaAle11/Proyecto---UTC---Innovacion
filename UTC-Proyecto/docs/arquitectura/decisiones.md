@@ -272,3 +272,13 @@ Registro único y canónico de decisiones (estilo ADR ligero). Para añadir una 
 - Verificación (§0/§22): backend `tsc` 0 + 57 tests; frontend `tsc` 0; filtro `where: { branchId }` directo.
 - Nota: pedidos previos con `branch_id` de ids viejos (p. ej. `demo-roma`) no matchean las nuevas cooperativas → conviene truncar para la demo.
 - Reflejo en docs (rule #24): círculo §3.12; ejecución §10.
+
+## D-036 · Refresco de sesión (fix del "Unauthorized" tras ~5 min)
+- Fecha: 2026-07-02 · Estado: vigente.
+- Contexto (bug real): el access token de Keycloak dura **300 s** por defecto y **no había refresco** — tras ~5 min, cualquier acción protegida (p. ej. **reoferta** del admin) fallaba con **401 "Unauthorized"** hasta re-loguear. El backend guardaba el `refresh_token` pero no lo usaba; el frontend no manejaba 401.
+- Decisión:
+  - **Backend:** `POST /auth/refresh` (**@Public**, throttle 30/min) → `keycloak.refresh(refresh_token)` (grant `refresh_token` del client público `mobile-app`; no re-pide MFA en sesión activa). Sirve para cliente y admin.
+  - **Frontend:** el `shared/api/client` expone `setTokenRefresher` (para no acoplar `shared`→`features`); al recibir **401** en una petición autenticada, renueva el token con el `refresh_token` y **reintenta 1 vez**. `features/auth` registra el refresher (actualiza la sesión; si el refresh ya no vale, cierra sesión).
+  - **Realm:** `accessTokenLifespan = 1800` (30 min) como colchón para demos (el refresco cubre igual el vencimiento).
+- Verificación (§0/§22): backend `tsc` 0 + 57 tests; frontend `tsc` 0; **e2e real**: `POST /auth/refresh` con token válido → nuevo access+refresh; con basura → **401**.
+- Reflejo en docs (rule #24): círculo §3.2/§3.3 (seguridad/sesión).

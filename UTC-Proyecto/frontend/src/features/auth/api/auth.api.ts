@@ -35,3 +35,8 @@ export function loginAdmin(
 ): Promise<TokenPayload> {
   return postJson<TokenPayload>('/auth/admin/login', { email, password, totp });
 }
+
+/** Renueva la sesión (cliente o admin) con el refresh_token. */
+export function refreshSession(refreshToken: string): Promise<TokenPayload> {
+  return postJson<TokenPayload>('/auth/refresh', { refresh_token: refreshToken });
+}

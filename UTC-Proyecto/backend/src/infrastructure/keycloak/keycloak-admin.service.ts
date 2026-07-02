@@ -234,6 +234,31 @@ export class KeycloakAdminService {
   }
 
   /**
+   * Renueva los tokens con el `refresh_token` (grant `refresh_token` del client público).
+   * Sirve para cliente Y admin: el refresh no re-pide MFA dentro de la sesión activa.
+   */
+  async refresh(refreshToken: string): Promise<Tokens> {
+    const res = await this.safeFetch(this.tokenUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        client_id: this.appClientId,
+        refresh_token: refreshToken,
+      }),
+    });
+    if (!res.ok) {
+      throw new UnauthorizedException('Sesión expirada, inicia sesión de nuevo');
+    }
+    const data = (await res.json()) as TokenResponse;
+    return {
+      access_token: data.access_token,
+      refresh_token: data.refresh_token ?? refreshToken,
+      expires_in: data.expires_in ?? 0,
+    };
+  }
+
+  /**
    * Login del administrador: password grant **con código MFA (`totp`)**, y exige rol `admin`
    * en el token (un `user` recibe 403). Keycloak rechaza si falta/erra el OTP. Ver rules §6.
    */

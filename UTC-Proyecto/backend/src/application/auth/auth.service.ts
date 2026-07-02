@@ -10,6 +10,7 @@ import { UserRole } from '../../infrastructure/database/entities/enums';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { AdminLoginDto } from './dto/admin-login.dto';
+import { RefreshDto } from './dto/refresh.dto';
 
 /** Orquesta el registro y login del cliente contra Keycloak + perfil local (ver D-014). */
 @Injectable()
@@ -66,5 +67,10 @@ export class AuthService {
   /** Login del administrador: credenciales + MFA contra Keycloak, exige rol admin (ver D-014, rules §6). */
   async loginAdmin(dto: AdminLoginDto): Promise<Tokens> {
     return this.keycloak.loginAdmin(dto.email, dto.password, dto.totp);
+  }
+
+  /** Renueva la sesión (cliente o admin) con el refresh_token. */
+  async refresh(dto: RefreshDto): Promise<Tokens> {
+    return this.keycloak.refresh(dto.refresh_token);
   }
 }

@@ -1,6 +1,7 @@
 {
   "realm": "utc-food",
   "enabled": true,
+  "accessTokenLifespan": 1800,
   "otpPolicyType": "totp",
   "otpPolicyAlgorithm": "HmacSHA1",
   "otpPolicyDigits": 6,

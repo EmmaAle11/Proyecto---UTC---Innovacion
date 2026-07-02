@@ -31,6 +31,30 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Renovador de sesión, inyectado por `features/auth` (no acoplamos `shared`→`features`).
+ * Si una petición AUTENTICADA recibe 401 (access token vencido), el cliente pide un
+ * token fresco (con el refresh_token) y reintenta UNA vez. Sin esto, tras ~5 min todas
+ * las acciones protegidas (p. ej. reoferta del admin) fallaban con "Unauthorized".
+ */
+let tokenRefresher: (() => Promise<string | null>) | null = null;
+export function setTokenRefresher(
+  fn: (() => Promise<string | null>) | null,
+): void {
+  tokenRefresher = fn;
+}
+
+/** Corre `doFetch(token)`; si da 401 y hay refresher, renueva el token y reintenta 1 vez. */
+async function fetchWithRefresh(
+  doFetch: (token?: string) => Promise<Response>,
+  token?: string,
+): Promise<Response> {
+  const res = await doFetch(token);
+  if (res.status !== 401 || !token || !tokenRefresher) return res;
+  const fresh = await tokenRefresher().catch(() => null);
+  return fresh ? doFetch(fresh) : res;
+}
+
 /** Envía JSON (POST/PATCH) al backend; lanza `ApiError` con el mensaje del servidor si no es ok.
  *  Adjunta `Authorization: Bearer` si se pasa `token` (rutas protegidas). Timeout 12 s; el header
  *  `bypass-tunnel-reminder` evita la página de aviso de localtunnel cuando se expone por túnel. */
@@ -42,19 +66,22 @@ async function sendJson<T>(
 ): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'bypass-tunnel-reminder': 'true',
-  };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  let res: Response;
-  try {
-    res = await fetch(`${API_BASE_URL}${path}`, {
+  const doFetch = (t?: string) => {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'bypass-tunnel-reminder': 'true',
+    };
+    if (t) headers.Authorization = `Bearer ${t}`;
+    return fetch(`${API_BASE_URL}${path}`, {
       method,
       headers,
       body: JSON.stringify(body),
       signal: controller.signal,
     });
+  };
+  let res: Response;
+  try {
+    res = await fetchWithRefresh(doFetch, token);
   } catch {
     throw new ApiError('No se pudo conectar con el servidor. Revisa tu red.', 0);
   } finally {
@@ -88,15 +115,18 @@ export function patchJson<T>(path: string, body: unknown, token?: string): Promi
 export async function getJson<T>(path: string, token?: string): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
-  const headers: Record<string, string> = { 'bypass-tunnel-reminder': 'true' };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  let res: Response;
-  try {
-    res = await fetch(`${API_BASE_URL}${path}`, {
+  const doFetch = (t?: string) => {
+    const headers: Record<string, string> = { 'bypass-tunnel-reminder': 'true' };
+    if (t) headers.Authorization = `Bearer ${t}`;
+    return fetch(`${API_BASE_URL}${path}`, {
       method: 'GET',
       headers,
       signal: controller.signal,
     });
+  };
+  let res: Response;
+  try {
+    res = await fetchWithRefresh(doFetch, token);
   } catch {
     throw new ApiError('No se pudo conectar con el servidor. Revisa tu red.', 0);
   } finally {

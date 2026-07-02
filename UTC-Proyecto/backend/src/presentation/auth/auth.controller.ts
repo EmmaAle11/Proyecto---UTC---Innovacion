@@ -4,6 +4,7 @@ import { AuthService } from '../../application/auth/auth.service';
 import { RegisterDto } from '../../application/auth/dto/register.dto';
 import { LoginDto } from '../../application/auth/dto/login.dto';
 import { AdminLoginDto } from '../../application/auth/dto/admin-login.dto';
+import { RefreshDto } from '../../application/auth/dto/refresh.dto';
 import { Public } from './decorators/public.decorator';
 
 @Controller('auth')
@@ -31,5 +32,14 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   adminLogin(@Body() dto: AdminLoginDto) {
     return this.auth.loginAdmin(dto);
+  }
+
+  /** Renueva la sesión con el refresh_token (cliente o admin). Límite más holgado
+   *  que login porque el cliente lo llama al vencer el access token. */
+  @Post('refresh')
+  @Public()
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  refresh(@Body() dto: RefreshDto) {
+    return this.auth.refresh(dto);
   }
 }
