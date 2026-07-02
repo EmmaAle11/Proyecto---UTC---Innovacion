@@ -41,7 +41,10 @@ export function WelcomeScreen({ navigation }: Props) {
 
           <Pressable
             onPress={() => navigation.navigate('LoginUsuario')}
-            style={({ pressed }) => ({
+            android_ripple={{ color: 'rgba(0,0,0,0.12)' }}
+            // style ESTÁTICO (objeto), no función: en Android/Fabric el `style` como función
+            // no aplicaba el backgroundColor y la tarjeta salía deslavada. Feedback → android_ripple.
+            style={{
               flexDirection: 'row',
               alignItems: 'center',
               gap: 14,
@@ -49,8 +52,7 @@ export function WelcomeScreen({ navigation }: Props) {
               backgroundColor: colors.naranja[500],
               padding: 18,
               ...shadow.card,
-              opacity: pressed ? 0.92 : 1,
-            })}
+            }}
           >
             <View
               style={{
@@ -75,7 +77,8 @@ export function WelcomeScreen({ navigation }: Props) {
 
           <Pressable
             onPress={() => navigation.navigate('LoginAdmin')}
-            style={({ pressed }) => ({
+            android_ripple={{ color: 'rgba(255,255,255,0.12)' }}
+            style={{
               flexDirection: 'row',
               alignItems: 'center',
               gap: 14,
@@ -83,8 +86,7 @@ export function WelcomeScreen({ navigation }: Props) {
               backgroundColor: surface.ink,
               padding: 18,
               ...shadow.card,
-              opacity: pressed ? 0.92 : 1,
-            })}
+            }}
           >
             <View
               style={{

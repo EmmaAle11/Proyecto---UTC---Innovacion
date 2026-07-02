@@ -145,6 +145,8 @@ cloudflared tunnel --url http://localhost:3001    # https://XXXX.trycloudflare.c
 # 4) Metro en modo dev-client + túnel, apuntando a esa URL
 cd ../frontend
 EXPO_PUBLIC_API_URL=https://XXXX.trycloudflare.com npx expo start --tunnel --dev-client
+
+ 
 ```
 
 Abre la app instalada (**"UTC Pick Sazón"**, ya NO Expo Go) → conecta por el túnel →
