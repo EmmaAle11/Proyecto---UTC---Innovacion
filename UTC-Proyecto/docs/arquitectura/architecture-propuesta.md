@@ -24,6 +24,7 @@ shared/     ui (LogoLockup, LogoSymbol, BrandField, PrimaryButton), api client, 
 ```
 
 - **Restricción dura (D-012):** solo librerías compatibles con Expo Go. Auth del cliente por **HTTP al backend** (no `react-native-app-auth`).
+- **Distribución de prueba (solo Android):** Expo Go SDK 53+ **removió las notificaciones del SO**, así que para verlas se hace un **development build** con EAS. Ese build es un **APK de Android** → la versión instalable de prueba es **solo Android** (iOS no instala APKs). Para iPhone se requeriría un **build iOS** por **TestFlight/ad-hoc**, que exige **cuenta de Apple Developer (~$99/año)**; alternativa: correr en iPhone por **Expo Go** (túnel) para ver el flujo, pero **sin notificaciones**. El **túnel** (cloudflared/Expo) funciona igual en ambas plataformas — la limitación es de **formato/distribución del instalable**, no del túnel. Ver runbook `docs/Read/levantar-proyecto.md §4`.
 - **Pantallas:** Welcome (elige Cliente/Admin) · Login cliente (crear cuenta / iniciar sesión) · Login admin · Inicio · Detalle producto · Carrito/Pedido · Estado del pedido · Admin productos · Admin pedidos.
 
 ---

@@ -75,6 +75,8 @@ En una frase: **pides desde tu lugar, te avisan con tu turno y recoges sin fila*
 | **Base de datos** | PostgreSQL · Docker (corre **local** vía Docker) |
 | **Autenticación** | Keycloak · Docker (corre **local** vía Docker) |
 
+> **Cómo se prueba en teléfono (Expo) — versión de prueba solo Android.** La app corre en **Expo Go** (desarrollo) y en **web**, pero **Expo Go SDK 53+ removió las notificaciones del SO**; para que salgan las notificaciones se genera un **development build** propio con EAS. Ese build de prueba es un **APK de Android**, así que la versión instalable de prueba es **solo para Android** (un **iPhone no instala APKs**). Para iPhone haría falta un **build de iOS** distribuido por **TestFlight** (o ad-hoc por UDID), que requiere **cuenta de Apple Developer (~$99/año)**; alternativamente el iPhone puede correr la app por **Expo Go** (túnel) para ver el flujo, pero **sin notificaciones** (misma limitación). Nota: el **túnel** (cloudflared/Expo) funciona igual en Android e iOS — la restricción es de **formato/distribución del instalable**, no del túnel.
+
 **Tablas principales:** `users` · `products` · `orders` · `order_items` · `payments` · `preparation_times`.
 
 **Seguridad — medidas principales:**

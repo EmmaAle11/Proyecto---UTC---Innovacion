@@ -127,6 +127,17 @@ eas build -p android --profile development      # ~10-20 min en la nube → APK 
 Instala el APK en el teléfono Android (permitir **"orígenes desconocidos"**). La keystore
 de firma la genera EAS sola.
 
+> **Android vs iPhone (importante).** Esta versión de prueba es un **APK → solo Android**.
+> Un **iPhone no instala APKs**. Opciones para iPhone:
+> - **Expo Go** (gratis, ya): instala Expo Go de la App Store y escanea el QR de Metro (túnel).
+>   Corre **todo el flujo**, pero **sin notificaciones del SO** (Expo Go SDK 53+ las removió; por
+>   eso el APK). Suficiente para demostrar la app en iPhone.
+> - **Build iOS real** (con notificaciones): `eas build -p ios` distribuido por **TestFlight**
+>   (o ad-hoc por UDID) → requiere **cuenta de Apple Developer (~$99/año)**.
+>
+> El **túnel** (cloudflared/Expo) funciona igual en Android e iOS; la restricción es de
+> **formato/distribución del instalable**, no del túnel.
+
 ### 4.3) Usar el APK — QUÉ DEBE ESTAR ENCENDIDO (todo a la vez, en la Mac)
 
 El dev build **no trae el JS adentro**: lo carga de Metro por el túnel y llama al backend
