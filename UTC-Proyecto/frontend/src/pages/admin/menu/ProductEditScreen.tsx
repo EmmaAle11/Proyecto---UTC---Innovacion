@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, ScrollView, Pressable, TextInput, Switch, KeyboardAvoidingView, Platform, Alert, type TextInputProps } from 'react-native';
+import { View, ScrollView, Pressable, TextInput, Switch, KeyboardAvoidingView, Platform, Alert, Image, type TextInputProps } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -35,6 +35,7 @@ function Field({
   onChangeText,
   placeholder,
   keyboardType,
+  autoCapitalize,
   multiline,
   hint,
 }: {
@@ -43,6 +44,7 @@ function Field({
   onChangeText: (v: string) => void;
   placeholder?: string;
   keyboardType?: TextInputProps['keyboardType'];
+  autoCapitalize?: TextInputProps['autoCapitalize'];
   multiline?: boolean;
   hint?: string;
 }) {
@@ -58,6 +60,7 @@ function Field({
         placeholder={placeholder}
         placeholderTextColor={colors.gris[400]}
         keyboardType={keyboardType}
+        autoCapitalize={autoCapitalize}
         multiline={multiline}
         style={{
           marginTop: 6,
@@ -102,6 +105,7 @@ export function ProductEditScreen({ route, navigation }: Props) {
   const [maxStock, setMaxStock] = useState(editing?.maxStock != null ? String(editing.maxStock) : '');
   const [status, setStatus] = useState<ProductStatus>(editing?.status ?? 'por_preparar');
   const [isAvailable, setIsAvailable] = useState(editing?.isAvailable ?? true);
+  const [imageUrl, setImageUrl] = useState(editing?.imageUrl ?? ''); // F1: foto del producto
 
   const onSave = async () => {
     if (saving) return;
@@ -131,6 +135,7 @@ export function ProductEditScreen({ route, navigation }: Props) {
       maxStock: maxStock.trim() === '' ? null : toInt(maxStock),
       status,
       isAvailable,
+      imageUrl: imageUrl.trim() === '' ? null : imageUrl.trim(),
     };
     setSaving(true);
     try {
@@ -163,6 +168,14 @@ export function ProductEditScreen({ route, navigation }: Props) {
           <Field label="Nombre" value={name} onChangeText={setName} placeholder="Quesadilla de tinga" />
           <Field label="Descripción" value={description} onChangeText={setDescription} placeholder="Descripción del producto" multiline />
           <Field label="Categoría" value={category} onChangeText={setCategory} placeholder="Antojitos" />
+
+          {/* F1: foto del producto por URL + vista previa */}
+          <Field label="Foto (URL)" value={imageUrl} onChangeText={setImageUrl} placeholder="https://…/foto.png" keyboardType="url" autoCapitalize="none" hint="Pega el enlace de una imagen. Vacío = ícono por defecto." />
+          {imageUrl.trim() !== '' ? (
+            <View style={{ marginTop: 10, alignItems: 'center' }}>
+              <Image source={{ uri: imageUrl.trim() }} style={{ width: 120, height: 90, borderRadius: 12, backgroundColor: colors.gris[100] }} resizeMode="cover" />
+            </View>
+          ) : null}
 
           <View style={{ flexDirection: 'row', gap: 12 }}>
             <View style={{ flex: 1 }}>

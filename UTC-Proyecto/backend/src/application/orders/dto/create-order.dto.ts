@@ -6,7 +6,9 @@ import {
   IsInt,
   IsISO8601,
   IsOptional,
+  IsString,
   IsUUID,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -43,4 +45,15 @@ export class CreateOrderDto {
   @IsOptional()
   @IsISO8601({}, { message: 'Fecha de recogida inválida' })
   scheduledFor?: string;
+
+  /** Sucursal de recogida elegida (§3.12). Opcional (arranque de una sola cooperativa). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(64, { message: 'branchId demasiado largo' })
+  branchId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120, { message: 'branchName demasiado largo' })
+  branchName?: string;
 }

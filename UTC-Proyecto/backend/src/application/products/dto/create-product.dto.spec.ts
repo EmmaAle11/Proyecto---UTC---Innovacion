@@ -20,8 +20,14 @@ async function imageUrlErrors(imageUrl: unknown): Promise<boolean> {
 }
 
 describe('CreateProductDto · imageUrl', () => {
-  it('acepta una ruta de asset válida (products/<slug>.png)', async () => {
-    expect(await imageUrlErrors('products/quesadilla-tinga.png')).toBe(false);
+  // F1: acepta ruta local de asset O una URL http(s) de imagen.
+  it.each([
+    'products/quesadilla-tinga.png',
+    'https://cdn.picksazon.app/fotos/hamburguesa.jpg',
+    'https://images.example.com/a/b.webp?w=400',
+    'http://mi-servidor.local/foto.png',
+  ])('acepta %s', async (good) => {
+    expect(await imageUrlErrors(good)).toBe(false);
   });
 
   it('es opcional: ausente no falla', async () => {
@@ -29,14 +35,15 @@ describe('CreateProductDto · imageUrl', () => {
     expect(errors).toHaveLength(0);
   });
 
-  // Regresión: bloquear inyección/URLs externas/path-traversal (defensa en profundidad).
+  // Regresión: bloquear inyección/esquemas raros/path-traversal/extensión no-imagen.
   it.each([
     'javascript:alert(1)',
-    'http://evil.example/x.png',
-    'https://evil.example/x.png',
+    'javascript:alert(1)//x.png',
     '../../etc/passwd',
     'products/../secret.png',
     'products/foo.svg',
+    'https://evil.example/x.svg',
+    'ftp://x/x.png',
   ])('rechaza %s', async (bad) => {
     expect(await imageUrlErrors(bad)).toBe(true);
   });

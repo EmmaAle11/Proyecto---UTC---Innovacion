@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { View, Animated, Easing } from 'react-native';
 import { colors } from '../theme';
+import { useA11yStore } from '../a11y/a11y.store';
 
 /**
  * Loader "cafetera" (reconstrucción RN del componente uiverse strong-gecko-19):
@@ -27,7 +28,9 @@ const C = {
 /** Una voluta de humo que sube y se desvanece en bucle (con retardo de fase). */
 function Smoke({ left, delay }: { left: number; delay: number }) {
   const v = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useA11yStore((s) => s.reduceMotion);
   useEffect(() => {
+    if (reduceMotion) return; // F4: accesibilidad — sin animación de humo
     const loop = Animated.loop(
       Animated.sequence([
         Animated.delay(delay),
@@ -42,7 +45,7 @@ function Smoke({ left, delay }: { left: number; delay: number }) {
     );
     loop.start();
     return () => loop.stop();
-  }, [v, delay]);
+  }, [v, delay, reduceMotion]);
   const translateY = v.interpolate({ inputRange: [0, 1], outputRange: [0, -30] });
   const opacity = v.interpolate({
     inputRange: [0, 0.4, 0.5, 0.8, 1],
@@ -68,7 +71,9 @@ function Smoke({ left, delay }: { left: number; delay: number }) {
 export function CoffeeLoader() {
   // Chorro de café: cae desde la salida hacia la taza y se REPITE cada 3 s.
   const pour = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useA11yStore((s) => s.reduceMotion);
   useEffect(() => {
+    if (reduceMotion) return; // F4: accesibilidad — sin animación de chorro
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pour, {
@@ -83,7 +88,7 @@ export function CoffeeLoader() {
     );
     loop.start();
     return () => loop.stop();
-  }, [pour]);
+  }, [pour, reduceMotion]);
   // Cae DESDE la boquilla (translateY 0) HACIA la taza (translateY +50), no desde arriba.
   const pourY = pour.interpolate({ inputRange: [0, 1], outputRange: [0, 50] });
   const pourOpacity = pour.interpolate({

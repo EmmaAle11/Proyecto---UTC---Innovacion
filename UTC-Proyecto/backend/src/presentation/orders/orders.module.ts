@@ -7,6 +7,7 @@ import { ProductEntity } from '../../infrastructure/database/entities/product.en
 import { UserProfileEntity } from '../../infrastructure/database/entities/user-profile.entity';
 import { OrdersService } from '../../application/orders/orders.service';
 import { OrderExpiryScheduler } from '../../application/orders/order-expiry.scheduler';
+import { PaymentGatewayService } from '../../application/payments/payment-gateway.service';
 import { OrdersController } from './orders.controller';
 
 @Module({
@@ -20,6 +21,6 @@ import { OrdersController } from './orders.controller';
     ]),
   ],
   controllers: [OrdersController],
-  providers: [OrdersService, OrderExpiryScheduler],
+  providers: [OrdersService, OrderExpiryScheduler, PaymentGatewayService],
 })
 export class OrdersModule {}

@@ -19,6 +19,7 @@ function toAdminProduct(a: ApiProduct): AdminProduct {
     status: a.status,
     isAvailable: a.isAvailable,
     reofferPrice: a.reofferPrice,
+    imageUrl: a.imageUrl,
     icon: iconForProduct(a.name, a.category),
   };
 }
@@ -37,6 +38,8 @@ export interface ProductWritePayload {
   isAvailable?: boolean;
   /** `null` limpia la reoferta; un número (> 0) la fija. El backend ya lo soporta. */
   reofferPrice?: number | null;
+  /** F1: URL de la foto del producto (http/https). El backend ya guarda `image_url`. */
+  imageUrl?: string | null;
 }
 
 /** Catálogo completo para el admin (mismo `GET /products`; incluye no disponibles). */

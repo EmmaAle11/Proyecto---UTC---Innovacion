@@ -61,6 +61,14 @@ kc set-password -r "$REALM" --username "$ADMIN_SEED_USERNAME" \
 echo "→ Asignando rol realm 'admin'…"
 kc add-roles -r "$REALM" --uusername "$ADMIN_SEED_USERNAME" --rolename admin >/dev/null
 
+# MFA obligatoria (A3/D-013): el admin DEBE configurar TOTP en el primer inicio.
+# Sin OTP enrolado, el login por contraseña queda incompleto → no hay acceso admin
+# sin segundo factor. Coherente con el realm (requiredActions CONFIGURE_TOTP).
+echo "→ Forzando MFA: el admin deberá configurar TOTP en el primer inicio (CONFIGURE_TOTP)…"
+USER_ID="$(kc get users -r "$REALM" -q username="$ADMIN_SEED_USERNAME" --fields id --format csv --noquotes 2>/dev/null | tr -d '\r' | head -n1 || true)"
+[ -n "$USER_ID" ] && kc update "users/$USER_ID" -r "$REALM" \
+  -s 'requiredActions=["CONFIGURE_TOTP"]' >/dev/null
+
 # ── Client service-account para el backend (crea usuarios vía Admin API) ──
 echo "→ Provisionando client 'backend-svc' (service account)…"
 CLIENT_ID="$(kc get clients -r "$REALM" -q clientId=backend-svc --fields id --format csv --noquotes 2>/dev/null | tr -d '\r' | head -n1 || true)"

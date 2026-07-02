@@ -1,6 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import type { DataSource } from 'typeorm';
 import { OrdersService } from './orders.service';
+import { PaymentGatewayService } from '../payments/payment-gateway.service';
 import {
   OrderStatus,
   PaymentMethod,
@@ -47,6 +48,7 @@ function buildService(opts: {
   queueCount?: number;
   prepAverages?: { productId: string; avg: number }[];
   thresholds?: { congestionYellow: number; congestionRed: number };
+  gatewayAuthorize?: jest.Mock;
 }) {
   const orderSave = jest.fn((o: unknown) =>
     Promise.resolve({ ...(o as object), id: 'order-1' }),
@@ -123,8 +125,13 @@ function buildService(opts: {
       cb: (m: { getRepository: typeof getRepository }) => unknown,
     ) => cb({ getRepository }),
   } as unknown as DataSource;
+  // C4: pasarela de pago simulada. Por defecto aprueba (paid); un test puede
+  // inyectar `gatewayAuthorize` para simular rechazo/circuito abierto.
+  const authorize =
+    opts.gatewayAuthorize ?? jest.fn().mockResolvedValue(PaymentStatus.PAID);
+  const paymentGateway = { authorize } as unknown as PaymentGatewayService;
   return {
-    service: new OrdersService(dataSource),
+    service: new OrdersService(dataSource, paymentGateway),
     orderSave,
     itemSave,
     paymentSave,
@@ -204,6 +211,37 @@ describe('OrdersService.create', () => {
     }[];
     expect(lines.find((l) => l.product.id === 'p1')?.prepTimeSeconds).toBe(420);
     expect(lines.find((l) => l.product.id === 'p2')?.prepTimeSeconds).toBe(900);
+  });
+
+  it('C4: si la pasarela rechaza el cobro con tarjeta → BadRequest', async () => {
+    const { service } = buildService({
+      profile: PROFILE,
+      products: [product('p1', '38.00')],
+      gatewayAuthorize: jest.fn().mockRejectedValue(new Error('gateway caído')),
+    });
+    await expect(
+      service.create(
+        { items: [{ productId: 'p1', quantity: 1 }], payMethod: PaymentMethod.TDC },
+        USER,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('C4: el efectivo NO pasa por la pasarela (no llama authorize)', async () => {
+    const authorize = jest.fn();
+    const { service } = buildService({
+      profile: PROFILE,
+      products: [product('p1', '38.00')],
+      gatewayAuthorize: authorize,
+    });
+    await service.create(
+      {
+        items: [{ productId: 'p1', quantity: 1 }],
+        payMethod: PaymentMethod.EFECTIVO,
+      },
+      USER,
+    );
+    expect(authorize).not.toHaveBeenCalled();
   });
 
   it('efectivo deja el pago en pending (BR-009)', async () => {

@@ -43,6 +43,9 @@ export function productImage(
 ): ImageSourcePropType | undefined {
   if (typeof arg === 'string') return IMAGES[arg];
   if (arg.imageUrl) {
+    // F1: foto real puesta por el admin (URL http/https) → imagen remota por `uri`.
+    if (/^https?:\/\//i.test(arg.imageUrl)) return { uri: arg.imageUrl };
+    // slug local ("products/<slug>.png") → asset empaquetado.
     const slug = arg.imageUrl.split('/').pop()?.replace(/\.png$/i, '');
     if (slug && IMAGES[slug]) return IMAGES[slug];
   }

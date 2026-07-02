@@ -43,7 +43,11 @@ describe('ProductsController (HTTP)', () => {
   });
 
   it('PATCH /products/:id con UUID válido → delega en el service', async () => {
-    service.update.mockResolvedValue({ id: 'ok', price: 10 });
+    service.update.mockResolvedValue({
+      id: 'ok',
+      price: 10,
+      statusChangedAt: new Date(),
+    });
     await request(app.getHttpServer() as Server)
       .patch('/products/a0000000-0000-4000-8000-000000000001')
       .send({ price: 10 })

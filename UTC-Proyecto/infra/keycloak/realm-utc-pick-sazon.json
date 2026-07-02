@@ -1,6 +1,10 @@
 {
   "realm": "utc-food",
   "enabled": true,
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyPeriod": 30,
   "roles": {
     "realm": [
       { "name": "admin", "description": "Administrador de la cooperativa" },
@@ -34,7 +38,8 @@
       "lastName": "Cooperativa UTC",
       "enabled": true,
       "emailVerified": true,
-      "realmRoles": ["admin"]
+      "realmRoles": ["admin"],
+      "requiredActions": ["CONFIGURE_TOTP"]
     }
   ]
 }

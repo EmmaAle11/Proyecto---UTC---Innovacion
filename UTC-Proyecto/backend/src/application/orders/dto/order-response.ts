@@ -42,6 +42,9 @@ export interface OrderResponse {
   scheduledFor: string | null;
   /** Hora sugerida para EMPEZAR a preparar (ISO) = `scheduledFor − prep estimada`; `null` si inmediato. */
   startBy: string | null;
+  /** Sucursal de recogida (§3.12); `null` si no se registró. */
+  branchId: string | null;
+  branchName: string | null;
 }
 
 /** Mapea la entidad persistida (con `items.product`, `payment`, `user`) al contrato de API. */
@@ -84,5 +87,7 @@ export function toOrderResponse(o: OrderEntity): OrderResponse {
     readyAt: o.readyAt ? o.readyAt.toISOString() : null,
     scheduledFor,
     startBy,
+    branchId: o.branchId ?? null,
+    branchName: o.branchName ?? null,
   };
 }

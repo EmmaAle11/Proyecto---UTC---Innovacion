@@ -26,6 +26,9 @@ import { productIcon } from '../../entities/product/icons';
 import { useCartStore, selectTotal } from '../../features/cart/model/cart.store';
 import { useOrdersStore, type Order } from '../../features/orders/model/orders.store';
 import { useSessionStore } from '../../features/auth/model/session.store';
+import { useBranchStore } from '../../features/branch/model/branch.store';
+import { useWalletStore } from '../../features/wallet/model/wallet.store';
+import { CardForm } from '../../features/wallet/ui/CardForm';
 import { fetchCongestion, type ApiCongestion } from '../../entities/order/api';
 import type { PaymentMethod } from '../../entities/order/model/types';
 
@@ -147,11 +150,19 @@ export function CartScreen({ navigation }: Props) {
   const setQty = useCartStore((s) => s.setQty);
   const clear = useCartStore((s) => s.clear);
   const placeOrder = useOrdersStore((s) => s.placeOrder);
+  const selectedBranch = useBranchStore((s) => s.selected); // sucursal de recogida (§3.12)
   const token = useSessionStore((s) => s.session?.accessToken);
   const email = useSessionStore((s) => s.session?.email ?? 'demo@edu.utc.mx');
   const total = selectTotal(items);
   const [pay, setPay] = useState<string>('mercado_pago');
   const [saving, setSaving] = useState(false);
+  // C2: tarjeta seleccionada + formulario de alta (solo para métodos con tarjeta).
+  const cards = useWalletStore((s) => s.cards);
+  const addCard = useWalletStore((s) => s.add);
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [cardFormOpen, setCardFormOpen] = useState(false);
+  const isCardMethod = pay === 'tdc' || pay === 'tdd';
+  const kindCards = cards.filter((c) => c.kind === pay);
   const [congestion, setCongestion] = useState<ApiCongestion | null>(null);
   useEffect(() => {
     let alive = true;
@@ -214,6 +225,12 @@ export function CartScreen({ navigation }: Props) {
 
   const onPay = async () => {
     if (saving || items.length === 0) return;
+    // C2: con tarjeta hace falta una tarjeta elegida (o agregada). El cobro lo
+    // "aprueba" el backend (gateway simulado + circuit breaker).
+    if (isCardMethod && !kindCards.some((c) => c.id === selectedCardId)) {
+      Alert.alert('Falta la tarjeta', 'Elige una tarjeta guardada o agrega una para pagar.');
+      return;
+    }
     setSaving(true);
     try {
       // El backend snapshotea precio/total (BR-015) y crea orden+pago; abre el Seguimiento.
@@ -222,6 +239,8 @@ export function CartScreen({ navigation }: Props) {
           items: items.map((it) => ({ productId: it.product.id, quantity: it.qty })),
           payMethod: pay as PaymentMethod,
           ...(scheduledFor ? { scheduledFor } : {}),
+          branchId: selectedBranch.id,
+          branchName: selectedBranch.name,
         },
         token,
         buildDemoOrder,
@@ -335,6 +354,32 @@ export function CartScreen({ navigation }: Props) {
                 <Title style={{ fontSize: 14 }}>{selected.l}</Title>
                 <Body color={text.muted} style={{ fontSize: 11.5, marginTop: 1 }}>{selected.s}</Body>
               </View>
+
+              {/* C2: con tarjeta, elige una guardada o agrega. Sin tarjeta no se paga. */}
+              {isCardMethod ? (
+                <View style={{ marginTop: 12, gap: 8 }}>
+                  {kindCards.map((c) => {
+                    const on = selectedCardId === c.id;
+                    return (
+                      <Pressable
+                        key={c.id}
+                        onPress={() => setSelectedCardId(c.id)}
+                        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, borderWidth: on ? 1.5 : 1, borderColor: on ? colors.azul[600] : border.subtle, backgroundColor: on ? colors.azul[50] : surface.card }}
+                      >
+                        <Body style={{ fontSize: 13, fontFamily: fonts.bodySemi }} color={text.heading}>
+                          {c.brand} ···· {c.last4}
+                        </Body>
+                        <Body color={text.muted} style={{ fontSize: 12 }}>
+                          {c.expMonth ? `${String(c.expMonth).padStart(2, '0')}/${String(c.expYear).padStart(2, '0')}` : ''}
+                        </Body>
+                      </Pressable>
+                    );
+                  })}
+                  <Pressable onPress={() => setCardFormOpen(true)} style={{ alignItems: 'center', paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.azul[300] }}>
+                    <Body color={colors.azul[600]} style={{ fontSize: 13, fontFamily: fonts.bodySemi }}>+ Agregar tarjeta</Body>
+                  </Pressable>
+                </View>
+              ) : null}
             </View>
           </View>
 
@@ -416,6 +461,17 @@ export function CartScreen({ navigation }: Props) {
           </View>
         </ScrollView>
       )}
+
+      <CardForm
+        visible={cardFormOpen}
+        kind={pay === 'tdd' ? 'tdd' : 'tdc'}
+        onClose={() => setCardFormOpen(false)}
+        onAdd={(card) => {
+          addCard(card);
+          const created = useWalletStore.getState().cards.at(-1);
+          if (created) setSelectedCardId(created.id);
+        }}
+      />
     </SafeAreaView>
   );
 }

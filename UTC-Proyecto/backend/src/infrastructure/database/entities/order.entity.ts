@@ -52,6 +52,13 @@ export class OrderEntity {
   @Column('timestamptz', { name: 'scheduled_for', nullable: true })
   scheduledFor: Date | null;
 
+  // Escalabilidad (§3.12): sucursal de recogida elegida por el cliente.
+  @Column('text', { name: 'branch_id', nullable: true })
+  branchId: string | null;
+
+  @Column('text', { name: 'branch_name', nullable: true })
+  branchName: string | null;
+
   @Column('timestamptz', { name: 'accepted_at', nullable: true })
   acceptedAt: Date | null;
 

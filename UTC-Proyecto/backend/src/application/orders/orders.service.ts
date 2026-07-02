@@ -11,6 +11,8 @@ import { ProductEntity } from '../../infrastructure/database/entities/product.en
 import { UserProfileEntity } from '../../infrastructure/database/entities/user-profile.entity';
 import { PreparationTimeEntity } from '../../infrastructure/database/entities/preparation-time.entity';
 import { AppSettingsEntity } from '../../infrastructure/database/entities/app-settings.entity';
+import { PaymentGatewayService } from '../payments/payment-gateway.service';
+import { CircuitOpenError } from '../../shared/resilience/circuit-breaker';
 import type { CongestionResponse } from './dto/order-response';
 import type {
   OrderMetrics,
@@ -91,7 +93,26 @@ function deriveName(email: string): { firstName: string; lastName: string } {
  */
 @Injectable()
 export class OrdersService {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly paymentGateway: PaymentGatewayService,
+  ) {}
+
+  /**
+   * C4: autoriza el cobro con tarjeta/online por la pasarela (protegida con circuit
+   * breaker). Traduce cualquier rechazo/corte a un 400 con mensaje claro.
+   */
+  private async authorizeCardPayment(amount: number): Promise<PaymentStatus> {
+    try {
+      return await this.paymentGateway.authorize(amount);
+    } catch (e) {
+      throw new BadRequestException(
+        e instanceof CircuitOpenError
+          ? e.message
+          : 'El pago con tarjeta fue rechazado, intenta de nuevo',
+      );
+    }
+  }
 
   /**
    * Valida la hora de recogida programada (spec #4): ≥30 min de anticipación y
@@ -171,6 +192,8 @@ export class OrdersService {
           status: OrderStatus.PENDING,
           totalAmount: total.toFixed(2),
           scheduledFor, // null = inmediato (spec #4)
+          branchId: dto.branchId ?? null, // sucursal de recogida (§3.12)
+          branchName: dto.branchName ?? null,
         }),
       );
 
@@ -187,15 +210,18 @@ export class OrdersService {
         ),
       );
 
+      // BR-009: efectivo no pasa por pasarela (queda pendiente). Tarjeta/online se
+      // AUTORIZAN por el gateway simulado protegido con circuit breaker (C4).
+      const payStatus =
+        dto.payMethod === PaymentMethod.EFECTIVO
+          ? PaymentStatus.PENDING
+          : await this.authorizeCardPayment(total);
+
       await manager.getRepository(PaymentEntity).save(
         manager.getRepository(PaymentEntity).create({
           order,
           method: dto.payMethod,
-          // BR-009: efectivo no pasa por pasarela (queda pendiente); el resto, mock pagado (D-006).
-          status:
-            dto.payMethod === PaymentMethod.EFECTIVO
-              ? PaymentStatus.PENDING
-              : PaymentStatus.PAID,
+          status: payStatus,
           amount: total.toFixed(2),
         }),
       );

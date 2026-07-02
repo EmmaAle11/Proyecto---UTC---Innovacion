@@ -19,6 +19,7 @@ import { Display, Heading, Title, Body, Label, Mono } from '../../shared/ui/Type
 import { colors, text, border, surface, shadow, fonts } from '../../shared/theme';
 import { useSessionStore } from '../../features/auth/model/session.store';
 import { useClientSettingsStore } from '../../features/profile/model/settings.store';
+import { useA11yStore } from '../../shared/a11y/a11y.store';
 import { requestNotificationPermission } from '../../shared/notifications/notify';
 import type { MainStackParamList } from '../../app/navigation/types';
 
@@ -74,6 +75,7 @@ export function ProfileScreen() {
   const session = useSessionStore((s) => s.session);
   const clear = useSessionStore((s) => s.clear);
   const settings = useClientSettingsStore();
+  const a11y = useA11yStore();
   const [helpOpen, setHelpOpen] = useState(false);
 
   const email = session?.email ?? '';
@@ -141,11 +143,11 @@ export function ProfileScreen() {
         <Label style={{ marginBottom: 10 }}>Accesibilidad</Label>
         <View style={[card, { marginBottom: 18 }]}>
           <Row icon={<TypeIcon size={19} color={colors.azul[600]} />} label="Texto grande" sub="Aumenta el tamaño de la letra"
-            right={<Switch value={settings.largeText} onValueChange={(v) => settings.set({ largeText: v })} trackColor={track} thumbColor={thumb(settings.largeText)} accessibilityLabel="Texto grande" />} />
+            right={<Switch value={a11y.largeText} onValueChange={(v) => a11y.set({ largeText: v })} trackColor={track} thumbColor={thumb(a11y.largeText)} accessibilityLabel="Texto grande" />} />
           <Row icon={<Contrast size={19} color={colors.azul[600]} />} label="Alto contraste" sub="Más contraste para leer mejor"
-            right={<Switch value={settings.highContrast} onValueChange={(v) => settings.set({ highContrast: v })} trackColor={track} thumbColor={thumb(settings.highContrast)} accessibilityLabel="Alto contraste" />} />
+            right={<Switch value={a11y.highContrast} onValueChange={(v) => a11y.set({ highContrast: v })} trackColor={track} thumbColor={thumb(a11y.highContrast)} accessibilityLabel="Alto contraste" />} />
           <Row icon={<Activity size={19} color={colors.azul[600]} />} label="Reducir movimiento" sub="Menos animaciones"
-            right={<Switch value={settings.reduceMotion} onValueChange={(v) => settings.set({ reduceMotion: v })} trackColor={track} thumbColor={thumb(settings.reduceMotion)} accessibilityLabel="Reducir movimiento" />} last />
+            right={<Switch value={a11y.reduceMotion} onValueChange={(v) => a11y.set({ reduceMotion: v })} trackColor={track} thumbColor={thumb(a11y.reduceMotion)} accessibilityLabel="Reducir movimiento" />} last />
         </View>
 
         {/* Avisos + Ayuda */}

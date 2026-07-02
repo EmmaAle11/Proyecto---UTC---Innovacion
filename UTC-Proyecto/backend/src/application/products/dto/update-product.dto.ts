@@ -77,7 +77,7 @@ export class UpdateProductDto {
   @MaxLength(200)
   @Matches(IMAGE_URL_PATTERN, {
     message:
-      'imageUrl debe ser una ruta de asset válida (products/<nombre>.png)',
+      'imageUrl debe ser una ruta local (products/<nombre>.png) o una URL http(s) de imagen',
   })
   imageUrl?: string;
 }

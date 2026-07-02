@@ -21,6 +21,7 @@ export interface AdminProduct {
   status: ProductStatus;
   isAvailable: boolean;
   reofferPrice: number | null; // "Pon tu precio" (§3.11)
+  imageUrl?: string | null; // F1: URL de la foto (http/https) o slug local
   icon: ProductIconName;
 }
 

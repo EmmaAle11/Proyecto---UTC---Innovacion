@@ -29,6 +29,8 @@ export interface ApiOrder {
   readyAt: string | null;
   scheduledFor: string | null;
   startBy: string | null;
+  branchId: string | null;
+  branchName: string | null;
 }
 
 /** Cuerpo de alta: SOLO producto + cantidad + método (el backend pone precios/total). */
@@ -37,6 +39,9 @@ export interface OrderWritePayload {
   payMethod: PaymentMethod;
   /** Recogida programada (ISO). Opcional: si falta, el pedido es inmediato (spec #4). */
   scheduledFor?: string;
+  /** Sucursal de recogida elegida (§3.12). */
+  branchId?: string;
+  branchName?: string;
 }
 
 /** 'HH:MM' (hora local) desde un ISO. */
@@ -77,6 +82,7 @@ export function toOrder(a: ApiOrder): AdminOrder {
     readyAt: a.readyAt,
     scheduledFor: a.scheduledFor,
     startBy: a.startBy,
+    branchName: a.branchName,
   };
 }
 

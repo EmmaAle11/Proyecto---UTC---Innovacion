@@ -7,11 +7,13 @@ export type CardColor = 'azul500' | 'azul700' | 'white';
 
 export interface PaymentCard {
   id: string;
-  brand: string; // etiqueta visible
+  brand: string; // etiqueta visible (o marca detectada: Visa/Mastercard/Amex)
   kind: CardKind;
   holder: string; // titular o correo
-  last4: string; // últimos 4 (o referencia)
+  last4: string; // últimos 4 (NUNCA se guarda el número completo, C2)
   color: CardColor;
+  expMonth?: number; // 1-12 (tarjetas)
+  expYear?: number; // 2 dígitos (tarjetas)
 }
 
 /** Catálogo de tipos para el alta/edición; el color y la etiqueta se derivan del tipo. */
@@ -28,7 +30,14 @@ function makeId(): string {
 
 interface WalletState {
   cards: PaymentCard[];
-  add: (input: { kind: CardKind; holder: string; last4: string }) => void;
+  add: (input: {
+    kind: CardKind;
+    holder: string;
+    last4: string;
+    brand?: string; // marca detectada por número (Visa/Mastercard/Amex)
+    expMonth?: number;
+    expYear?: number;
+  }) => void;
   update: (id: string, patch: { kind?: CardKind; holder?: string; last4?: string }) => void;
   remove: (id: string) => void;
 }
@@ -42,9 +51,21 @@ function fromKind(kind: CardKind): { brand: string; color: CardColor } {
  *  las suyas. El efectivo es fijo (se muestra aparte). Pagos reales a futuro (D-006). */
 export const useWalletStore = create<WalletState>((set) => ({
   cards: [],
-  add: ({ kind, holder, last4 }) =>
+  add: ({ kind, holder, last4, brand, expMonth, expYear }) =>
     set((s) => ({
-      cards: [...s.cards, { id: makeId(), holder, last4, kind, ...fromKind(kind) }],
+      cards: [
+        ...s.cards,
+        {
+          id: makeId(),
+          holder,
+          last4,
+          kind,
+          expMonth,
+          expYear,
+          ...fromKind(kind),
+          ...(brand ? { brand } : {}),
+        },
+      ],
     })),
   update: (id, patch) =>
     set((s) => ({
