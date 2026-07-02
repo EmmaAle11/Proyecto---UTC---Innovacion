@@ -13,6 +13,7 @@ import { colors, text, surface, border, shadow, fonts } from '../../../shared/th
 import { useSessionStore } from '../../../features/auth/model/session.store';
 import { useSettingsStore } from '../../../features/admin/model/settings.store';
 import { useA11yStore } from '../../../shared/a11y/a11y.store';
+import { useBranchStore } from '../../../features/branch/model/branch.store';
 import { requestNotificationPermission } from '../../../shared/notifications/notify';
 
 /** Fila de ajuste reutilizable (con rol de accesibilidad). */
@@ -53,6 +54,7 @@ export function AdminAccountScreen() {
   const clear = useSessionStore((s) => s.clear);
   const settings = useSettingsStore();
   const a11y = useA11yStore();
+  const branch = useBranchStore((s) => s.selected);
   const email = session?.email ?? 'admin@picksazon.app';
   const initials = email.slice(0, 2).toUpperCase();
   const goPers = () => navigation.navigate('Personalizacion');
@@ -80,7 +82,7 @@ export function AdminAccountScreen() {
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: surface.page }}>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        <Label>Cooperativa {settings.branchName}</Label>
+        <Label>Cooperativa {branch?.name ?? 'sin asignar'}</Label>
         <Display style={{ marginTop: 4 }}>Tu cuenta</Display>
         <View style={{ width: 58, height: 6, borderRadius: 3, backgroundColor: colors.naranja[500], marginTop: 10 }} />
 
@@ -104,7 +106,7 @@ export function AdminAccountScreen() {
         {/* PERSONALIZACIÓN (funcional → editor) */}
         <Label style={{ marginTop: 26, marginBottom: 10 }}>Personalización</Label>
         <View style={{ backgroundColor: surface.card, borderRadius: 18, borderWidth: 1, borderColor: border.subtle, paddingHorizontal: 16, ...shadow.card }}>
-          <Row icon={<Store size={19} color={colors.azul[600]} />} label="Sucursal" sub={`${settings.branchName} · ${settings.address}`} right={<ChevronRight size={18} color={text.subtle} />} onPress={goPers} />
+          <Row icon={<Store size={19} color={colors.azul[600]} />} label="Cooperativa" sub={branch ? `${branch.name} · ${branch.address}` : 'Detecta o elige tu cooperativa'} right={<ChevronRight size={18} color={text.subtle} />} onPress={goPers} />
           <Row
             icon={<Gauge size={19} color={colors.naranja[600]} />}
             label="Umbrales del semáforo"

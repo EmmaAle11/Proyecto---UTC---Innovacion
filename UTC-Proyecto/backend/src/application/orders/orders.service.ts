@@ -232,9 +232,14 @@ export class OrdersService {
     return this.findOneOwned(orderId, profile.id);
   }
 
-  /** Todos los pedidos, más recientes primero (admin: cola/dashboard). */
-  findAll(): Promise<OrderEntity[]> {
+  /**
+   * Pedidos para el admin (cola/dashboard), más recientes primero. Si se pasa
+   * `branchId`, filtra por la cooperativa (§3.12): así el admin de una cooperativa
+   * NO ve ni responde los pedidos de otra. Sin `branchId` devuelve todos.
+   */
+  findAll(branchId?: string): Promise<OrderEntity[]> {
     return this.dataSource.getRepository(OrderEntity).find({
+      where: branchId ? { branchId } : {},
       relations: ORDER_RELATIONS,
       order: { createdAt: 'DESC' },
     });
@@ -372,8 +377,12 @@ export class OrdersService {
         LIMIT 5`,
     )) as TopProduct[];
 
+    // Hora pico en la hora LOCAL de la cooperativa (no UTC): `created_at` es timestamptz,
+    // así que sin `AT TIME ZONE` EXTRACT(HOUR) daría la hora UTC (p. ej. 14:00 CDMX → 20:00).
+    // Despliegue single-locale (ver nota TZ en D-026).
     const peaks = (await this.dataSource.query(
-      `SELECT EXTRACT(HOUR FROM created_at)::int AS "hour", COUNT(*)::int AS "count"
+      `SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Mexico_City')::int AS "hour",
+              COUNT(*)::int AS "count"
          FROM orders
         WHERE status <> 'cancelled'
         GROUP BY "hour"

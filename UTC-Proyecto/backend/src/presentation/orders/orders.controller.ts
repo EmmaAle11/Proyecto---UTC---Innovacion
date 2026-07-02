@@ -6,6 +6,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -51,11 +52,13 @@ export class OrdersController {
     return rows.map(toOrderResponse);
   }
 
-  /** GET /orders/all → todos los pedidos (admin: cola/dashboard). */
+  /** GET /orders/all → pedidos para el admin. Con `?branchId=` filtra por cooperativa (§3.12). */
   @Get('all')
   @Roles('admin')
-  async findAll(): Promise<OrderResponse[]> {
-    const rows = await this.orders.findAll();
+  async findAll(
+    @Query('branchId') branchId?: string,
+  ): Promise<OrderResponse[]> {
+    const rows = await this.orders.findAll(branchId);
     return rows.map(toOrderResponse);
   }
 

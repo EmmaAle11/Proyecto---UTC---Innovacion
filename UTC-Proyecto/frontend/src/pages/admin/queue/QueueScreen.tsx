@@ -10,6 +10,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useOrdersStore } from '../../../features/orders/model/orders.store';
 import { useSessionStore } from '../../../features/auth/model/session.store';
+import { useBranchStore } from '../../../features/branch/model/branch.store';
 import { ORDER_STATUS_META, QUEUE_STATUSES, type AdminOrder } from '../../../entities/order/admin-mock';
 import { scheduleView } from '../../../entities/order/schedule';
 import type { OrderStatus } from '../../../entities/order/model/types';
@@ -39,11 +40,12 @@ export function QueueScreen() {
   const setStatus = useOrdersStore((s) => s.setStatus);
   const loadAll = useOrdersStore((s) => s.loadAll);
   const token = useSessionStore((s) => s.session?.accessToken);
+  const branchId = useBranchStore((s) => s.selected?.id); // §3.12: cola de ESTA cooperativa
   const [filter, setFilter] = useState<Filter>('En cola');
   useFocusEffect(
     useCallback(() => {
-      void loadAll(token);
-    }, [token, loadAll]),
+      void loadAll(token, branchId);
+    }, [token, loadAll, branchId]),
   );
 
   const onAdvance = (id: string, to: OrderStatus) => {

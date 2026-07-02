@@ -100,9 +100,15 @@ export async function fetchMyOrders(token?: string): Promise<AdminOrder[]> {
   return rows.map(toOrder);
 }
 
-/** GET /orders/all → todos los pedidos (admin: cola/dashboard). */
-export async function fetchAllOrders(token?: string): Promise<AdminOrder[]> {
-  const rows = await getJson<ApiOrder[]>('/orders/all', token);
+/** GET /orders/all → pedidos del admin. Con `branchId` filtra por cooperativa (§3.12). */
+export async function fetchAllOrders(
+  token?: string,
+  branchId?: string,
+): Promise<AdminOrder[]> {
+  const path = branchId
+    ? `/orders/all?branchId=${encodeURIComponent(branchId)}`
+    : '/orders/all';
+  const rows = await getJson<ApiOrder[]>(path, token);
   return rows.map(toOrder);
 }
 

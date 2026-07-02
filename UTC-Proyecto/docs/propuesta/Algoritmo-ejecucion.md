@@ -78,12 +78,13 @@ UTC-Proyecto/
 
 9.- Probar con alumnos reales, corregir lo que confunda y dejar todo listo para la demo a la cooperativa. Tras el arranque se le da un periodo de adopción de 1 mes: si en ese mes una buena parte de los alumnos ya pide por la app y baja la congestión del recreo, se considera un éxito y se amplía.
 
-10.- Escalabilidad — selección de sucursal por geolocalización
-Hoy la app atiende una sola cooperativa: UTC, Calz. de Tlalpan 639, Álamos, Benito Juárez, 03400, Ciudad de México; por eso el encabezado "Recoges en · Cooperativa UTC" es fijo.
-Para escalar a más planteles, ese encabezado se vuelve un botón accionable:
-- Ubicación del usuario con expo-location
-- Cooperativa más cercana por distancia preseleccionada automáticamente.
-- Tocar el encabezado abre la lista de sucursales para elegir manualmente; esa lista es también el respaldo si se niega el permiso de ubicación.
+10.- Cooperativa por geolocalización — pedido enrutado a la cooperativa correcta
+La app trabaja con varias cooperativas UTC y NO precarga ninguna: detecta la más cercana y la asigna, y enruta el pedido a esa cooperativa.
+- Ubicación del usuario con expo-location (permiso en primer plano).
+- Cooperativa más cercana por distancia, asignada automáticamente (sin default precargado).
+- Tocar el encabezado abre la lista para elegir a mano; es el respaldo si se niega el permiso. No se puede pedir sin cooperativa.
+- El panel del administrador también detecta por geolocalización qué cooperativa opera (no viene fija).
+- Cada pedido guarda su cooperativa y la cola del administrador solo trae los de SU cooperativa: pedir en una y que responda otra ya no pasa (`GET /orders/all?branchId=`).
 
 11.- Menú inicial de la cooperativa
 La aplicación arranca con un menú base pensado para el recreo. La cooperativa puede cambiarlo cuando lo necesite (productos, precios y disponibilidad). Estos son los productos y sus precios:

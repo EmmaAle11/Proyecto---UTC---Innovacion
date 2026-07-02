@@ -47,7 +47,7 @@ interface OrdersState {
   /** Carga los pedidos del cliente (`GET /orders`, BR-014). */
   loadMine: (token?: string) => Promise<void>;
   /** Carga TODOS los pedidos (admin, `GET /orders/all`): cola + dashboard. */
-  loadAll: (token?: string) => Promise<void>;
+  loadAll: (token?: string, branchId?: string) => Promise<void>;
   /** El cliente cancela SU pedido (`PATCH /orders/:id/cancel`, §3.8: solo si pending). */
   cancelMine: (id: string, token?: string) => Promise<void>;
   /** El cliente difiere SU pedido (`PATCH /orders/:id/extend`, §3.10: ready→ready_later). */
@@ -117,11 +117,11 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       set({ loading: false });
     }
   },
-  loadAll: async (token) => {
+  loadAll: async (token, branchId) => {
     if (get().loading) return;
     set({ loading: true, error: false });
     try {
-      const rows = await fetchAllOrders(token);
+      const rows = await fetchAllOrders(token, branchId);
       set({ orders: rows, loaded: true });
     } catch (e) {
       console.warn(

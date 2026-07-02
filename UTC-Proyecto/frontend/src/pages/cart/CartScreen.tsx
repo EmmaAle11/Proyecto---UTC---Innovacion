@@ -225,6 +225,11 @@ export function CartScreen({ navigation }: Props) {
 
   const onPay = async () => {
     if (saving || items.length === 0) return;
+    // §3.12: no se pide sin cooperativa (se detecta por geo o se elige a mano).
+    if (!selectedBranch) {
+      Alert.alert('Falta la cooperativa', 'Detecta o elige tu cooperativa de recogida para continuar.');
+      return;
+    }
     // C2: con tarjeta hace falta una tarjeta elegida (o agregada). El cobro lo
     // "aprueba" el backend (gateway simulado + circuit breaker).
     if (isCardMethod && !kindCards.some((c) => c.id === selectedCardId)) {

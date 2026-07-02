@@ -57,7 +57,7 @@ export function BranchPicker({ visible, onClose, locating, denied, onUseLocation
 
           <ScrollView style={{ maxHeight: 340 }} contentContainerStyle={{ gap: 10, paddingBottom: 4 }} showsVerticalScrollIndicator={false}>
             {BRANCHES.map((b) => {
-              const on = b.id === selected.id;
+              const on = b.id === selected?.id;
               return (
                 <Pressable
                   key={b.id}

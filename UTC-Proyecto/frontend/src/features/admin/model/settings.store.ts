@@ -6,9 +6,8 @@ import { create } from 'zustand';
  * aquí se refleja en vivo (p. ej. los umbrales mueven el semáforo del Dashboard).
  */
 interface AdminSettings {
-  // Personalización
-  branchName: string;
-  address: string;
+  // Personalización. La COOPERATIVA (nombre/dirección) ya NO vive aquí: se detecta
+  // por geolocalización y vive en `features/branch` (misma lista que el cliente).
   schedule: string;
   semaforoYellow: number; // pasa a Amarillo al llegar a este número en cola
   semaforoRed: number; // pasa a Rojo al superar este número
@@ -19,8 +18,6 @@ interface AdminSettings {
 }
 
 export const useSettingsStore = create<AdminSettings>((set) => ({
-  branchName: 'UTC Tlalpan',
-  address: 'Calz. de Tlalpan 639, Álamos, CDMX',
   schedule: 'Recreo · 9:00 – 11:00',
   semaforoYellow: 5,
   semaforoRed: 10,

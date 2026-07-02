@@ -167,13 +167,15 @@ Para evitar que los alimentos preparados se queden sin vender, el sistema puede 
 
 La finalidad es vender el producto **antes de perderlo**, aunque sea con menor ganancia.
 
-### 3.12. Escalabilidad — selección de sucursal por geolocalización
+### 3.12. Cooperativa por geolocalización — el pedido va a la cooperativa correcta
 
-Hoy la app atiende **una** cooperativa: **UTC, Calz. de Tlalpan 639, Álamos, Benito Juárez, 03400, CDMX**, por lo que el encabezado "Recoges en · Cooperativa UTC" es fijo. Pensando en **escalar** a más planteles/cooperativas, ese encabezado se convierte en un **selector de sucursal accionable**:
+La app trabaja con **varias cooperativas UTC**. **No se precarga ninguna**: la app detecta por ubicación la **cooperativa más cercana** y la asigna sola, y el pedido se **enruta a esa cooperativa** (nadie pide en una y le responde otra).
 
-- **Ubicación del usuario** con `expo-location`. Requiere permiso de ubicación en primer plano.
-- **Sucursal más cercana:** se calcula la distancia entre el usuario y las coordenadas de cada cooperativa, y se preselecciona la más cercana.
-- **Override manual:** tocar el encabezado abre la lista de sucursales para elegir a mano; es también el *fallback* si se niega el permiso de ubicación.
+- **Ubicación del usuario** con `expo-location` (permiso en primer plano). Con la posición, se calcula la distancia a cada cooperativa y se **asigna la más cercana** — sin precargar una por defecto.
+- **Elegir a mano:** tocar el encabezado abre la lista de cooperativas; es también el *fallback* si se niega el permiso. **No se puede pedir sin cooperativa.**
+- **El administrador igual:** su panel también detecta por geolocalización **qué cooperativa opera** (no viene fija). 
+- **Ruteo del pedido:** cada pedido guarda su cooperativa; la **cola del administrador solo trae los pedidos de SU cooperativa**. Así, si pides en la UTC más cercana a ti, ese pedido llega a esa cocina y no a otra.
+- La lista de cooperativas es hoy fija en la app (mismas para cliente y admin); a futuro llega de un `GET /branches`.
 
 ### 3.13. Menú inicial de la cooperativa
 

@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { View, ScrollView, Pressable, TextInput } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Store, Gauge } from 'lucide-react-native';
+import { ArrowLeft, Store, Gauge, MapPin, Navigation } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AdminStackParamList } from '../../../app/navigation/types';
 import { Heading, Title, Body, Label, Mono } from '../../../shared/ui/Type';
@@ -9,6 +9,9 @@ import { QtyStepper } from '../../../shared/ui/QtyStepper';
 import { colors, text, surface, border, shadow, fonts } from '../../../shared/theme';
 import { useSettingsStore } from '../../../features/admin/model/settings.store';
 import { useSessionStore } from '../../../features/auth/model/session.store';
+import { useBranchStore } from '../../../features/branch/model/branch.store';
+import { useBranchLocation } from '../../../features/branch/lib/useBranchLocation';
+import { BranchPicker } from '../../../widgets/branch/BranchPicker';
 import {
   fetchCongestionThresholds,
   updateCongestionThresholds,
@@ -35,6 +38,10 @@ export function PersonalizacionScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const s = useSettingsStore();
   const token = useSessionStore((st) => st.session?.accessToken);
+  // §3.12: la cooperativa del admin se detecta por geolocalización (misma lista que el cliente).
+  const branch = useBranchStore((st) => st.selected);
+  const { status: locStatus, locate } = useBranchLocation(true);
+  const [branchOpen, setBranchOpen] = useState(false);
 
   // G2: los umbrales viven server-side (app_settings). Los cargamos al abrir.
   useEffect(() => {
@@ -75,8 +82,26 @@ export function PersonalizacionScreen({ navigation }: Props) {
             <Store size={19} color={colors.azul[600]} />
             <Title style={{ fontSize: 16 }}>Cooperativa</Title>
           </View>
-          <Field label="Nombre" value={s.branchName} onChangeText={(v) => s.set({ branchName: v })} />
-          <Field label="Dirección" value={s.address} onChangeText={(v) => s.set({ address: v })} />
+          <View style={{ marginTop: 12, borderRadius: 12, borderWidth: 1, borderColor: border.subtle, padding: 12, backgroundColor: surface.page }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <MapPin size={16} color={colors.naranja[500]} />
+              <Title style={{ fontSize: 15 }}>
+                {branch?.name ?? (locStatus === 'loading' ? 'Detectando…' : 'Sin cooperativa')}
+              </Title>
+            </View>
+            <Body color={text.muted} style={{ fontSize: 12.5, marginTop: 3 }}>
+              {branch?.address ?? 'Detecta tu ubicación o elígela a mano. Los pedidos de esta cooperativa llegan a tu cola.'}
+            </Body>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+              <Pressable onPress={() => void locate()} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 40, borderRadius: 10, backgroundColor: colors.azul[700] }}>
+                <Navigation size={15} color="#fff" />
+                <Body color="#fff" style={{ fontSize: 13, fontFamily: fonts.bodySemi }}>Usar mi ubicación</Body>
+              </Pressable>
+              <Pressable onPress={() => setBranchOpen(true)} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', height: 40, borderRadius: 10, borderWidth: 1, borderColor: border.default }}>
+                <Body color={text.heading} style={{ fontSize: 13, fontFamily: fonts.bodySemi }}>Elegir a mano</Body>
+              </Pressable>
+            </View>
+          </View>
           <Field label="Horario de servicio" value={s.schedule} onChangeText={(v) => s.set({ schedule: v })} />
         </View>
 
@@ -125,6 +150,14 @@ export function PersonalizacionScreen({ navigation }: Props) {
           Los cambios se guardan solos.
         </Body>
       </ScrollView>
+
+      <BranchPicker
+        visible={branchOpen}
+        onClose={() => setBranchOpen(false)}
+        locating={locStatus === 'loading'}
+        denied={locStatus === 'denied'}
+        onUseLocation={() => void locate()}
+      />
     </SafeAreaView>
   );
 }

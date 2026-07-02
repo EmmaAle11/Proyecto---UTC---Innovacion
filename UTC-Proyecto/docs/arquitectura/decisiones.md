@@ -213,7 +213,7 @@ Registro único y canónico de decisiones (estilo ADR ligero). Para añadir una 
 - Fecha: 2026-07-02 · Estado: vigente.
 - Contexto: la Propuesta prometía "qué se vende más y a qué hora pega el pico" y una ventana de recogida de 10–20 min. No existían métricas y `pickup_deadline` se guardaba pero nunca se leía (el paso a `not_picked_up` era manual).
 - Decisión:
-  - **F5:** `GET /orders/metrics` **@Roles admin** → más vendidos (Σ cantidad, excluye cancelados) + hora pico (por `created_at`, hora del servidor); card "Inteligencia del negocio" en el dashboard.
+  - **F5:** `GET /orders/metrics` **@Roles admin** → más vendidos (Σ cantidad, excluye cancelados) + hora pico; card "Inteligencia del negocio" en el dashboard. **Corrección 2026-07-02:** la hora pico usa `created_at AT TIME ZONE 'America/Mexico_City'` (hora LOCAL de la cooperativa); sin eso, `timestamptz` daba la hora **UTC** (14:00 CDMX se veía como 20:00). Validado contra la BD (20 UTC → 14 CDMX).
   - **E6:** `expireOverdue()` marca `not_picked_up` los `ready` con `pickup_deadline < now()`; `OrderExpiryScheduler` lo barre cada 60 s (`setInterval` con `unref`, sin dependencia de scheduler). El dinero se mantiene cobrado (§3.10).
 - Verificación (§0/§22): backend `tsc` 0 + tests; SQL de métricas y de vencimiento validadas contra Postgres real.
 - Reflejo en docs (rule #24): círculo §3.1/§3.8; ejecución §6/§9.
@@ -260,3 +260,15 @@ Registro único y canónico de decisiones (estilo ADR ligero). Para añadir una 
 - Contexto: el `:3001` lo ocupa otro proyecto (`doxia-agent2`) en este equipo.
 - Decisión: default del backend **3002** en `backend/.env`, `.env.example`, `main.ts` (fallback), `frontend/src/shared/api/client.ts` (`BACKEND_PORT`) y el runbook `docs/Read/*`. Docker (Postgres 5433 / Keycloak 8082) sin cambios.
 - Verificación (§0): 0 referencias a 3001 en código; backend arranca en `:3002` (DI OK, rutas 401).
+
+## D-035 · Cooperativa por geolocalización + pedidos scopeados por cooperativa (§3.12)
+- Fecha: 2026-07-02 · Estado: vigente — **cierra un bug de ruteo** de D-032.
+- Contexto: (a) las sucursales tenían nombres "(demo)" y el cliente arrancaba con una **precargada**; (b) el admin tenía su cooperativa **hardcodeada** en otro store; (c) **`GET /orders/all` no filtraba por sucursal** → cualquier admin veía TODOS los pedidos ("pedir para una cooperativa y que responda otra").
+- Decisión:
+  - **Lista única** de cooperativas UTC (sin "(demo)") compartida por cliente y admin (mismos `id`), en `entities/branch`.
+  - **Cliente:** `branch.store.selected` arranca en **`null`** (nada precargado); al abrir, geolocaliza y asigna la **UTC más cercana**; si niega el permiso, elige a mano; **no se puede pedir sin cooperativa** (gate en el carrito).
+  - **Admin:** su cooperativa también por **geolocalización** (mismo `branch.store`); Personalización muestra la detectada + "Usar mi ubicación"/"Elegir a mano". Se eliminaron `branchName`/`address` hardcodeados del admin settings store.
+  - **Ruteo:** `GET /orders/all?branchId=` filtra `findAll` por `branch_id`; el Dashboard y la Cola del admin envían **su** `branchId` → el admin **solo** ve/atiende los pedidos de **su** cooperativa. Los pedidos ya llevaban `branch_id` (D-032).
+- Verificación (§0/§22): backend `tsc` 0 + 57 tests; frontend `tsc` 0; filtro `where: { branchId }` directo.
+- Nota: pedidos previos con `branch_id` de ids viejos (p. ej. `demo-roma`) no matchean las nuevas cooperativas → conviene truncar para la demo.
+- Reflejo en docs (rule #24): círculo §3.12; ejecución §10.

@@ -67,7 +67,9 @@ export function HomeScreen() {
             <Label>Recoges en</Label>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
               <MapPin size={16} color={colors.naranja[500]} />
-              <Heading style={{ fontSize: 18, lineHeight: 22 }}>{selectedBranch.name}</Heading>
+              <Heading style={{ fontSize: 18, lineHeight: 22 }}>
+                {selectedBranch?.name ?? (locStatus === 'loading' ? 'Detectando…' : 'Elige tu cooperativa')}
+              </Heading>
               {locStatus === 'loading' ? <ActivityIndicator size="small" color={text.muted} /> : <ChevronDown size={18} color={text.muted} />}
             </View>
           </Pressable>

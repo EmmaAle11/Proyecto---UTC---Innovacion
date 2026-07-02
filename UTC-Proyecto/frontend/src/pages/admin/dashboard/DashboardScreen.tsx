@@ -10,6 +10,8 @@ import { colors, text, surface, border, shadow, fonts } from '../../../shared/th
 import { useOrdersStore, selectSemaforo, selectKpis } from '../../../features/orders/model/orders.store';
 import { useSettingsStore } from '../../../features/admin/model/settings.store';
 import { useSessionStore } from '../../../features/auth/model/session.store';
+import { useBranchStore } from '../../../features/branch/model/branch.store';
+import { useBranchLocation } from '../../../features/branch/lib/useBranchLocation';
 import { fetchOrderMetrics, type OrderMetrics } from '../../../entities/order/api';
 import type { AdminTabsParamList } from '../../../app/navigation/types';
 
@@ -27,16 +29,19 @@ export function DashboardScreen() {
   const token = useSessionStore((s) => s.session?.accessToken);
   const yellow = useSettingsStore((s) => s.semaforoYellow);
   const red = useSettingsStore((s) => s.semaforoRed);
-  const branchName = useSettingsStore((s) => s.branchName);
+  // La cooperativa del admin se detecta por geolocalización (misma lista que el cliente, §3.12).
+  const selectedBranch = useBranchStore((s) => s.selected);
+  const { status: locStatus } = useBranchLocation(true);
+  const branchName = selectedBranch?.name ?? (locStatus === 'loading' ? 'Detectando…' : 'sin asignar');
   const [metrics, setMetrics] = useState<OrderMetrics | null>(null);
   useFocusEffect(
     useCallback(() => {
-      void loadAll(token);
+      void loadAll(token, selectedBranch?.id); // §3.12: solo la cola de ESTA cooperativa
       // F5: métricas del negocio (más vendido + hora pico), calculadas en el servidor.
       fetchOrderMetrics(token)
         .then(setMetrics)
         .catch(() => {});
-    }, [token, loadAll]),
+    }, [token, loadAll, selectedBranch?.id]),
   );
   const topProduct = metrics?.topProducts[0] ?? null;
   const peak = metrics?.peakHour ?? null;
