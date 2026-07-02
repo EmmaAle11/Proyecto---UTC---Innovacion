@@ -60,7 +60,7 @@ Todo lo que hará, **todo lo que hará UTC Pick Sazón** — juntando la idea or
 - Marca los pedidos como **listos**, y eso dispara el **aviso** al alumno (con su número de pedido).
 - Ve el **semáforo de congestión en vivo** según la cola (pedidos pendientes + en preparación + listos esperando): 🟢 **Verde (menos de 5)**, 🟡 **Amarillo (de 5 a 10)**, 🔴 **Rojo (más de 10)** — con el **número exacto** para leer cómo viene el recreo y, si hace falta, empujar el **pedido programado** para repartir la llegada. Ese mismo semáforo lo ve también el alumno (ver §3.14).
 - Aprovecha la **reoferta / "Pon tu precio"** para vender lo que ya está hecho antes de perderlo.
-- Con el tiempo, ve **qué se vende más y a qué hora pega el pico** (la app mide los tiempos reales de preparación) para comprar mejor y reforzar la hora pico.
+- Con el tiempo, ve **qué se vende más y a qué hora pega el pico** en el panel **"Inteligencia del negocio"** (ver §3.16), para comprar mejor y reforzar la hora fuerte.
 - Trabaja sobre **los mismos pedidos que el alumno**: lo que marca (En preparación, Listo, Entregado) le aparece al alumno al instante, y los pedidos que el alumno manda caen solos en su cola. Nadie ve cosas distintas.
 - Maneja su **cuenta**: puede **cerrar sesión** y ajustar opciones de **accesibilidad** (texto más grande, más contraste) y de **personalización** (su sucursal, los números del semáforo, su horario).
 
@@ -214,6 +214,16 @@ Aunque existan los turnos, en el recreo siempre habrá un montón de pedidos jun
 - **La cocina no se adelanta ni se atrasa:** el sistema calcula **cuándo empezar** (tu hora de recogida menos lo que tarda en prepararse) y **le avisa al negocio** justo cuando toca ponerse a cocinar. En el panel del admin ese pedido sube de prioridad y se marca con un **"⏰ Empezar ahora"**.
 - **No infla el semáforo antes de tiempo:** un pedido programado para dentro de un rato **no cuenta** en la cola hasta que **se abre su ventana** (cuando ya toca prepararlo, ~20 min antes de la recogida). Así el semáforo refleja lo que de verdad está pasando ahorita.
 - Igual que cualquier pedido, trae su **número** (ej. U-00001) y lo sigues en vivo hasta recogerlo.
+
+### 3.16. Inteligencia del negocio — el panel del administrador que dice qué comprar y cuándo
+
+En el **panel del administrador** (dashboard) hay una tarjeta **"Inteligencia del negocio"** con dos datos que ayudan a la cooperativa a comprar mejor y reforzar la hora fuerte. Los calcula el **servidor** sobre los pedidos reales (no el teléfono):
+
+- **Producto más vendido:** el que más **unidades** ha vendido, sumando las cantidades de todos los pedidos. **No** cuenta los pedidos **cancelados**. Sirve para no quedarse sin lo que más sale.
+- **Hora pico:** la **franja horaria del día con más pedidos** (p. ej. 14:00–15:00). Se mide en la **hora local de la cooperativa** (no en UTC), tampoco cuenta cancelados. Sirve para reforzar personal/insumos justo en ese rato.
+- **Quién lo ve:** solo el **administrador** (dato de gestión); el alumno no lo ve.
+
+Es distinto del **semáforo** (§3.14, congestión *ahorita*) y de los **tiempos promedio de preparación** (§3.7, cuánto tarda cada producto): esto es la **demanda histórica** (qué y cuándo se vende).
 
 ---
 

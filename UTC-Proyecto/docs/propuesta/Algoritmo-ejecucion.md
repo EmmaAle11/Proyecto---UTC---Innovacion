@@ -119,7 +119,13 @@ El cliente puede fijar la hora de recogida al momento de pagar. Reglas, validada
 14.- Número de pedido secuencial
 Cada pedido recibe un número correlativo legible al crearse (el primero es U-00001, luego U-00002, y así). Ese número es el código de recogida que ve el cliente y con el que el administrador identifica el pedido en su cola. Lo genera la base de datos, de forma única y en orden.
 
-15.- Cierre de la propuesta (estado 2026-07-02)
+15.- Inteligencia del negocio (panel del administrador)
+En el dashboard del administrador hay una tarjeta "Inteligencia del negocio" con dos indicadores que calcula el servidor sobre los pedidos reales (no el teléfono), solo para el admin:
+- Producto más vendido: el que suma más unidades vendidas en todos los pedidos; excluye los cancelados.
+- Hora pico: la franja horaria del día con más pedidos (ej. 14:00–15:00), medida en la hora local de la cooperativa (no UTC); excluye cancelados.
+Sirve para comprar mejor y reforzar la hora fuerte. Es distinto del semáforo (congestión ahorita, §12) y de los tiempos promedio de preparación (§7): esto es la demanda histórica (qué y cuándo se vende).
+
+16.- Cierre de la propuesta (estado 2026-07-02)
 Se completaron los detalles que faltaban para que la app haga TODO lo que dice la propuesta (decisiones D-027…D-034):
 - Buscador del menú funcional; estado "Calentando tu alimento" y "preparado hace X min" visibles al alumno.
 - La base de datos calcula el TIEMPO PROMEDIO de preparación (últimas 20 muestras; con menos de 3, usa el tiempo base) y la app lo usa para estimar.
