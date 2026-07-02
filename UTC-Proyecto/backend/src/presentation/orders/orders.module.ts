@@ -6,6 +6,7 @@ import { PaymentEntity } from '../../infrastructure/database/entities/payment.en
 import { ProductEntity } from '../../infrastructure/database/entities/product.entity';
 import { UserProfileEntity } from '../../infrastructure/database/entities/user-profile.entity';
 import { OrdersService } from '../../application/orders/orders.service';
+import { OrderExpiryScheduler } from '../../application/orders/order-expiry.scheduler';
 import { OrdersController } from './orders.controller';
 
 @Module({
@@ -19,6 +20,6 @@ import { OrdersController } from './orders.controller';
     ]),
   ],
   controllers: [OrdersController],
-  providers: [OrdersService],
+  providers: [OrdersService, OrderExpiryScheduler],
 })
 export class OrdersModule {}

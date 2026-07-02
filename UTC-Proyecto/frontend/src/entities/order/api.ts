@@ -74,6 +74,7 @@ export function toOrder(a: ApiOrder): AdminOrder {
     waitingMin: minutesSince(a.createdAt),
     payMethod: a.payment?.method ?? 'efectivo',
     payStatus: a.payment?.status ?? 'pending',
+    readyAt: a.readyAt,
     scheduledFor: a.scheduledFor,
     startBy: a.startBy,
   };
@@ -110,6 +111,52 @@ export interface ApiCongestion {
 /** GET /orders/congestion → semáforo global (el cliente lo ve sin acceder a pedidos ajenos). */
 export async function fetchCongestion(token?: string): Promise<ApiCongestion> {
   return getJson<ApiCongestion>('/orders/congestion', token);
+}
+
+/** Umbrales del semáforo, ajustables por el admin (G2/§3.14). */
+export interface CongestionThresholds {
+  yellow: number;
+  red: number;
+}
+
+/** GET /settings/congestion → umbrales actuales (cualquier usuario autenticado). */
+export async function fetchCongestionThresholds(
+  token?: string,
+): Promise<CongestionThresholds> {
+  return getJson<CongestionThresholds>('/settings/congestion', token);
+}
+
+/** PATCH /settings/congestion → ajusta los umbrales (admin). Persiste server-side. */
+export async function updateCongestionThresholds(
+  yellow: number,
+  red: number,
+  token?: string,
+): Promise<CongestionThresholds> {
+  return patchJson<CongestionThresholds>(
+    '/settings/congestion',
+    { yellow, red },
+    token,
+  );
+}
+
+/** Métricas del negocio para el admin (F5/§3.1): más vendido + hora pico. */
+export interface TopProduct {
+  productId: string;
+  name: string;
+  qty: number;
+}
+export interface PeakHour {
+  hour: number;
+  count: number;
+}
+export interface OrderMetrics {
+  topProducts: TopProduct[];
+  peakHour: PeakHour | null;
+}
+
+/** GET /orders/metrics → métricas (admin). */
+export async function fetchOrderMetrics(token?: string): Promise<OrderMetrics> {
+  return getJson<OrderMetrics>('/orders/metrics', token);
 }
 
 /** PATCH /orders/:id/status → transición de estado (admin, BR-004 la valida el backend). */

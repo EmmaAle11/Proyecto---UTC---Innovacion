@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { View, ScrollView, Pressable, TextInput } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Store, Gauge } from 'lucide-react-native';
@@ -7,6 +8,11 @@ import { Heading, Title, Body, Label, Mono } from '../../../shared/ui/Type';
 import { QtyStepper } from '../../../shared/ui/QtyStepper';
 import { colors, text, surface, border, shadow, fonts } from '../../../shared/theme';
 import { useSettingsStore } from '../../../features/admin/model/settings.store';
+import { useSessionStore } from '../../../features/auth/model/session.store';
+import {
+  fetchCongestionThresholds,
+  updateCongestionThresholds,
+} from '../../../entities/order/api';
 
 type Props = NativeStackScreenProps<AdminStackParamList, 'Personalizacion'>;
 
@@ -28,6 +34,21 @@ function Field({ label, value, onChangeText }: { label: string; value: string; o
 export function PersonalizacionScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const s = useSettingsStore();
+  const token = useSessionStore((st) => st.session?.accessToken);
+
+  // G2: los umbrales viven server-side (app_settings). Los cargamos al abrir.
+  useEffect(() => {
+    fetchCongestionThresholds(token)
+      .then((t) => s.set({ semaforoYellow: t.yellow, semaforoRed: t.red }))
+      .catch(() => {}); // si falla la red, se queda con lo que hay en el store
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  // Persiste el ajuste en el backend (así el semáforo del ALUMNO también cambia).
+  const saveThresholds = (yellow: number, red: number) => {
+    s.set({ semaforoYellow: yellow, semaforoRed: red });
+    void updateCongestionThresholds(yellow, red, token).catch(() => {});
+  };
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: surface.page }}>
@@ -66,7 +87,7 @@ export function PersonalizacionScreen({ navigation }: Props) {
             <Title style={{ fontSize: 16 }}>Umbrales del semáforo</Title>
           </View>
           <Body color={text.muted} style={{ fontSize: 12.5, marginTop: 6, lineHeight: 18 }}>
-            Define cuántos pedidos en cola hacen cambiar el color. El Dashboard lo aplica al instante (D-019).
+            Define cuántos pedidos en cola hacen cambiar el color. Se guarda en el servidor: lo ven al instante tu Dashboard y también el semáforo del alumno (§3.14).
           </Body>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
@@ -74,7 +95,7 @@ export function PersonalizacionScreen({ navigation }: Props) {
               <View style={{ width: 11, height: 11, borderRadius: 6, backgroundColor: colors.mango[400] }} />
               <Body style={{ fontSize: 14, fontFamily: fonts.bodySemi }}>Pasa a Amarillo en</Body>
             </View>
-            <QtyStepper value={s.semaforoYellow} min={1} max={s.semaforoRed - 1} size="sm" onChange={(v) => s.set({ semaforoYellow: v })} />
+            <QtyStepper value={s.semaforoYellow} min={1} max={s.semaforoRed - 1} size="sm" onChange={(v) => saveThresholds(v, s.semaforoRed)} />
           </View>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 }}>
@@ -82,7 +103,7 @@ export function PersonalizacionScreen({ navigation }: Props) {
               <View style={{ width: 11, height: 11, borderRadius: 6, backgroundColor: colors.rojo[500] }} />
               <Body style={{ fontSize: 14, fontFamily: fonts.bodySemi }}>Pasa a Rojo al superar</Body>
             </View>
-            <QtyStepper value={s.semaforoRed} min={s.semaforoYellow + 1} max={50} size="sm" onChange={(v) => s.set({ semaforoRed: v })} />
+            <QtyStepper value={s.semaforoRed} min={s.semaforoYellow + 1} max={50} size="sm" onChange={(v) => saveThresholds(s.semaforoYellow, v)} />
           </View>
 
           {/* Vista previa */}

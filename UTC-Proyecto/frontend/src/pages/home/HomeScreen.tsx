@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { View, ScrollView, Pressable, ActivityIndicator, TextInput, Platform, type TextStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, MapPin, Zap, ShoppingBag, ArrowRight, Plus, ChevronDown } from 'lucide-react-native';
 import { LogoSymbol } from '../../shared/ui/LogoSymbol';
@@ -25,9 +25,14 @@ import type { MainStackParamList } from '../../app/navigation/types';
  * editorial + rail "Listos para llevar ya" + chips + feed. Precios en Space Mono
  * (aire de ticket). La barra flotante aparece al agregar al carrito.
  */
+// Quita el anillo de foco del navegador en web (react-native-web); en nativo no aplica.
+const WEB_NO_OUTLINE: TextStyle | undefined =
+  Platform.OS === 'web' ? ({ outlineStyle: 'none' } as unknown as TextStyle) : undefined;
+
 export function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const [cat, setCat] = useState('Todo');
+  const [query, setQuery] = useState('');
   const items = useCartStore((s) => s.items);
   const count = selectCount(items);
   const total = selectTotal(items);
@@ -47,7 +52,10 @@ export function HomeScreen() {
 
   const available = products.filter((p) => p.isAvailable && p.status !== 'no_disponible');
   const ready = available.filter((p) => p.status === 'sin_tiempo_espera' || p.status === 'preparado');
-  const list = cat === 'Todo' ? available : available.filter((p) => p.category === cat);
+  const q = query.trim().toLowerCase();
+  const byCat = cat === 'Todo' ? available : available.filter((p) => p.category === cat);
+  // Buscador (B3): filtra el feed por nombre; si hay texto, manda sobre la categoría.
+  const list = q ? available.filter((p) => p.name.toLowerCase().includes(q)) : byCat;
   const categories = ['Todo', ...Array.from(new Set(available.map((p) => p.category)))];
 
   return (
@@ -74,11 +82,24 @@ export function HomeScreen() {
           <View style={{ width: 58, height: 6, borderRadius: 3, backgroundColor: colors.naranja[500], marginTop: 10 }} />
         </View>
 
-        {/* búsqueda (visual, no funcional aún) */}
+        {/* búsqueda (B3, funcional): filtra el feed por nombre en vivo */}
         <View style={{ paddingHorizontal: 20, paddingTop: 14 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, height: 48, paddingHorizontal: 14, backgroundColor: colors.gris[100], borderRadius: 14 }}>
             <Search size={18} color={text.muted} />
-            <Body color={text.muted} style={{ fontSize: 15 }}>Busca tu antojo…</Body>
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Busca tu antojo…"
+              placeholderTextColor={colors.gris[500]}
+              autoCapitalize="none"
+              returnKeyType="search"
+              style={[{ flex: 1, fontSize: 15, color: text.heading, fontFamily: fonts.body }, WEB_NO_OUTLINE]}
+            />
+            {query.length > 0 ? (
+              <Pressable onPress={() => setQuery('')} hitSlop={8}>
+                <Body color={text.muted} style={{ fontSize: 13, fontFamily: fonts.bodySemi }}>Limpiar</Body>
+              </Pressable>
+            ) : null}
           </View>
         </View>
 
@@ -141,6 +162,11 @@ export function HomeScreen() {
 
         {/* FEED */}
         <View style={{ gap: 12, paddingHorizontal: 20 }}>
+          {list.length === 0 && q ? (
+            <Body color={text.muted} style={{ textAlign: 'center', paddingVertical: 24 }}>
+              Sin resultados para “{query.trim()}”.
+            </Body>
+          ) : null}
           {list.map((p) => {
             const Icon = productIcon(p.icon);
             return (
@@ -152,7 +178,9 @@ export function HomeScreen() {
                     {p.popular ? <Body style={{ fontSize: 12 }}>🔥</Body> : null}
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                    {p.status === 'sin_tiempo_espera' || p.status === 'preparado' ? (
+                    {p.status === 'calentando' ? (
+                      <Body color={colors.mango[600]} style={{ fontSize: 12, fontFamily: fonts.bodySemi }}>🔥 Calentando tu alimento</Body>
+                    ) : p.status === 'sin_tiempo_espera' || p.status === 'preparado' ? (
                       <Body color={colors.lima[600]} style={{ fontSize: 12, fontFamily: fonts.bodySemi }}>Listo · sin espera</Body>
                     ) : (
                       <Body color={text.muted} style={{ fontSize: 12 }}>⏱ {Math.round(p.basePrepTimeSeconds / 60)} min de espera</Body>

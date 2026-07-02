@@ -45,6 +45,8 @@ function buildService(opts: {
   products?: AnyProduct[];
   order?: unknown;
   queueCount?: number;
+  prepAverages?: { productId: string; avg: number }[];
+  thresholds?: { congestionYellow: number; congestionRed: number };
 }) {
   const orderSave = jest.fn((o: unknown) =>
     Promise.resolve({ ...(o as object), id: 'order-1' }),
@@ -104,10 +106,19 @@ function buildService(opts: {
       create: jest.fn((x: unknown) => x),
       save: prepSave,
     },
+    // G2: umbrales del semáforo (fila única). Defaults 5/10 para el test de congestión.
+    AppSettingsEntity: {
+      findOne: jest.fn().mockResolvedValue(
+        opts.thresholds ?? { congestionYellow: 5, congestionRed: 10 },
+      ),
+    },
   };
   const getRepository = (e: { name: string }) => repos[e.name];
+  // J5: promedio de prep times. Por defecto sin muestras → create usa el tiempo base.
+  const query = jest.fn().mockResolvedValue(opts.prepAverages ?? []);
   const dataSource = {
     getRepository,
+    query,
     transaction: (
       cb: (m: { getRepository: typeof getRepository }) => unknown,
     ) => cb({ getRepository }),
@@ -166,6 +177,33 @@ describe('OrdersService.create', () => {
         }),
       ]),
     );
+  });
+
+  it('J5: usa el PROMEDIO real de preparación cuando hay muestras; si no, el tiempo base', async () => {
+    const { service, itemSave } = buildService({
+      profile: PROFILE,
+      products: [
+        product('p1', '38.00', { basePrepTimeSeconds: 600 }),
+        product('p2', '65.00', { basePrepTimeSeconds: 900 }),
+      ],
+      prepAverages: [{ productId: 'p1', avg: 420 }], // p1 con historial; p2 sin
+    });
+    await service.create(
+      {
+        items: [
+          { productId: 'p1', quantity: 1 },
+          { productId: 'p2', quantity: 1 },
+        ],
+        payMethod: PaymentMethod.TDC,
+      },
+      USER,
+    );
+    const lines = itemSave.mock.calls[0][0] as {
+      product: { id: string };
+      prepTimeSeconds: number;
+    }[];
+    expect(lines.find((l) => l.product.id === 'p1')?.prepTimeSeconds).toBe(420);
+    expect(lines.find((l) => l.product.id === 'p2')?.prepTimeSeconds).toBe(900);
   });
 
   it('efectivo deja el pago en pending (BR-009)', async () => {
@@ -416,6 +454,15 @@ describe('OrdersService.cancelOwn / extendOwn (cliente)', () => {
     const out = await service.cancelOwn('o1', USER);
     expect(out.status).toBe(OrderStatus.CANCELLED);
     expect(orderSave).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancela un pedido propio listo (ready) que no se recogió → cancelled (§3.9)', async () => {
+    const { service } = buildService({
+      profile: PROFILE,
+      order: { id: 'o1', status: OrderStatus.READY },
+    });
+    const out = await service.cancelOwn('o1', USER);
+    expect(out.status).toBe(OrderStatus.CANCELLED);
   });
 
   it('no cancela un pedido en preparación → BadRequest (§5), no persiste', async () => {

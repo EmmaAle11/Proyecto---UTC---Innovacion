@@ -1,15 +1,16 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { View, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import { ClipboardList, ArrowRight, TrendingUp, ShoppingBag, CheckCircle2, UtensilsCrossed } from 'lucide-react-native';
+import { ClipboardList, ArrowRight, TrendingUp, ShoppingBag, CheckCircle2, UtensilsCrossed, Trophy, Clock } from 'lucide-react-native';
 import { Display, Heading, Title, Body, Label, Mono } from '../../../shared/ui/Type';
 import { LogoSymbol } from '../../../shared/ui/LogoSymbol';
 import { colors, text, surface, border, shadow, fonts } from '../../../shared/theme';
 import { useOrdersStore, selectSemaforo, selectKpis } from '../../../features/orders/model/orders.store';
 import { useSettingsStore } from '../../../features/admin/model/settings.store';
 import { useSessionStore } from '../../../features/auth/model/session.store';
+import { fetchOrderMetrics, type OrderMetrics } from '../../../entities/order/api';
 import type { AdminTabsParamList } from '../../../app/navigation/types';
 
 const SEM = {
@@ -27,11 +28,18 @@ export function DashboardScreen() {
   const yellow = useSettingsStore((s) => s.semaforoYellow);
   const red = useSettingsStore((s) => s.semaforoRed);
   const branchName = useSettingsStore((s) => s.branchName);
+  const [metrics, setMetrics] = useState<OrderMetrics | null>(null);
   useFocusEffect(
     useCallback(() => {
       void loadAll(token);
+      // F5: métricas del negocio (más vendido + hora pico), calculadas en el servidor.
+      fetchOrderMetrics(token)
+        .then(setMetrics)
+        .catch(() => {});
     }, [token, loadAll]),
   );
+  const topProduct = metrics?.topProducts[0] ?? null;
+  const peak = metrics?.peakHour ?? null;
   const sem = selectSemaforo(orders, yellow, red);
   const kpi = selectKpis(orders);
   const s = SEM[sem.level];
@@ -97,6 +105,50 @@ export function DashboardScreen() {
           <KpiCard icon={<ShoppingBag size={18} color={colors.naranja[500]} />} value={`${kpi.pedidos}`} label="Pedidos hoy" />
           <KpiCard icon={<TrendingUp size={18} color={colors.lima[600]} />} value={`$${kpi.ingresos}`} label="Ingresos" />
           <KpiCard icon={<CheckCircle2 size={18} color={colors.azul[500]} />} value={`${kpi.entregados}`} label="Entregados" />
+        </View>
+
+        {/* INTELIGENCIA DEL NEGOCIO (F5): más vendido + hora pico */}
+        <View style={{ marginTop: 18, backgroundColor: surface.card, borderRadius: 18, borderWidth: 1, borderColor: border.subtle, padding: 16, ...shadow.card }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 4 }}>
+            <TrendingUp size={18} color={colors.azul[600]} />
+            <Title style={{ fontSize: 16 }}>Inteligencia del negocio</Title>
+          </View>
+          <Body color={text.muted} style={{ fontSize: 12, marginBottom: 12 }}>
+            Para comprar mejor y reforzar la hora pico.
+          </Body>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.mango[50], alignItems: 'center', justifyContent: 'center' }}>
+              <Trophy size={20} color={colors.mango[600]} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Label>Más vendido</Label>
+              <Title style={{ fontSize: 15 }} numberOfLines={1}>{topProduct ? topProduct.name : 'Aún sin ventas'}</Title>
+            </View>
+            {topProduct ? (
+              <Mono style={{ fontFamily: fonts.monoBold, fontSize: 15 }} color={colors.mango[600]}>{`${topProduct.qty}`}</Mono>
+            ) : null}
+          </View>
+
+          <View style={{ height: 1, backgroundColor: border.subtle, marginVertical: 12 }} />
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.azul[50], alignItems: 'center', justifyContent: 'center' }}>
+              <Clock size={20} color={colors.azul[600]} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Label>Hora pico</Label>
+              <Title style={{ fontSize: 15 }}>
+                {peak ? `${String(peak.hour).padStart(2, '0')}:00 – ${String((peak.hour + 1) % 24).padStart(2, '0')}:00` : 'Sin datos aún'}
+              </Title>
+            </View>
+            {peak ? (
+              <View style={{ alignItems: 'flex-end' }}>
+                <Mono style={{ fontFamily: fonts.monoBold, fontSize: 15 }} color={colors.azul[600]}>{`${peak.count}`}</Mono>
+                <Label style={{ fontSize: 9 }}>pedidos</Label>
+              </View>
+            ) : null}
+          </View>
         </View>
 
         {/* Acceso rápido a la cola */}

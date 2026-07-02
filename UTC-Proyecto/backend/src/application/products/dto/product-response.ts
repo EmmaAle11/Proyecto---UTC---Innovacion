@@ -20,6 +20,7 @@ export interface ProductResponse {
   status: ProductStatus;
   isAvailable: boolean;
   reofferPrice: number | null;
+  statusChangedAt: string; // ISO: desde cuándo está en su estado actual (B5, §3.7)
 }
 
 /** Mapea la entidad persistida al contrato de API (numeric `string` → `number`). */
@@ -38,5 +39,6 @@ export function toProductResponse(p: ProductEntity): ProductResponse {
     status: p.status,
     isAvailable: p.isAvailable,
     reofferPrice: p.reofferPrice === null ? null : Number(p.reofferPrice),
+    statusChangedAt: p.statusChangedAt.toISOString(),
   };
 }

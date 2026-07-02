@@ -69,7 +69,11 @@ export class ProductsService {
     if (dto.stock !== undefined) p.stock = dto.stock;
     if (dto.minStock !== undefined) p.minStock = dto.minStock;
     if (dto.maxStock !== undefined) p.maxStock = dto.maxStock ?? null;
-    if (dto.status !== undefined) p.status = dto.status;
+    // B5: al CAMBIAR de estado, reinicia el reloj "preparado hace X min".
+    if (dto.status !== undefined) {
+      if (dto.status !== p.status) p.statusChangedAt = new Date();
+      p.status = dto.status;
+    }
     if (dto.isAvailable !== undefined) p.isAvailable = dto.isAvailable;
     if (dto.reofferPrice !== undefined)
       p.reofferPrice =

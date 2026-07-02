@@ -57,6 +57,13 @@ export function TrackingScreen({ navigation }: Props) {
   const ready = order.status === 'ready' || order.status === 'ready_later';
   const done = order.status === 'picked_up';
   const failed = order.status === 'cancelled' || order.status === 'not_picked_up';
+  // §3.8: si lleva rato listo, avisamos y ofrecemos cancelar o extender.
+  const READY_NUDGE_MIN = 10;
+  const readySinceMin = order.readyAt
+    ? Math.max(0, Math.round((Date.now() - new Date(order.readyAt).getTime()) / 60000))
+    : null;
+  const nudge = order.status === 'ready' && readySinceMin !== null && readySinceMin >= READY_NUDGE_MIN;
+  const canCancel = order.status === 'pending' || order.status === 'ready' || order.status === 'ready_later';
 
   const onCancel = () => {
     Alert.alert('Cancelar pedido', '¿Seguro que quieres cancelar tu pedido?', [
@@ -127,12 +134,36 @@ export function TrackingScreen({ navigation }: Props) {
           </View>
         ) : null}
 
-        {/* AVISO de ventana de recogida */}
-        {ready ? (
+        {/* PROMPT §3.8: lleva rato listo → ofrece cancelar o extender (ambos juntos) */}
+        {nudge ? (
+          <View style={{ padding: space[4], backgroundColor: colors.mango[50], borderRadius: radius.lg, borderWidth: 1, borderColor: colors.mango[100] }}>
+            <View style={{ flexDirection: 'row', gap: space[3] }}>
+              <Timer size={22} color={colors.mango[600]} />
+              <View style={{ flex: 1 }}>
+                <Heading style={{ fontSize: 16, lineHeight: 20, marginBottom: 4 }} color={colors.mango[600]}>
+                  Tu pedido está listo desde hace {readySinceMin} min
+                </Heading>
+                <Body color={colors.mango[600]} style={{ fontSize: 13, lineHeight: 19 }}>
+                  ¿Deseas cancelar tu orden o extender tu tiempo para recogerla después?
+                </Body>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', gap: space[3], marginTop: space[3] }}>
+              <Pressable onPress={onCancel} style={{ flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: radius.md, borderWidth: 1, borderColor: colors.rojo[500] }}>
+                <Body color={colors.rojo[500]} style={{ fontSize: 14, fontFamily: fonts.bodySemi }}>Cancelar orden</Body>
+              </Pressable>
+              <Pressable onPress={onExtend} style={{ flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: radius.md, backgroundColor: colors.naranja[500] }}>
+                <Body color="#fff" style={{ fontSize: 14, fontFamily: fonts.bodySemi }}>Extender para después</Body>
+              </Pressable>
+            </View>
+          </View>
+        ) : ready ? (
           <View style={{ flexDirection: 'row', gap: space[3], padding: space[4], backgroundColor: state.ready.bg, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.lima[100] }}>
             <Timer size={22} color={colors.lima[600]} />
             <View style={{ flex: 1 }}>
-              <Heading style={{ fontSize: 16, lineHeight: 20, marginBottom: 4 }} color={colors.lima[600]}>Recoge en 10–20 min</Heading>
+              <Heading style={{ fontSize: 16, lineHeight: 20, marginBottom: 4 }} color={colors.lima[600]}>
+                {readySinceMin != null ? `Listo hace ${readySinceMin} min · recoge pronto` : 'Recoge en 10–20 min'}
+              </Heading>
               <Body color={colors.lima[600]} style={{ fontSize: 13, lineHeight: 19 }}>
                 Para que llegue calientito. Pasado ese tiempo podría volver a ofertarse como "Preparados".
               </Body>
@@ -142,15 +173,16 @@ export function TrackingScreen({ navigation }: Props) {
       </ScrollView>
 
       <View style={{ paddingHorizontal: space[5], paddingTop: space[4], paddingBottom: insets.bottom + space[2], backgroundColor: surface.card, borderTopWidth: 1, borderTopColor: border.subtle }}>
-        {/* Acciones del cliente sobre SU pedido (§3.8/§3.10) */}
-        {order.status === 'ready' ? (
+        {/* Acciones del cliente sobre SU pedido (§3.8/§3.10). Si el prompt "lleva rato
+            listo" ya está visible (nudge), no las duplicamos aquí. */}
+        {order.status === 'ready' && !nudge ? (
           <Pressable onPress={onExtend} style={{ alignItems: 'center', paddingVertical: 12, marginBottom: 2 }}>
             <Body color={colors.naranja[600]} style={{ fontSize: 14, fontFamily: fonts.bodySemi }}>
               Extender para recoger después
             </Body>
           </Pressable>
         ) : null}
-        {order.status === 'pending' ? (
+        {canCancel && !nudge ? (
           <Pressable onPress={onCancel} style={{ alignItems: 'center', paddingVertical: 12, marginBottom: 2 }}>
             <Body color={colors.rojo[500]} style={{ fontSize: 14, fontFamily: fonts.bodySemi }}>
               Cancelar pedido

@@ -21,6 +21,6 @@ async function bootstrap() {
   app.enableCors({
     origin: corsOrigin ? corsOrigin.split(',').map((o) => o.trim()) : true,
   });
-  await app.listen(process.env.PORT ?? 3000);
+  await app.listen(process.env.PORT ?? 3002);
 }
 void bootstrap();

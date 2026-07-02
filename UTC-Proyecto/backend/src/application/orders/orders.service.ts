@@ -10,7 +10,13 @@ import { PaymentEntity } from '../../infrastructure/database/entities/payment.en
 import { ProductEntity } from '../../infrastructure/database/entities/product.entity';
 import { UserProfileEntity } from '../../infrastructure/database/entities/user-profile.entity';
 import { PreparationTimeEntity } from '../../infrastructure/database/entities/preparation-time.entity';
+import { AppSettingsEntity } from '../../infrastructure/database/entities/app-settings.entity';
 import type { CongestionResponse } from './dto/order-response';
+import type {
+  OrderMetrics,
+  PeakHour,
+  TopProduct,
+} from './dto/order-metrics';
 import {
   OrderStatus,
   PaymentMethod,
@@ -62,6 +68,10 @@ const MIN_SCHEDULE_AHEAD_MS = 30 * 60 * 1000;
  * "abre": entra a la cola/semáforo y se avisa al negocio para empezar (spec #4).
  */
 const SCHEDULE_WINDOW_MIN = 20;
+
+/** Promedio de preparación (BR-007/J5): últimas N muestras; con menos de MIN → tiempo base. */
+const MAX_PREP_SAMPLES = 20;
+const MIN_PREP_SAMPLES = 3;
 
 /** Deriva nombre/apellido del correo institucional (perfiles creados sin registro previo). */
 function deriveName(email: string): { firstName: string; lastName: string } {
@@ -118,6 +128,8 @@ export class OrdersService {
   async create(dto: CreateOrderDto, user: JwtUser): Promise<OrderEntity> {
     const profile = await this.ensureProfile(user);
     const scheduledFor = this.validateSchedule(dto.scheduledFor); // spec #4
+    // J5: estimación adaptativa por el PROMEDIO real de preparación (fallback al base).
+    const avgPrep = await this.avgPrepByProduct(dto.items.map((i) => i.productId));
 
     const orderId = await this.dataSource.transaction(async (manager) => {
       const ids = dto.items.map((i) => i.productId);
@@ -147,7 +159,8 @@ export class OrdersService {
           quantity: i.quantity,
           unitPrice: unit.toFixed(2),
           subtotal: subtotal.toFixed(2),
-          prepTimeSeconds: product.basePrepTimeSeconds,
+          // J5: promedio real si hay muestras suficientes; si no, el tiempo base del producto.
+          prepTimeSeconds: avgPrep.get(product.id) ?? product.basePrepTimeSeconds,
         };
       });
       total = Math.round(total * 100) / 100;
@@ -241,6 +254,30 @@ export class OrdersService {
   }
 
   /**
+   * J5 (§2/§3.7, BR-007): promedio REAL de preparación por producto, con las últimas
+   * MAX_PREP_SAMPLES muestras de `preparation_times`. Un producto con menos de
+   * MIN_PREP_SAMPLES muestras NO aparece (el caller usa `basePrepTimeSeconds`).
+   * Devuelve Map productId → segundos (redondeado). Hora/estadística del servidor.
+   */
+  async avgPrepByProduct(productIds: string[]): Promise<Map<string, number>> {
+    if (productIds.length === 0) return new Map();
+    const rows = (await this.dataSource.query(
+      `SELECT product_id AS "productId", AVG(duration_seconds)::float AS "avg"
+         FROM (
+           SELECT product_id, duration_seconds,
+                  ROW_NUMBER() OVER (PARTITION BY product_id ORDER BY recorded_at DESC) AS rn
+             FROM preparation_times
+            WHERE product_id = ANY($1::uuid[])
+         ) t
+        WHERE rn <= ${MAX_PREP_SAMPLES}
+        GROUP BY product_id
+       HAVING COUNT(*) >= ${MIN_PREP_SAMPLES}`,
+      [productIds],
+    )) as { productId: string; avg: number }[];
+    return new Map(rows.map((r) => [r.productId, Math.round(r.avg)]));
+  }
+
+  /**
    * Registra el tiempo REAL de preparación por línea (BR-007), al pasar a "listo".
    * duration = ready_at − accepted_at (hora del servidor). Alimenta los promedios.
    */
@@ -271,6 +308,14 @@ export class OrdersService {
    * su hora de recogida, spec #4): antes de eso no inflan la congestión.
    */
   async congestion(): Promise<CongestionResponse> {
+    // G2: umbrales ajustables por el admin (fila única app_settings); fallback a los
+    // defaults si aún no existe. Así el semáforo del ALUMNO refleja el ajuste.
+    const settings = await this.dataSource
+      .getRepository(AppSettingsEntity)
+      .findOne({ where: { id: 1 } });
+    const yellow = settings?.congestionYellow ?? CONGESTION_YELLOW;
+    const red = settings?.congestionRed ?? CONGESTION_RED;
+
     const cutoff = new Date(Date.now() + SCHEDULE_WINDOW_MIN * 60 * 1000);
     const count = await this.dataSource
       .getRepository(OrderEntity)
@@ -280,28 +325,79 @@ export class OrdersService {
         cutoff,
       })
       .getCount();
-    const level =
-      count < CONGESTION_YELLOW
-        ? 'verde'
-        : count <= CONGESTION_RED
-          ? 'amarillo'
-          : 'rojo';
-    return { count, level, yellow: CONGESTION_YELLOW, red: CONGESTION_RED };
+    const level = count < yellow ? 'verde' : count <= red ? 'amarillo' : 'rojo';
+    return { count, level, yellow, red };
+  }
+
+  /**
+   * F5 (§3.1): métricas del negocio para el admin — qué se vende más (unidades por
+   * producto) y a qué hora pega el pico (hora del servidor). Excluye pedidos
+   * cancelados. Alimenta compras y refuerzo de la hora pico.
+   */
+  async metrics(): Promise<OrderMetrics> {
+    const topProducts = (await this.dataSource.query(
+      `SELECT p.id AS "productId", p.name AS "name", SUM(oi.quantity)::int AS "qty"
+         FROM order_items oi
+         JOIN orders o   ON o.id = oi.order_id
+         JOIN products p ON p.id = oi.product_id
+        WHERE o.status <> 'cancelled'
+        GROUP BY p.id, p.name
+        ORDER BY "qty" DESC
+        LIMIT 5`,
+    )) as TopProduct[];
+
+    const peaks = (await this.dataSource.query(
+      `SELECT EXTRACT(HOUR FROM created_at)::int AS "hour", COUNT(*)::int AS "count"
+         FROM orders
+        WHERE status <> 'cancelled'
+        GROUP BY "hour"
+        ORDER BY "count" DESC, "hour" ASC
+        LIMIT 1`,
+    )) as PeakHour[];
+
+    return { topProducts, peakHour: peaks[0] ?? null };
+  }
+
+  /**
+   * E6 (§3.8): vence la ventana de recogida. Un pedido `ready` cuyo `pickup_deadline`
+   * ya pasó se marca `not_picked_up` (el alimento queda para reoferta / manejo interno;
+   * el dinero se mantiene cobrado, §3.10). Lo llama el barredor periódico. Hora del
+   * servidor (`now()`). Devuelve cuántos pedidos venció.
+   */
+  async expireOverdue(): Promise<number> {
+    const res = await this.dataSource
+      .getRepository(OrderEntity)
+      .createQueryBuilder()
+      .update()
+      .set({ status: OrderStatus.NOT_PICKED_UP })
+      .where('status = :ready', { ready: OrderStatus.READY })
+      .andWhere('pickup_deadline IS NOT NULL')
+      .andWhere('pickup_deadline < now()')
+      .execute();
+    return res.affected ?? 0;
   }
 
   // Nota: cancelOwn/extendOwn NO reusan ALLOWED_TRANSITIONS (esa es la política del
-  // ADMIN). La del cliente es un subconjunto más estricto (§5): solo cancelar `pending`
-  // y extender `ready`; por eso la validación es explícita y separada a propósito.
+  // ADMIN). La del cliente es explícita y separada a propósito.
+
+  /** Estados desde los que el cliente puede cancelar su propio pedido (§3.8/§3.9):
+   *  antes de prepararse (`pending`) o cuando ya está listo pero no lo recogió
+   *  (`ready`/`ready_later`) — en ese caso el alimento queda para reoferta. NO se
+   *  cancela un pedido en preparación ni ya recogido/terminal. */
+  private static readonly CLIENT_CANCELLABLE: OrderStatus[] = [
+    OrderStatus.PENDING,
+    OrderStatus.READY,
+    OrderStatus.READY_LATER,
+  ];
 
   /**
-   * Cancela un pedido PROPIO (§3.8/§5: solo si aún no está en preparación → estado
-   * `pending`). Propiedad por JWT (BR-014). Una sola tabla (atómica).
+   * Cancela un pedido PROPIO (§3.8/§3.9). Propiedad por JWT (BR-014). Atómica.
    */
   async cancelOwn(id: string, user: JwtUser): Promise<OrderEntity> {
     const order = await this.findOwnedByUser(id, user);
-    if (order.status !== OrderStatus.PENDING) {
+    if (!OrdersService.CLIENT_CANCELLABLE.includes(order.status)) {
       throw new BadRequestException(
-        'Solo puedes cancelar un pedido que aún no está en preparación',
+        'Solo puedes cancelar un pedido pendiente o uno listo que aún no recogiste',
       );
     }
     order.status = OrderStatus.CANCELLED;

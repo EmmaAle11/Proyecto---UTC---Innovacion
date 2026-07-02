@@ -64,8 +64,12 @@ export function ProductScreen({ route, navigation }: Props) {
           <View style={{ width: 58, height: 6, borderRadius: 3, backgroundColor: colors.naranja[500], marginTop: 12 }} />
 
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 18, marginBottom: 18, flexWrap: 'wrap' }}>
-            {product.readySinceMin != null ? (
+            {product.status === 'calentando' ? (
+              <Badge tone="reoffer" dot>Calentando tu alimento</Badge>
+            ) : product.readySinceMin != null ? (
               <Badge tone="ready" dot>{`Listo hace ${product.readySinceMin} min`}</Badge>
+            ) : product.status === 'sin_tiempo_espera' || product.status === 'preparado' ? (
+              <Badge tone="ready" dot>Sin tiempo de espera</Badge>
             ) : (
               <Badge tone="cooking" dot>{`Se prepara en ~${prepMin} min`}</Badge>
             )}

@@ -162,17 +162,27 @@ export function trackerStep(status: OrderStatus): number {
 /** Estados terminales (no en curso) para separar "Activo" de "Historial" en el cliente. */
 export const TERMINAL_STATUSES: OrderStatus[] = ['picked_up', 'not_picked_up', 'cancelled'];
 
+/** Ventana del pedido programado (~20 min antes de recoger): igual que SCHEDULE_WINDOW_MIN del backend. */
+const SEMAFORO_WINDOW_MS = 20 * 60 * 1000;
+
 /**
  * Semáforo de congestión (D-019): cola = pending + preparing + ready.
  * Umbrales parametrizables (personalización del admin, D-021): Verde `< yellow`,
  * Amarillo `yellow..red`, Rojo `> red`.
+ * Un pedido PROGRAMADO no cuenta hasta que se abre su ventana (H4/§3.15): así el
+ * semáforo del admin coincide con el server-side y no se infla antes de tiempo.
  */
 export function selectSemaforo(
   orders: Order[],
   yellow = 5,
   red = 10,
+  now: number = Date.now(),
 ): { count: number; level: 'verde' | 'amarillo' | 'rojo' } {
-  const count = orders.filter((o) => QUEUE_STATUSES.includes(o.status)).length;
+  const count = orders.filter((o) => {
+    if (!QUEUE_STATUSES.includes(o.status)) return false;
+    if (o.scheduledFor && new Date(o.scheduledFor).getTime() > now + SEMAFORO_WINDOW_MS) return false;
+    return true;
+  }).length;
   const level = count < yellow ? 'verde' : count <= red ? 'amarillo' : 'rojo';
   return { count, level };
 }

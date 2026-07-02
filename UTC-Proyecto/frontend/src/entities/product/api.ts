@@ -20,7 +20,11 @@ export interface ApiProduct {
   status: ProductStatus;
   isAvailable: boolean;
   reofferPrice: number | null;
+  statusChangedAt: string;
 }
+
+/** Estados "preparados" para los que tiene sentido mostrar "preparado hace X min" (B5). */
+const PREPARED_STATUSES: ProductStatus[] = ['preparado', 'sin_tiempo_espera', 'calentando'];
 
 function toProduct(a: ApiProduct): Product {
   return {
@@ -31,7 +35,10 @@ function toProduct(a: ApiProduct): Product {
     basePrepTimeSeconds: a.basePrepTimeSeconds,
     status: a.status,
     isAvailable: a.isAvailable,
-    readySinceMin: null, // display-only; el cálculo real (ready_at) llega con orders
+    // B5 (§3.7): minutos desde que entró a su estado preparado (real, `status_changed_at`).
+    readySinceMin: PREPARED_STATUSES.includes(a.status)
+      ? Math.max(0, Math.round((Date.now() - new Date(a.statusChangedAt).getTime()) / 60000))
+      : null,
     description: a.description ?? '',
     imageUrl: a.imageUrl,
     icon: iconForProduct(a.name, a.category),

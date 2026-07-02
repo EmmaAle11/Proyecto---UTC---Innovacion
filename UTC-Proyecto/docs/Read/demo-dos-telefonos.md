@@ -11,7 +11,7 @@
 
 - El **APK (development build)** instalado en **los dos** teléfonos Android.
 - En la **Mac (host)**, los **4 servicios encendidos a la vez** (sección 4.3 del runbook):
-  1. Docker (Postgres + Keycloak) · 2. Backend `:3001` · 3. `cloudflared` · 4. Metro dev-client.
+  1. Docker (Postgres + Keycloak) · 2. Backend `:3002` · 3. `cloudflared` · 4. Metro dev-client.
 
 ```bash
 # 4) Metro (copia la URL que imprimió cloudflared en el paso 3)

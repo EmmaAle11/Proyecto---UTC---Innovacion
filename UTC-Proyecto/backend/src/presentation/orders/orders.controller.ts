@@ -13,6 +13,7 @@ import type { Request } from 'express';
 import { OrdersService } from '../../application/orders/orders.service';
 import { CreateOrderDto } from '../../application/orders/dto/create-order.dto';
 import { UpdateOrderStatusDto } from '../../application/orders/dto/update-order-status.dto';
+import type { OrderMetrics } from '../../application/orders/dto/order-metrics';
 import {
   OrderResponse,
   CongestionResponse,
@@ -65,6 +66,13 @@ export class OrdersController {
   @Get('congestion')
   congestion(): Promise<CongestionResponse> {
     return this.orders.congestion();
+  }
+
+  /** GET /orders/metrics → métricas del negocio (admin): más vendido + hora pico (F5). */
+  @Get('metrics')
+  @Roles('admin')
+  metrics(): Promise<OrderMetrics> {
+    return this.orders.metrics();
   }
 
   /** PATCH /orders/:id/status → transición de estado (admin, BR-004). */

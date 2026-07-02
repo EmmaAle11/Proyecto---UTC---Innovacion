@@ -2,7 +2,7 @@
 
 > Solo los comandos para **dejar todo corriendo**, en secuencia.
 > Requisitos previos: **Docker** corriendo + **Node 20**. Puertos de este equipo:
-> Postgres `5433`, Keycloak `8082`, backend `3001`.
+> Postgres `5433`, Keycloak `8082`, backend `3002`.
 
 ```txt
 Orden:   INFRA (Docker)  →  BACKEND (esquema + semilla + API)  →  FRONTEND (app)
@@ -18,13 +18,13 @@ docker compose up -d          # levanta Postgres + Keycloak
 docker compose ps             # esperar a que ambos estén "healthy"
 ```
 
-## 2) BACKEND — NestJS (:3001)
+## 2) BACKEND — NestJS (:3002)
 
 ```bash
 cd ../backend
 npm run migration:run         # crea el esquema (tablas + enums)   ← solo la 1ª vez
 docker exec -i utc_postgres psql -U UTC_PROJECT -d UTC_PROJECT_DB < ../infra/postgres/seed-demo.sql   # semilla: admin + 10 productos ← solo la 1ª vez
-npm run start:dev             # backend en :3001 (recarga sola al editar)
+npm run start:dev             # backend en :3002 (recarga sola al editar)
 ```
 
 ## 3) FRONTEND — Expo
@@ -48,8 +48,8 @@ sudo dpkg -i cloudflared-linux-amd64.deb
 ```
 
 ```bash
-# a) Exponer el backend (:3001) con una URL pública. En otra terminal:
-cloudflared tunnel --url http://localhost:3001    # imprime https://XXXX.trycloudflare.com
+# a) Exponer el backend (:3002) con una URL pública. En otra terminal:
+cloudflared tunnel --url http://localhost:3002    # imprime https://XXXX.trycloudflare.com
 
 # b) Arrancar Expo por túnel apuntando la app a esa URL pública:
 cd UTC-Proyecto/frontend
@@ -60,7 +60,7 @@ EXPO_PUBLIC_API_URL=https://XXXX.trycloudflare.com npm run tunnel   # = expo sta
 - Sin `EXPO_PUBLIC_API_URL`, en modo túnel la app derivaría el host de ngrok (no la PC)
   y **no** encontraría el backend.
 - El backend por túnel no necesita CORS para Expo Go (React Native no es navegador).
-- Alternativa con cuenta: **ngrok** (`ngrok http 3001`) tras registrarte y configurar el
+- Alternativa con cuenta: **ngrok** (`ngrok http 3002`) tras registrarte y configurar el
   authtoken; misma idea, pero cloudflared no pide cuenta.
 
 ---
@@ -136,11 +136,11 @@ por el túnel de cloudflared. Al abrir la app, en la Mac deben estar corriendo *
 # 1) Docker (Postgres + Keycloak)
 cd UTC-Proyecto/infra && docker compose up -d
 
-# 2) Backend :3001
+# 2) Backend :3002
 cd ../backend && npm run start:dev
 
 # 3) Túnel al backend (deja esta terminal abierta) → copia la URL que imprime
-cloudflared tunnel --url http://localhost:3001    # https://XXXX.trycloudflare.com
+cloudflared tunnel --url http://localhost:3002    # https://XXXX.trycloudflare.com
 
 # 4) Metro en modo dev-client + túnel, apuntando a esa URL
 cd ../frontend

@@ -58,6 +58,11 @@ export class ProductEntity {
   })
   status: ProductStatus;
 
+  // B5 (§3.7): cuándo entró al estado actual → "preparado hace X min". Lo fija el
+  // service al cambiar `status`; default now() para filas existentes/nuevas.
+  @Column('timestamptz', { name: 'status_changed_at', default: () => 'now()' })
+  statusChangedAt: Date;
+
   @Column('boolean', { name: 'is_available', default: true })
   isAvailable: boolean;
 

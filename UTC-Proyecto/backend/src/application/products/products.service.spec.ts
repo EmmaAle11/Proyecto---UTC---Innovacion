@@ -18,6 +18,7 @@ function aProduct(): ProductEntity {
     minStock: 0,
     maxStock: null,
     status: ProductStatus.CALENTANDO,
+    statusChangedAt: new Date(),
     isAvailable: true,
     reofferPrice: '24.00',
     items: [],

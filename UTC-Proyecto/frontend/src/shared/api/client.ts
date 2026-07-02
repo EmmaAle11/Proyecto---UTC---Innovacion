@@ -1,13 +1,13 @@
 import Constants from 'expo-constants';
 
-// El backend NestJS corre en la máquina de desarrollo en el puerto 3001.
+// El backend NestJS corre en la máquina de desarrollo en el puerto 3002.
 // En Expo Go (teléfono físico) 'localhost' apunta al teléfono, no a la PC →
 // derivamos la IP del host del dev server de Expo (Constants.expoConfig.hostUri).
-const BACKEND_PORT = 3001;
+const BACKEND_PORT = 3002;
 
 function resolveBaseUrl(): string {
   // 1) Override por variable de entorno (ideal en modo --tunnel): EXPO_PUBLIC_API_URL.
-  //    Ej.: EXPO_PUBLIC_API_URL=http://192.168.1.81:3001 npx expo start --tunnel
+  //    Ej.: EXPO_PUBLIC_API_URL=http://192.168.1.81:3002 npx expo start --tunnel
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
   if (envUrl) return envUrl;
   // 2) Override por app.json / EAS (https://… en prod).
