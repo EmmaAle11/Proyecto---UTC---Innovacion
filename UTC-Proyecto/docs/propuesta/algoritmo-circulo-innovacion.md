@@ -22,13 +22,13 @@
 
 Crear una aplicación web/móvil amigable (p. ej. con Expo Go o framework similar) para una empresa tipo **dark kitchen** que permita pagos con tarjeta. La empresa mantiene un **mínimo y máximo** de productos con la etiqueta **"Preparados"**.
 
-- Pagos con tarjeta mediante plataformas como **PayPal** y **Mercado Pago**.
+- Pagos con tarjeta mediante plataformas como **PayPal** y **Mercado Pago** *(en esta versión el cobro es **simulado**; integración real diferida — ver §3.17)*.
 - La aplicación se enfoca **únicamente en la compra** de productos — **no** es un sistema de envíos.
 - Funciona bajo modalidad **Pick Up**: recoger en tienda.
 - Cada producto indica un **tiempo de espera** preestablecido.
 - **PostgreSQL** para almacenar información y calcular **tiempos promedio** de preparación.
 - Campos mínimos indispensables con estructura primaria usando **Primary Key** y **Foreign Key**.
-- **Pop-ups** y **notificaciones push** sobre el estado de preparación del pedido.
+- **Pop-ups** y **notificaciones** sobre el estado de preparación del pedido *(notificaciones **locales** del sistema, disparadas por la app al detectar el cambio — no push remota con la app cerrada; detalle y alcance en §3.4)*.
 - Una vez listo, el pedido debe recogerse en ~**10 a 20 minutos**; de lo contrario podrá volver a ofertarse con la tag "Preparados".
 - Estados de producto: *por preparar* (con tiempo estimado de espera) y *preparado* (listo para recoger).
 - Mostrar **cuánto tiempo lleva preparado** cada producto.
@@ -61,7 +61,7 @@ Todo lo que hará, **todo lo que hará UTC Pick Sazón** — juntando la idea or
 - Ve el **semáforo de congestión en vivo** según la cola (pedidos pendientes + en preparación + listos esperando): 🟢 **Verde (menos de 5)**, 🟡 **Amarillo (de 5 a 10)**, 🔴 **Rojo (más de 10)** — con el **número exacto** para leer cómo viene el recreo y, si hace falta, empujar el **pedido programado** para repartir la llegada. Ese mismo semáforo lo ve también el alumno (ver §3.14).
 - Aprovecha la **reoferta / "Pon tu precio"** para vender lo que ya está hecho antes de perderlo.
 - Con el tiempo, ve **qué se vende más y a qué hora pega el pico** en el panel **"Inteligencia del negocio"** (ver §3.16), para comprar mejor y reforzar la hora fuerte.
-- Trabaja sobre **los mismos pedidos que el alumno**: lo que marca (En preparación, Listo, Entregado) le aparece al alumno al instante, y los pedidos que el alumno manda caen solos en su cola. Nadie ve cosas distintas.
+- Trabaja sobre **los mismos pedidos que el alumno**: lo que marca (En preparación, Listo, Entregado) le aparece al alumno **en segundos** (la app **sondea** el servidor cada ~15 s y al reenfocar la pantalla; no es push en tiempo real), y los pedidos que el alumno manda caen solos en su cola. Nadie ve cosas distintas.
 - Maneja su **cuenta**: puede **cerrar sesión** y ajustar opciones de **accesibilidad** (texto más grande, más contraste) y de **personalización** (su sucursal, los números del semáforo, su horario).
 
 En una frase: **pides desde tu lugar, te avisan con tu turno y recoges sin fila** — y la cooperativa cocina con orden y vende mejor.
@@ -134,6 +134,8 @@ La cooperativa mantiene un **mínimo y máximo** de productos con etiqueta "Prep
 
 El sistema también muestra **cuánto tiempo lleva preparado** cada producto, para que el administrador decida sobre su venta, reoferta o cambio de estado.
 
+> **Estado actual (honesto):** el **mínimo/máximo de stock** son **campos que el admin edita** por producto (se guardan y se validan: `max ≥ min`), pero **no hay gestión automática** todavía (no se descuenta el stock al pedir ni saltan alertas de bajo stock). Sirven como parámetro/etiqueta; la automatización queda como trabajo futuro. Lo que sí es funcional: la etiqueta "Preparado | Sin tiempo de espera", el "hace X min preparado", el cambio de estado y la **reoferta** (§3.11).
+
 ### 3.8. Caso: alumno no recoge su pedido
 
 - El sistema considera que la orden estará lista en un **máximo aproximado de 10 a 15 minutos**.
@@ -157,7 +159,7 @@ Si el alimento lleva demasiado tiempo preparado, el indicador deja de mostrarse 
 
 - Si elige recoger después, el pedido queda marcado como **Listo para recoger después**.
 - El alumno podrá recogerlo dentro del **horario disponible del mismo día**.
-- Si al final del día no lo recoge, el **dinero se mantiene cobrado** y el alimento queda para manejo interno del local.
+- Si al final del día no lo recoge, el pedido pasa a **No recogido** y el alimento queda para manejo interno del local. Sobre el dinero: si pagó con **tarjeta/online** ya está **cobrado** (pago simulado en esta versión); si eligió **efectivo**, no se cobró (el pago queda **pendiente**, porque el efectivo se cobra al entregar).
 
 ### 3.11. Reoferta y precio dinámico
 

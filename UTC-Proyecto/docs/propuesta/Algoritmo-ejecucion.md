@@ -68,13 +68,13 @@ UTC-Proyecto/
 - Ver el semáforo de congestión en vivo: menos de 5 = Verde, de 5 a 10 = Amarillo, más de 10 = Rojo (parámetros y visibilidad en §12).
 - Manejar la reoferta / "Pon tu precio" para vender lo que ya está hecho.
 - Cerrar sesión y ajustar su cuenta: accesibilidad (texto grande, alto contraste, reducir movimiento) y personalización funcional (nombre y horario de la cooperativa, y los umbrales del semáforo, que cambian el color de la cola al instante).
-- Los pedidos son los mismos para el administrador y para el alumno: lo que el administrador marca le aparece al alumno al instante, y los pedidos que el alumno envía entran solos a esta cola.
+- Los pedidos son los mismos para el administrador y para el alumno: lo que el administrador marca le aparece al alumno en segundos (la app sondea el servidor cada ~15 s y al reenfocar; no es push en tiempo real), y los pedidos que el alumno envía entran solos a esta cola.
 
 7.- Conectar todo con la base de datos:
 - Guardar productos, pedidos, pagos y tiempos en PostgreSQL (las 6 tablas).
 - Que el backend valide quién es quién (alumno o administrador) con Keycloak + JWT antes de dejar hacer nada.
 
-8.- Sumar las funciones que de verdad descongestionan: número de pedido secuencial (U-00001), pedido programado (ver §13) y el semáforo, más las notificaciones de "tu pedido está listo" (llegan tanto en el teléfono como en el navegador).
+8.- Sumar las funciones que de verdad descongestionan: número de pedido secuencial (U-00001), pedido programado (ver §13) y el semáforo, más las notificaciones de "tu pedido está listo" (llegan tanto en el teléfono como en el navegador; son avisos LOCALES del sistema que dispara la propia app al detectar el cambio, no push remota con la app cerrada).
 
 9.- Probar con alumnos reales, corregir lo que confunda y dejar todo listo para la demo a la cooperativa. Tras el arranque se le da un periodo de adopción de 1 mes: si en ese mes una buena parte de los alumnos ya pide por la app y baja la congestión del recreo, se considera un éxito y se amplía.
 
