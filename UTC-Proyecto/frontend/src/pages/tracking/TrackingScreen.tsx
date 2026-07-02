@@ -1,5 +1,7 @@
+import { useCallback } from 'react';
 import { View, ScrollView, Pressable, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { ChefHat, CircleCheckBig, Timer, PackageCheck, Receipt, CircleSlash } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { MainStackParamList } from '../../app/navigation/types';
@@ -22,7 +24,16 @@ export function TrackingScreen({ navigation }: Props) {
   const order = useOrdersStore((s) => s.orders.find((o) => o.id === s.activeOrderId));
   const cancelMine = useOrdersStore((s) => s.cancelMine);
   const extendMine = useOrdersStore((s) => s.extendMine);
+  const loadMine = useOrdersStore((s) => s.loadMine);
   const token = useSessionStore((s) => s.session?.accessToken);
+
+  // Trae el estado real al abrir/volver a esta pantalla (además del sondeo de fondo cada 15 s).
+  // Sin esto, el seguimiento dependía solo del polling y podía quedarse mostrando "Listo".
+  useFocusEffect(
+    useCallback(() => {
+      void loadMine(token);
+    }, [token, loadMine]),
+  );
 
   // Sin pedido en curso (nunca se envió uno): estado vacío.
   if (!order) {

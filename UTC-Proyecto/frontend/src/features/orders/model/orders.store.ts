@@ -181,7 +181,11 @@ export function selectSemaforo(
 export function selectKpis(orders: Order[]) {
   return {
     pedidos: orders.length,
-    ingresos: orders.filter((o) => o.payStatus === 'paid').reduce((sum, o) => sum + o.total, 0),
+    // Ingreso = dinero cobrado: tarjeta/online ya pagada (`paid`, salvo cancelado) MÁS
+    // efectivo entregado (`picked_up` = se cobró en el mostrador; su payStatus sigue `pending`).
+    ingresos: orders
+      .filter((o) => o.status === 'picked_up' || (o.payStatus === 'paid' && o.status !== 'cancelled'))
+      .reduce((sum, o) => sum + o.total, 0),
     entregados: orders.filter((o) => o.status === 'picked_up').length,
   };
 }

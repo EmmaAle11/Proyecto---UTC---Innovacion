@@ -157,6 +157,16 @@ docker exec -i utc_postgres psql -U UTC_PROJECT -d UTC_PROJECT_DB -c \
   "TRUNCATE payments, preparation_times, order_items, orders RESTART IDENTITY CASCADE;"
 ```
 
+**¿Ya estás DENTRO de `psql`?** (el prompt dice `UTC_PROJECT_DB=#`). Entonces **NO**
+uses `docker exec` ni `-c`: pega solo el SQL, terminado en `;`. Es la misma sentencia:
+
+```sql
+TRUNCATE payments, preparation_times, order_items, orders RESTART IDENTITY CASCADE;
+```
+
+> Errores típicos al teclearlo a mano: `orderts` (es `orders`) y `CASCADE:;`
+> (sobra el `:`, debe ser `CASCADE;`).
+
 > Verificado 2026-06-29: pasó de 4 pedidos / 5 líneas / 4 pagos / 2 tiempos → 0,
 > conservando 10 productos y los usuarios. NO toca `products` ni `user_profile`
 > (son tablas padre; `TRUNCATE ... CASCADE` solo vacía las hijas listadas).
@@ -166,6 +176,14 @@ Confirmar que quedó limpio:
 ```bash
 docker exec -i utc_postgres psql -U UTC_PROJECT -d UTC_PROJECT_DB -c \
   "SELECT (SELECT count(*) FROM orders) AS pedidos, (SELECT count(*) FROM products) AS productos, (SELECT count(*) FROM user_profile) AS usuarios;"
+```
+
+O, si ya estás dentro de `psql`, solo el SQL:
+
+```sql
+SELECT (SELECT count(*) FROM orders)       AS pedidos,
+       (SELECT count(*) FROM products)     AS productos,
+       (SELECT count(*) FROM user_profile) AS usuarios;
 ```
 
 Alternativa con `DELETE` (equivalente, sin reiniciar contadores):
@@ -180,5 +198,33 @@ y el pago se borran en cascada.)
 
 > ⚠️ `TRUNCATE user_profile` o `products` borraría cuentas/menú. Para un reinicio
 > total y recargar la semilla, ver el bloque `REINICIO` en `infra/postgres/seed-demo.sql`.
+
+## 6) Borrar SOLO los usuarios persona (conservar el administrador)
+
+`TRUNCATE user_profile` borraría **hasta al admin**. Para dejar solo al admin se usa
+**`DELETE ... WHERE`** filtrando por la columna `role` (`'user'` = persona, `'admin'` =
+administrador). Dos avisos:
+
+- **`TRUNCATE` no acepta `WHERE`** (es todo-o-nada por tabla) → aquí va `DELETE`.
+- La FK `orders.user_profile_id → user_profile` es **`ON DELETE RESTRICT`**: no deja
+  borrar un usuario con pedidos → **primero** limpia pedidos, **luego** los usuarios.
+
+```sql
+-- 1) limpiar pedidos primero (por la FK RESTRICT)
+TRUNCATE payments, preparation_times, order_items, orders RESTART IDENTITY CASCADE;
+
+-- 2) borrar los usuarios PERSONA (rol 'user'), dejando al admin intacto
+DELETE FROM user_profile WHERE role = 'user';
+```
+
+Confirmar que solo queda el admin:
+
+```sql
+SELECT email, role FROM user_profile;
+```
+
+> ⚠️ Esto solo limpia **Postgres**. La cuenta de login **sigue en Keycloak**, y si esa
+> persona vuelve a entrar, el backend le **re-crea** el `user_profile`. Para eliminarla
+> del todo, bórrala también en Keycloak (borrado vía `backend-svc`).
 
 > Relacionado: `consultas-sql.md` (consultas del modelo) y `datos-demo.md`.
