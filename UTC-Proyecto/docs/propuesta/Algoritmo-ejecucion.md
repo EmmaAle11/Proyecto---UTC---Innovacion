@@ -133,6 +133,13 @@ Se completaron los detalles que faltaban para que la app haga TODO lo que dice l
 - MÉTRICAS del negocio: producto más vendido y hora pico. AUTO-VENCIMIENTO de la ventana de recogida (pasa a "no recogido" solo).
 - ACCESIBILIDAD que de verdad aplica (texto grande, alto contraste, reducir movimiento). FOTO del producto editable por URL.
 - La SUCURSAL de recogida viaja con el pedido y se guarda. El acceso de ADMINISTRADOR exige MFA (TOTP) de forma obligatoria.
-- PAGO CON TARJETA: formulario real (valida número con Luhn, expiración y CVV; solo guarda los últimos 4) con aprobación SIMULADA, protegida por un CIRCUIT BREAKER. Las pasarelas reales (Mercado Pago/PayPal) quedan fuera del alcance de la demo.
+- PAGO CON TARJETA: formulario real (número, titular, expiración y CVV; solo guarda los últimos 4) con aprobación SIMULADA, protegida por un CIRCUIT BREAKER. En la demo el número valida el formato (13–19 dígitos), no el checksum de Luhn.
+
+17.- Métodos de pago (qué es real en esta versión)
+El checkout ofrece cinco métodos: Mercado Pago, PayPal, Tarjeta de crédito (TDC), Tarjeta de débito (TDD) y Efectivo al recoger. HONESTO: el cobro con tarjeta/online es SIMULADO — no hay integración real con Mercado Pago, PayPal ni procesador de tarjeta (no se mueve dinero de verdad).
+- Tarjeta (TDC/TDD): formulario real, guarda solo los últimos 4, aprobación simulada + circuit breaker; se pueden guardar en "Mi cartera".
+- Mercado Pago / PayPal: se registran como método (correo/titular + referencia); cobro real diferido.
+- Efectivo al recoger: el único real — se cobra en el mostrador al entregar (hasta entonces el pago queda pendiente).
+Las pasarelas reales quedan fuera del alcance de la demo (trabajo futuro; ver decisiones D-006/D-033).
 
 Nota de puerto (este equipo): el backend corre por defecto en el puerto 3002 (el 3001 lo ocupa otro proyecto).

@@ -225,13 +225,25 @@ En el **panel del administrador** (dashboard) hay una tarjeta **"Inteligencia de
 
 Es distinto del **semáforo** (§3.14, congestión *ahorita*) y de los **tiempos promedio de preparación** (§3.7, cuánto tarda cada producto): esto es la **demanda histórica** (qué y cuándo se vende).
 
+### 3.17. Métodos de pago — qué se ofrece y qué es real en esta versión
+
+Al pagar, el alumno elige entre **cinco** métodos: **Mercado Pago**, **PayPal**, **Tarjeta de crédito (TDC)**, **Tarjeta de débito (TDD)** y **Efectivo al recoger**.
+
+**Importante — estado actual (honesto):** el cobro con tarjeta/online es **SIMULADO**; **no** hay integración real con Mercado Pago, PayPal ni un procesador de tarjeta (no se mueve dinero de verdad):
+
+- **Tarjeta (TDC/TDD):** se captura en un **formulario real** (número, titular, expiración MM/AA y CVV) y **solo se guardan los últimos 4 dígitos** (nunca el número completo). En la demo el número valida el **formato** (13–19 dígitos), no el checksum, para no rechazar números de prueba. La **aprobación se simula** y va protegida por un **circuit breaker** (§3.2). Las tarjetas se pueden guardar en "Mi cartera" y reusar.
+- **Mercado Pago / PayPal:** se registran como método (correo/titular + referencia); su cobro real también queda **diferido**.
+- **Efectivo al recoger:** es el único **real** — no pasa por pasarela, se **cobra en el mostrador** al entregar; hasta entonces el pago queda *pendiente* y cuenta como ingreso cuando se entrega.
+
+La integración con **pasarelas reales** (Mercado Pago/PayPal/procesador de tarjeta) queda **fuera del alcance de esta demo** y es trabajo futuro (ver `decisiones.md` D-006 / D-033).
+
 ---
 
 ## 4. Implementación
 
 El **algoritmo para construir todo lo de la Propuesta** vive en [`Algoritmo-ejecucion.md`](Algoritmo-ejecucion.md): los pasos concretos (definir alcance y diseño, levantar servicios, estructura de carpetas, armar pantallas y backend, etc.). El **detalle técnico** (arquitectura, esquema de BD, seguridad) está en [`architecture-propuesta.md`](../arquitectura/architecture-propuesta.md) y las **decisiones** en [`decisiones.md`](../arquitectura/decisiones.md).
 
-**Estado de implementación (2026-07-02).** Todo lo descrito en esta Propuesta está implementado y verificado. En el último cierre (decisiones **D-027…D-034**) se completaron: buscador de menú (§3.1), **tiempos promedio** de preparación y "preparado hace X min" (§2/§3.7), **semáforo ajustable** desde el admin que también ve el alumno (§3.14), **métricas** de más-vendido y hora pico (§3.1), **auto-vencimiento** de la ventana de recogida (§3.8), estado "Calentando" y prompt cancelar/extender (§3.8/§3.9), **accesibilidad funcional** y foto de producto por URL (§3.1), **sucursal** persistida con el pedido (§3.12) y **MFA de admin forzada** (§3.2). Sobre los **pagos**: el checkout tiene un **formulario real de tarjeta** (validación Luhn/expiración/CVV, se guarda solo `last4`) con **aprobación simulada** protegida por un **circuit breaker**; la integración con **pasarelas reales** (Mercado Pago/PayPal/procesador) queda **diferida** por ser fuera de alcance de la demo. Detalle en `decisiones.md`.
+**Estado de implementación (2026-07-02).** Todo lo descrito en esta Propuesta está implementado y verificado. En el último cierre (decisiones **D-027…D-034**) se completaron: buscador de menú (§3.1), **tiempos promedio** de preparación y "preparado hace X min" (§2/§3.7), **semáforo ajustable** desde el admin que también ve el alumno (§3.14), **métricas** de más-vendido y hora pico (§3.1), **auto-vencimiento** de la ventana de recogida (§3.8), estado "Calentando" y prompt cancelar/extender (§3.8/§3.9), **accesibilidad funcional** y foto de producto por URL (§3.1), **sucursal** persistida con el pedido (§3.12) y **MFA de admin forzada** (§3.2). Sobre los **pagos**: el checkout tiene un **formulario real de tarjeta** (valida formato/expiración/CVV, se guarda solo `last4`) con **aprobación simulada** protegida por un **circuit breaker**; la integración con **pasarelas reales** (Mercado Pago/PayPal/procesador) queda **diferida** por ser fuera de alcance de la demo (ver §3.17). Detalle en `decisiones.md`.
 
 ---
 

@@ -5,7 +5,6 @@ import { Heading, Body, Label } from '../../../shared/ui/Type';
 import { PrimaryButton } from '../../../shared/ui/PrimaryButton';
 import { colors, text, surface, border, fonts } from '../../../shared/theme';
 import {
-  luhnValid,
   detectBrand,
   cvvValid,
   parseExpiry,
@@ -82,7 +81,12 @@ export function CardForm({
     setError('');
     if (!holder.trim()) return setError(isCard ? 'Escribe el nombre del titular.' : 'Escribe el titular o correo.');
     if (isCard) {
-      if (!luhnValid(number)) return setError('El número de tarjeta no es válido.');
+      // Demo (D-006): no exigimos el checksum de Luhn (el cobro es simulado); solo
+      // pedimos que "parezca" un número de tarjeta (13–19 dígitos).
+      const digits = number.replace(/\D/g, '');
+      if (digits.length < 13 || digits.length > 19) {
+        return setError('El número debe tener entre 13 y 19 dígitos.');
+      }
       const exp = parseExpiry(expiry);
       if (!exp) return setError('La expiración debe ser MM/AA.');
       if (!expiryValid(exp.mm, exp.yy)) return setError('La tarjeta está vencida.');
