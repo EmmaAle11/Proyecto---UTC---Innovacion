@@ -5,8 +5,10 @@
  *  - `closed`    → pasa las llamadas; cuenta fallos consecutivos.
  *  - `open`      → al llegar al umbral de fallos, corta: rechaza AL INSTANTE durante
  *                  `cooldownMs` (fail-fast, no espera timeouts).
- *  - `half_open` → pasado el enfriamiento, deja pasar UNA llamada de prueba: si va
- *                  bien, cierra; si falla, vuelve a abrir.
+ *  - `half_open` → pasado el enfriamiento, deja pasar llamada(s) de prueba: si van
+ *                  bien, cierra; si una falla, vuelve a abrir. (Breaker simple: no
+ *                  limita a UNA sonda concurrente; con la pasarela simulada síncrona
+ *                  no hay ventana. Para una pasarela real conviene un semáforo de 1.)
  *
  * `now` es inyectable para poder probar el enfriamiento sin relojes reales.
  */

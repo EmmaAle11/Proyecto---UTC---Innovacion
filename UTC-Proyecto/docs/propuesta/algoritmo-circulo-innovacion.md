@@ -219,6 +219,8 @@ Aunque existan los turnos, en el recreo siempre habrá un montón de pedidos jun
 
 El **algoritmo para construir todo lo de la Propuesta** vive en [`Algoritmo-ejecucion.md`](Algoritmo-ejecucion.md): los pasos concretos (definir alcance y diseño, levantar servicios, estructura de carpetas, armar pantallas y backend, etc.). El **detalle técnico** (arquitectura, esquema de BD, seguridad) está en [`architecture-propuesta.md`](../arquitectura/architecture-propuesta.md) y las **decisiones** en [`decisiones.md`](../arquitectura/decisiones.md).
 
+**Estado de implementación (2026-07-02).** Todo lo descrito en esta Propuesta está implementado y verificado. En el último cierre (decisiones **D-027…D-034**) se completaron: buscador de menú (§3.1), **tiempos promedio** de preparación y "preparado hace X min" (§2/§3.7), **semáforo ajustable** desde el admin que también ve el alumno (§3.14), **métricas** de más-vendido y hora pico (§3.1), **auto-vencimiento** de la ventana de recogida (§3.8), estado "Calentando" y prompt cancelar/extender (§3.8/§3.9), **accesibilidad funcional** y foto de producto por URL (§3.1), **sucursal** persistida con el pedido (§3.12) y **MFA de admin forzada** (§3.2). Sobre los **pagos**: el checkout tiene un **formulario real de tarjeta** (validación Luhn/expiración/CVV, se guarda solo `last4`) con **aprobación simulada** protegida por un **circuit breaker**; la integración con **pasarelas reales** (Mercado Pago/PayPal/procesador) queda **diferida** por ser fuera de alcance de la demo. Detalle en `decisiones.md`.
+
 ---
 
 ## 5. Valor agregado

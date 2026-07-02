@@ -117,3 +117,15 @@ El cliente puede fijar la hora de recogida al momento de pagar. Reglas, validada
 
 14.- Número de pedido secuencial
 Cada pedido recibe un número correlativo legible al crearse (el primero es U-00001, luego U-00002, y así). Ese número es el código de recogida que ve el cliente y con el que el administrador identifica el pedido en su cola. Lo genera la base de datos, de forma única y en orden.
+
+15.- Cierre de la propuesta (estado 2026-07-02)
+Se completaron los detalles que faltaban para que la app haga TODO lo que dice la propuesta (decisiones D-027…D-034):
+- Buscador del menú funcional; estado "Calentando tu alimento" y "preparado hace X min" visibles al alumno.
+- La base de datos calcula el TIEMPO PROMEDIO de preparación (últimas 20 muestras; con menos de 3, usa el tiempo base) y la app lo usa para estimar.
+- El SEMÁFORO se ajusta desde el panel del admin y ese ajuste se guarda en el servidor, así que también cambia el que ve el alumno.
+- MÉTRICAS del negocio: producto más vendido y hora pico. AUTO-VENCIMIENTO de la ventana de recogida (pasa a "no recogido" solo).
+- ACCESIBILIDAD que de verdad aplica (texto grande, alto contraste, reducir movimiento). FOTO del producto editable por URL.
+- La SUCURSAL de recogida viaja con el pedido y se guarda. El acceso de ADMINISTRADOR exige MFA (TOTP) de forma obligatoria.
+- PAGO CON TARJETA: formulario real (valida número con Luhn, expiración y CVV; solo guarda los últimos 4) con aprobación SIMULADA, protegida por un CIRCUIT BREAKER. Las pasarelas reales (Mercado Pago/PayPal) quedan fuera del alcance de la demo.
+
+Nota de puerto (este equipo): el backend corre por defecto en el puerto 3002 (el 3001 lo ocupa otro proyecto).

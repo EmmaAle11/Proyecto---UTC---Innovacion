@@ -37,8 +37,12 @@ function make(baseStyle: TextStyle, defaultColor: string, contrastColor: string)
               : {}),
           }
         : null;
-    // Sin color explícito → usamos el contrastado cuando "Alto contraste" está activo.
-    const resolvedColor = color ?? (highContrast ? contrastColor : defaultColor);
+    // Precedencia de color: prop `color` → color puesto en `style` (`flat.color`) →
+    // contrastado (si "Alto contraste") → default. Así un color explícito (por prop O
+    // por style, p. ej. el `fg` de un badge) SIEMPRE gana; el alto contraste solo
+    // oscurece el texto por defecto, no los acentos de marca.
+    const resolvedColor =
+      color ?? flat.color ?? (highContrast ? contrastColor : defaultColor);
 
     return <RNText {...rest} style={[flat, { color: resolvedColor }, scaled]} />;
   };

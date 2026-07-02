@@ -190,3 +190,73 @@ Registro único y canónico de decisiones (estilo ADR ligero). Para añadir una 
   - Limitación documentada: "mismo día" en la zona horaria del **servidor** (despliegue single-locale; multi-TZ requeriría fijar la zona de la cooperativa).
 - Verificación (§0/§22): backend 45/45; migración `exit 0`; e2e (válido +45 min → `startBy` −15 min; +10 min → 400; `congestion` excluye programado → count 0); frontend `tsc`/bundle 0; `scheduleView` 5/5; agente de regresión gate §22 (88% → fix E1 + test de cobertura de `congestion`).
 - Reflejo en docs (rule #24): círculo §3.15; ejecución §13.
+
+## D-027 · Estimación de preparación adaptativa (promedio real) + "tiempo preparado" (J5 + B5)
+- Fecha: 2026-07-02 · Estado: vigente.
+- Contexto: la Propuesta (§2/§3.7) prometía "calcular tiempos **promedio** de preparación" y "mostrar cuánto tiempo lleva preparado". El código registraba muestras en `preparation_times` pero nunca las promediaba, y `readySinceMin` de producto llegaba siempre `null`.
+- Decisión:
+  - **J5:** `avgPrepByProduct` promedia las **últimas 20 muestras** por producto (ventana `ROW_NUMBER`), y solo cuenta si hay **≥3** (si no, cae al `base_prep_time_seconds`). `create()` usa ese promedio como `prep_time_seconds` del pedido → estimación adaptativa (alimenta `startBy` del programado).
+  - **B5:** columna `status_changed_at` (migración `AddProductStatusChangedAt`) que el service fija al **cambiar** el status; el front deriva "preparado hace X min" para estados preparados.
+- Verificación (§0/§22): backend `tsc` 0 + tests (test J5: usa promedio si hay muestras, si no base); SQL de ventana validada contra Postgres real; migración `exit 0`.
+- Reflejo en docs (rule #24): círculo §2/§3.7; ejecución §7.
+
+## D-028 · Semáforo de congestión ajustable server-side (G2) + coherencia del dashboard (H4)
+- Fecha: 2026-07-02 · Estado: vigente.
+- Contexto: los umbrales del semáforo (5/10) estaban **hardcodeados** en el backend; el "ajuste" del admin vivía solo en memoria del front y **no** afectaba el semáforo que ve el **alumno**. Además el dashboard admin recalculaba local e **inflaba** con pedidos programados fuera de ventana.
+- Decisión:
+  - **G2:** tabla singleton `app_settings` (migración `AddAppSettings`) con `congestion_yellow`/`red`; `SettingsService` + `SettingsController` (`GET /settings/congestion` autenticado, `PATCH` **@Roles admin**, valida `red > yellow`); `congestion()` **lee** esos umbrales → el semáforo del alumno refleja el ajuste. El front (Personalización) carga y **persiste** los umbrales.
+  - **H4:** `selectSemaforo` del dashboard excluye programados fuera de la ventana de 20 min (igual que el server-side).
+- Verificación (§0/§22): backend `tsc` 0 + 28 tests; e2e real: `GET /settings/congestion` → `{5,10}`, `PATCH` como `user` → **403**; migración `exit 0`.
+- Reflejo en docs (rule #24): círculo §3.14; ejecución §12.
+
+## D-029 · Inteligencia del negocio (métricas F5) + auto-vencimiento de recogida (E6)
+- Fecha: 2026-07-02 · Estado: vigente.
+- Contexto: la Propuesta prometía "qué se vende más y a qué hora pega el pico" y una ventana de recogida de 10–20 min. No existían métricas y `pickup_deadline` se guardaba pero nunca se leía (el paso a `not_picked_up` era manual).
+- Decisión:
+  - **F5:** `GET /orders/metrics` **@Roles admin** → más vendidos (Σ cantidad, excluye cancelados) + hora pico (por `created_at`, hora del servidor); card "Inteligencia del negocio" en el dashboard.
+  - **E6:** `expireOverdue()` marca `not_picked_up` los `ready` con `pickup_deadline < now()`; `OrderExpiryScheduler` lo barre cada 60 s (`setInterval` con `unref`, sin dependencia de scheduler). El dinero se mantiene cobrado (§3.10).
+- Verificación (§0/§22): backend `tsc` 0 + tests; SQL de métricas y de vencimiento validadas contra Postgres real.
+- Reflejo en docs (rule #24): círculo §3.1/§3.8; ejecución §6/§9.
+
+## D-030 · Cierre de detalles de UX de la propuesta (B3, E4, E1, F1, F4)
+- Fecha: 2026-07-02 · Estado: vigente.
+- Contexto: varios detalles prometidos estaban decorativos o ausentes.
+- Decisión:
+  - **B3** buscador funcional del menú (filtra por nombre en vivo).
+  - **E4** el cliente ve el estado "**Calentando tu alimento**" (feed + detalle).
+  - **E1** prompt "listo desde hace X min" con **cancelar o extender** juntos; el backend permite cancelar un pedido `ready`/`ready_later` no recogido (§3.9), no solo `pending`.
+  - **F1** el admin **edita la foto** del producto por URL (http/https de imagen); `IMAGE_URL_PATTERN` acepta URL de imagen y sigue bloqueando `javascript:`/traversal/`.svg`.
+  - **F4** accesibilidad **funcional**: store `shared/a11y` que las primitivas `Type` consumen (escala de texto real incl. `fontSize` inline, y alto contraste) + `reduceMotion` apaga animaciones; cliente y admin lo cablean.
+- Verificación (§0/§22): frontend `tsc` 0; backend `tsc` 0 + tests (incl. test del regex `imageUrl` acepta URL / rechaza `javascript:`).
+- Reflejo en docs (rule #24): círculo §3.1/§3.6/§3.8/§3.9.
+
+## D-031 · MFA de administrador forzada por configuración (A3)
+- Fecha: 2026-07-02 · Estado: vigente.
+- Contexto: el TOTP estaba cableado (login admin lo valida) pero **no forzado**: un admin de un clon nuevo podía entrar solo con contraseña.
+- Decisión: el realm marca al `coop-admin` con required action **`CONFIGURE_TOTP`** (+ `otpPolicy` TOTP explícita) y `seed-admin.sh` la re-aplica. Cadena de enforcement: `CONFIGURE_TOTP` **obliga a enrolar** el TOTP → el admin queda con credencial OTP → el sub-flujo **OTP condicional** (default de Keycloak en el direct-grant) **exige** ese OTP en cada login. Resultado: el login **solo-con-contraseña NO obtiene token** para el admin sembrado (fail-closed).
+- **Por qué OTP condicional (no un paso OTP forzado a nivel realm):** los **alumnos** también entran por direct-grant (`mobile-app`) y **no** tienen TOTP; un OTP *required* no-condicional rompería su login. El condicional aplica MFA solo a quien tiene credencial OTP (los admins, forzados por `CONFIGURE_TOTP`) sin afectar a los alumnos — que es justo el diseño deseado.
+- **Limitaciones honestas (auditoría estricta 2026-07-02):** (a) el enrolamiento del TOTP es **out-of-band** (Account Console del navegador): el direct-grant/ROPC no tiene UI para `CONFIGURE_TOTP`, así que la app no enrola; el backend ahora **explica la causa** ("configura el TOTP…") en vez de un genérico. (b) Hueco residual: si un operador **limpia** la required action **sin** enrolar, el condicional-OTP se saltaría y volvería a pasar solo-password; cerrarlo del todo requeriría un flujo dedicado por cliente/grupo (fuera de alcance de la demo). Documentado, no oculto.
+- Verificación (§0): realm JSON válido + `bash -n` del seed OK; auditoría de flujo (fail-closed para el admin sembrado; mensaje de error corregido).
+- Reflejo en docs (rule #24): círculo §3.2/§3.3 (seguridad).
+
+## D-032 · Sucursal de recogida persistida en el pedido (§3.12)
+- Fecha: 2026-07-02 · Estado: vigente.
+- Contexto: la selección de sucursal (geo/override/fallback) existía en la UI pero **no viajaba** al backend ni se guardaba con el pedido.
+- Decisión: columnas `branch_id`/`branch_name` en `orders` (migración `AddOrderBranch`, nullable); `create-order.dto` las valida (opcionales, `@MaxLength`); `create()` las persiste; `order-response` las expone; el carrito envía la sucursal seleccionada. (Sin tabla `branches` aún: se guarda id+nombre para que el pedido sea autodescriptivo.)
+- Verificación (§0/§22): backend `tsc` 0 + 51 tests; migración `exit 0`; frontend `tsc` 0.
+- Reflejo en docs (rule #24): círculo §3.12; ejecución §10.
+
+## D-033 · Pagos con tarjeta: formulario real + pasarela simulada con circuit breaker (C2 + C4)
+- Fecha: 2026-07-02 · Estado: vigente — **afina D-006** (pagos diferidos).
+- Contexto: la Propuesta prometía pago con tarjeta y (§3.2 seguridad) un **circuit breaker** para pagos. Los pagos eran un mock sin formulario ni pasarela, y el breaker no existía.
+- Decisión (sin integrar pasarelas reales de MP/PayPal/procesador):
+  - **C2:** **formulario real de tarjeta** en el checkout (número con **Luhn**, marca por BIN, expiración MM/AA no vencida, CVV 3–4); **no se guarda el número completo**, solo `last4`. Con TDC/TDD hay que elegir/agregar tarjeta para pagar; la aprobación se **simula**.
+  - **C4:** `CircuitBreaker` propio (closed/open/half-open, fail-fast, cooldown) que envuelve `PaymentGatewayService.authorize` (simulado); `create()` autoriza tarjeta/online por ahí (efectivo no). Si la pasarela/circuito rechaza → 400 claro.
+- Verificación (§0/§22): backend `tsc` 0 + **57 tests** (4 del circuit breaker: abre tras umbral, fail-fast, half-open cierra/reabre; 2 de C4 en `create`); frontend `tsc` 0; lógica de tarjeta (Luhn/marca/expiración) validada con node.
+- Reflejo en docs (rule #24): círculo §2/§3.2; ejecución §5.
+
+## D-034 · Puerto por defecto del backend = 3002
+- Fecha: 2026-07-02 · Estado: vigente.
+- Contexto: el `:3001` lo ocupa otro proyecto (`doxia-agent2`) en este equipo.
+- Decisión: default del backend **3002** en `backend/.env`, `.env.example`, `main.ts` (fallback), `frontend/src/shared/api/client.ts` (`BACKEND_PORT`) y el runbook `docs/Read/*`. Docker (Postgres 5433 / Keycloak 8082) sin cambios.
+- Verificación (§0): 0 referencias a 3001 en código; backend arranca en `:3002` (DI OK, rutas 401).

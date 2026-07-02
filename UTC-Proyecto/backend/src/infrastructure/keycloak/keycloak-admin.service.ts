@@ -254,6 +254,17 @@ export class KeycloakAdminService {
       }),
     });
     if (!res.ok) {
+      // Si el admin aún NO enroló TOTP, Keycloak rechaza el direct-grant con
+      // "Account is not fully set up" (required action CONFIGURE_TOTP pendiente).
+      // Damos la causa real: hay que enrolar el 2º factor en la consola de cuenta.
+      const body = (await res.json().catch(() => ({}))) as {
+        error_description?: string;
+      };
+      if (/not fully set up|CONFIGURE_TOTP/i.test(body.error_description ?? '')) {
+        throw new UnauthorizedException(
+          'Tu cuenta de administrador requiere segundo factor (MFA). Configura el TOTP en la consola de cuenta de Keycloak y vuelve a iniciar sesión.',
+        );
+      }
       throw new UnauthorizedException('Correo, contraseña o código inválidos');
     }
     const data = (await res.json()) as TokenResponse;
