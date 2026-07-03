@@ -19,10 +19,9 @@ Mejorar la experiencia de compra y recogida de alimentos en la cooperativa media
 > *S* - Sustituir.  
 > *C* - Combinar.  
 > *A* - Adaptar.  
-> *M* - Modificar.  
 > *P* - Propuesta.  
 > *E* - Eliminar.  
-> *R* - Reordenar.
+> *R* - Reemplazar.
 
 **Sustituir** > - Vamos a sustituir la manera en la que los alumnos, profesores y personal del plantel adquieren alimentos, junto con la forma en que los recogen de la cooperativa escolar por plantel. A su vez afectará la forma en la que los dependientes de la cooperativa registran los cobros y la entrega de los alimentos.
 
@@ -30,10 +29,4 @@ Mejorar la experiencia de compra y recogida de alimentos en la cooperativa media
 
 **Adaptar** > - Adaptaremos los procesos de cobro y preparación que mantiene la cooperativa escolar a la idea propuesta final que se encuentra en [algoritmo-circulo-innovacion.md](algoritmo-circulo-innovacion.md).
 
-**Modificar** > - Modificaremos el modelo de compra para hacerlo más práctico, ágil y ordenado, permitiendo tiempos estimados de preparación, pedidos programados, re oferta de pedidos cancelados,y una mejor comunicación del estado del pedido.
-
-**Propuesta** > - Crear una app sencilla para que el alumno pueda pedir, pagar y recoger su alimento sin necesidad de hacer fila, mientras la cooperativa organiza mejor la cocina, los tiempos de preparación y la atención del personal.
-
-**Eliminar** > - Vamos a reducir las funciones del **personal** en la gestión de cobro para métodos como **tarjeta**, **Mercado Pago** o **PayPal**; cuando se trate de **pago en efectivo** se mantiene la misma gestión. También vamos a reducir el espacio generado por las filas causadas por **alumnos**, **profesores** y **personal** del plantel para poder comprar un alimento.
-
-**Reordenar** > - Reordenaremos el proceso para que sea más eficiente: primero el usuario revisa el menú y el estado de la cooperativa, luego elige productos y método de pago, después el sistema registra el pedido y asigna un número o turno, la cooperativa prepara el pedido y finalmente el usuario recibe la notificación y recoge su alimento sin formar fila.
+**Eliminar** > - Vamos a reducir las funciones del personal en la gestión de cobro para métodos como tarjeta, Mercado Pago o PayPal; cuando se trate de pago en efectivo se mantiene la misma gestión. También vamos a reducir el espacio generado por las filas causadas por alumnos, profesores y personal del plantel para poder comprar un alimento.
