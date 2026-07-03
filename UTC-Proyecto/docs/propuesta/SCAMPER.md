@@ -30,7 +30,7 @@ Mejorar la experiencia de compra y recogida de alimentos en la cooperativa media
 
 **Adaptar** > - Adaptaremos los procesos de cobro y preparación que mantiene la cooperativa escolar a la idea propuesta final que se encuentra en [algoritmo-circulo-innovacion.md](algoritmo-circulo-innovacion.md).
 
-**Modificar** > - Modificaremos el modelo de compra para hacerlo más práctico, ágil y ordenado, permitiendo tiempos estimados de preparación, pedidos programados y una mejor comunicación del estado del pedido.
+**Modificar** > - Modificaremos el modelo de compra para hacerlo más práctico, ágil y ordenado, permitiendo tiempos estimados de preparación, pedidos programados, re oferta de pedidos cancelados,y una mejor comunicación del estado del pedido.
 
 **Propuesta** > - Crear una app sencilla para que el alumno pueda pedir, pagar y recoger su alimento sin necesidad de hacer fila, mientras la cooperativa organiza mejor la cocina, los tiempos de preparación y la atención del personal.
 
