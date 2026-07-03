@@ -152,104 +152,141 @@ Ejemplo: horchata almacenada 12 → aceptas 1 → 11 → entregado 11; si no se 
 
 ---
 
-## 19. Stack de tecnologías y cómo se ejecuta (realización 2026-06-24)
+## 19. Implementación técnica (2026-06-24)
 
 ### 19.1 Infraestructura
 
-- **Docker + Docker Compose:** los contenedores **PostgreSQL 16** y **Keycloak 26** corren locales en el desarrollo; en producción se desplegarían en la nube o servidor propio.
-- **PostgreSQL:** base `UTC_PROJECT_DB` (o `utc_food` según la convención), usuario `UTC_PROJECT` (o `utc`). El esquema (6 tablas + 5 enums) se crea y versiona por **migraciones TypeORM** (`backend/src/infrastructure/database/migrations/1782168106072-Init.ts`), no por DDL manual. Datos de demostración se cargan con `seed-demo.sql`.
-- **Keycloak:** realm `utc-food`, roles `admin` y `user`. Admin local (sin Microsoft Entra ID) con credenciales en `infra/.env`, acceso a Account Console y login con MFA (TOTP). El cliente se auto-registra en `@edu.utc.mx` vía backend.
+- **Orquestación de contenedores:** Docker + Docker Compose. PostgreSQL 16 y Keycloak 26 se ejecutan como servicios containerizados en el entorno de desarrollo local; en producción se despliegan en infraestructura cloud o dedicada.
+- **Base de datos:** PostgreSQL 16. Esquema: 6 tablas (`user_profile`, `products`, `orders`, `order_items`, `payments`, `preparation_times`) + 5 enumerados (`user_role`, `order_status`, `product_status`, `payment_method`, `payment_status`). Control de versión de esquema mediante **migraciones TypeORM** (`backend/src/infrastructure/database/migrations/1782168106072-Init.ts`), evitando sincronización automática (`synchronize: false`). Datos de demostración se cargan mediante script SQL (`seed-demo.sql`).
+- **Servidor de identidad:** Keycloak 26. Realm: `utc-food`. Roles: `admin` (administrador de cooperativa), `user` (cliente/alumno). Autenticación del administrador: credenciales locales (sin federación externa), con MFA activado (TOTP). Autenticación del cliente: auto-registro restringido a dominio institucional (`@edu.utc.mx`), validación en backend.
 
 ### 19.2 Frontend — Expo + React Native
 
-- **Expo SDK 56** (compatibilidad con **Expo Go** para demos en teléfono del profesor).
-- **React Native 0.85.3**, React 19.2.3.
-- **TypeScript** (verificación con `npx tsc --noEmit`).
-- **Arquitectura FSD:** `app/` (navegación), `pages/` (pantallas), `widgets/` (bloques visuales), `features/` (auth, órdenes), `entities/` (modelos), `shared/` (UI reutilizable, tema, API).
-- **Librerías clave:** React Navigation 7 (native-stack + bottom-tabs), Zustand (estado), lucide-react-native (iconos), expo-linear-gradient (degradados), **expo-font** (fuentes de marca), react-native-safe-area-context, NativeWind (Tailwind adaptado).
-- **Tipografías:** Bricolage Grotesque (titulares), Plus Jakarta Sans (cuerpo), Space Mono (números/códigos) — se cargan con `expo-font` en App.tsx; si tardan (red lenta), hay un timeout de 6 s para no quedarse en splash blanco.
-- **Tema:** tokens en `shared/theme/tokens.ts` (colores, tipografía, sombras); primitivas en `shared/ui/Type.tsx` (Display, Heading, Title, Body, Label, Mono — nunca `fontWeight`, solo familias de marca).
+**Stack:**
+- Expo SDK 56 (managed build, compatible con Expo Go para demostración).
+- React Native 0.85.3, React 19.2.3.
+- TypeScript (tipificación estática; verificación con `npx tsc --noEmit`).
 
-Cómo correr:
+**Arquitectura:** Feature-Sliced Design (FSD).
+- `app/` — configuración global, navegación de alto nivel (`RootNavigator`).
+- `pages/` — pantallas principales (Welcome, Login, Home, Orders, Profile, Admin Dashboard).
+- `widgets/` — componentes de UI complejos reutilizables (`AuthScaffold`, etc.).
+- `features/` — funcionalidad por caso de uso (auth, órdenes, carrito).
+- `entities/` — modelos de datos del dominio.
+- `shared/` — utilidades compartidas (API client, sistema de diseño, helpers).
+
+**Librerías clave:**
+- React Navigation 7 (navegación native-stack + bottom-tabs).
+- Zustand (gestión de estado).
+- expo-font (tipografías de marca).
+- lucide-react-native (iconografía).
+- react-native-safe-area-context (adaptación de insets de pantalla).
+
+**Identidad visual:** Tipografías de marca (Bricolage Grotesque, Plus Jakarta Sans, Space Mono) gestionadas por `expo-font` con fallback resiliente (timeout 6 s). Sistema de tokens en `shared/theme/tokens.ts`; primitivas reutilizables en `shared/ui/Type.tsx` (Display, Heading, Title, Body, Label, Mono).
+
+**Ejecución:**
 ```bash
 cd frontend
 npm install
-npx expo start                # arranca Metro; QR para Expo Go (mismo WiFi) o "w" para --web
+npx expo start       # inicia Metro; QR para Expo Go o "w" para navegador
 ```
 
 ### 19.3 Backend — NestJS + TypeORM
 
-- **NestJS 11**, TypeScript.
-- **TypeORM** (ORM para PostgreSQL, sin `synchronize`, esquema por migraciones).
-- **Autenticación:** Keycloak + JWT (validado en guards globales `JwtAuthGuard` + `RolesGuard`).
-- **Seguridad:** passport-jwt, jwks-rsa (valida firma RS256 del realm), class-validator (DTO validation con `whitelist`), rate-limiting (auth 5/min, default 60/min), MFA admin (TOTP).
-- **Rutas protegidas:** `/auth/{register,login,admin/login}` públicas; el resto exige JWT + rol (admin o user).
+**Stack:**
+- NestJS 11 (framework backend con arquitectura modular).
+- TypeORM 1.0 (ORM para PostgreSQL).
+- TypeScript (tipificación estática).
 
-Cómo correr:
+**Arquitectura:** Clean Architecture (capas).
+- `presentation/` — controllers, módulos NestJS, guards, decoradores.
+- `application/` — servicios de negocio, DTOs.
+- `infrastructure/` — acceso a datos (TypeORM repositories), Keycloak Admin API.
+- `domain/` — tipos puros del dominio.
+
+**Seguridad:**
+- Validación de entrada: `class-validator` + `ValidationPipe` global (`whitelist: true`, `forbidNonWhitelisted: true`).
+- Autenticación: JWT emitido por Keycloak, validado por `passport-jwt` + `jwks-rsa` (verificación de firma RS256).
+- Autorización: guards globales `JwtAuthGuard` + `RolesGuard`. Decoradores `@Public()` (auth, health) y `@Roles()` para control de acceso.
+- Rate limiting: 5 req/min en auth, 60 req/min default. Respuesta HTTP 429 cuando se excede.
+- MFA: requerido para login del administrador (TOTP de Keycloak).
+
+**Rutas principales:**
+- `POST /auth/register` — registro de cliente (validación @edu.utc.mx).
+- `POST /auth/login` — login de cliente.
+- `POST /auth/admin/login` — login de administrador (exige TOTP).
+- `GET /auth/me` — identidad del JWT (protegida).
+- `GET /health` — estado del servicio y conexión a BD.
+- Rutas CRUD (productos, órdenes) protegidas por rol.
+
+**Ejecución:**
 ```bash
 cd backend
 npm install
-cp .env.example .env          # rellenar DB_* y KEYCLOAK_*
-npm run migration:run         # crea el esquema en PostgreSQL (idempotente)
-npm run start:dev             # arranca en :3001 (watch mode, recarga al editar)
+cp .env.example .env
+npm run migration:run      # aplicar esquema (idempotente)
+npm run start:dev          # inicia en puerto 3002 (watch mode)
 ```
 
-### 19.4 Cómo ejecutar TODO (desarrollo local)
+### 19.4 Orchestración local (desarrollo)
 
-Ver [`docs/operacion/correr-en-otra-pc.md`](../operacion/correr-en-otra-pc.md) para el runbook completo. En resumen:
+Secuencia de arranque:
 
-1. **Docker + Keycloak + Postgres:** `cd infra && docker compose up -d && ./keycloak/seed-admin.sh`
+1. **Infraestructura:** `cd infra && docker compose up -d && ./keycloak/seed-admin.sh`
+   - Postgres y Keycloak en red interna; `seed-admin.sh` configura admin + service-account.
 2. **Backend:** `cd backend && npm install && npm run migration:run && npm run start:dev`
+   - Crea esquema; escucha en puerto 3002.
 3. **Frontend:** `cd frontend && npm install && npx expo start`
+   - Inicia Metro; disponible en Expo Go (QR) o navegador.
 
-Los dos `.env` (`infra/.env` y `backend/.env`) deben ser **consistentes** en DB_* y KEYCLOAK_* — si no coinciden, nada conecta. El frontend fija `BACKEND_PORT=3001` en `shared/api/client.ts`, así que el backend DEBE estar en puerto 3001.
+**Invariantes de configuración:**
+- `infra/.env` y `backend/.env` deben ser consistentes en variables `DB_*` y `KEYCLOAK_*`.
+- `KEYCLOAK_BACKEND_CLIENT_SECRET` en backend = `BACKEND_CLIENT_SECRET` en infra.
+- Backend escucha en puerto 3002 (configurable en `backend/.env`).
 
-### 19.5 Organización del repositorio
+### 19.5 Estructura del repositorio
 
-La **raíz real es `/home/emmanuel/projects/UTC`** (no `UTC-Proyecto/`). Dentro vive:
+Raíz oficial: `/home/emmanuel/projects/UTC` (contiene `.git`, `.gitignore`, `.githooks`).
+
 ```
-UTC/
-├─ .gitignore          (ignora node_modules, dist, .env, *.env, pgdata…)
-├─ .githooks/          (hook pre-commit anti-secretos)
-└─ UTC-Proyecto/       (el proyecto)
-   ├─ frontend/        (app Expo, src/app|pages|widgets|features|entities|shared)
-   ├─ backend/         (NestJS, src/application|infrastructure|presentation|domain)
-   ├─ infra/           (Docker: docker-compose.yml, .env.example, keycloak/, postgres/)
-   ├─ brand/           (másters del logo, `logo_utc_hq.png`)
-   └─ docs/            (documentación, organizada por temas desde 2026-06-24)
-       ├─ README.md                  (índice)
-       ├─ propuesta/                 (círculo + ejecución)
-       ├─ arquitectura/              (architecture-propuesta + decisiones)
-       ├─ datos/                     (datos-demo + consultas-sql)
-       ├─ operacion/                 (runbook para otra PC)
-       ├─ historico/                 (regresión, reportes)
-       └─ superpowers/               (plans, specs, priority/rules.md)
+UTC-Proyecto/
+├─ frontend/            — Expo + React Native
+├─ backend/             — NestJS + TypeORM
+├─ infra/               — Docker Compose, inicialización
+├─ brand/               — Activos de marca (logo HQ)
+└─ docs/                — Documentación (organizada por temas)
+    ├─ propuesta/       — círculo de innovación, ejecución
+    ├─ arquitectura/    — especificación técnica, decisiones
+    ├─ datos/           — esquema, datasets de demo
+    ├─ operacion/       — runbooks
+    ├─ historico/       — regresiones, reportes
+    └─ superpowers/     — plans, specs, rules
 ```
 
-Cambios en `.gitignore`: secretos (`.env`, `*.env`) y artefactos (`node_modules/`, `dist/`, `pgdata/`) nunca se commitean. Solo se versionan los `*.env.example`.
+**Gestión de secretos:** `.env` (valores reales) y `node_modules/`, `dist/`, `pgdata/` están en `.gitignore`. Solo se versionan `*.env.example` como referencias.
 
-### 19.6 Generar la app — APK y distribución (futuro)
+### 19.6 Distribución de la aplicación
 
-**Hoy la app solo corre en Expo Go** (en desarrollo). Para entregar a los alumnos / profesor:
+**Desarrollo:** Expo Go (demostración interactiva via QR o USB+adb).
 
-- **APK para Android (desarrollo):**
-  ```bash
-  npx expo prebuild --platform android     # genera android/ si no existe
-  npx eas build --platform android         # compilación en la nube (requiere cuenta EAS)
-  ```
-  Alternativa local (sin EAS): `./gradlew assembleDebug` en `frontend/android/` (requiere Android SDK, JDK).
+**APK de Android:**
+```bash
+npx expo prebuild --platform android
+npx eas build --platform android       # requiere cuenta EAS
+```
+Alternativa: compilación local con Android SDK (`./gradlew assembleDebug`).
 
-- **App Store (iOS) / Play Store (Android):** requiere cuentas de desarrollador, certificados, proceso de revisión — queda fuera del alcance de la demostración escolar.
+**Producción:** Google Play Store (fuera del alcance de esta versión).
 
-- **Web (aproximación):** `npx expo start --web` corre en el navegador, pero el render es una aproximación con `react-native-web` (flujos OAuth y UI nativa divergen; no es recomendado para login).
+**Web:** `npx expo start --web` — aproximación funcional para navegador, limitaciones en flujos OAuth y UI nativa.
 
-**Nota de distribución:** Expo Go es la mejor opción para demostración rápida en la clase. Generar APK de desarrollo es útil si se quiere probar sin QR (USB + `adb`), pero requiere herramientas nativas. Para producción final con estudiantes reales, se necesaría publicar en Google Play (tiempo y costo mínimo).
+### 19.7 Verificación pre-commit
 
-### 19.7 Verificación en desarrollo
+Antes de cambios en ramas principales:
+- **Frontend:** `npx tsc --noEmit` (sin errores de tipo), `npx expo export --platform android` (validar bundle).
+- **Backend:** `npm run build`, `npm run lint` (verificar sintaxis y calidad).
+- **Integración:** `curl http://localhost:3002/health` → respuesta `{status, db}`; login cliente/admin → tokens válidos.
 
-Antes de commitear cambios:
-- **Frontend:** `npx tsc --noEmit` (sin errores TS), `npx expo export --platform android` (bundle OK).
-- **Backend:** `npm run build` (sin errores), `npm run lint`, `npm test` (si hay tests).
-- **Integración:** `curl http://localhost:3001/health` debe responder con `{status, db}` OK; login de cliente/admin debe devolver tokens reales.
+---
 
-Nota de puerto (este equipo): el backend corre en **puerto 3001** (el 3000 y 3002 ya estaban ocupados por otros proyectos).
+**Puerto del backend:** 3002 (especificado en `backend/.env`; `PORT=3002`).
