@@ -18,7 +18,8 @@ Mejorar la experiencia de compra y recogida de alimentos en la cooperativa media
 
 > *S* - Sustituir.  
 > *C* - Combinar.  
-> *A* - Adaptar.  
+> *A* - Adaptar. 
+> *M* - Modificar. 
 > *P* - Propuesta.  
 > *E* - Eliminar.  
 > *R* - Reemplazar.
@@ -29,4 +30,10 @@ Mejorar la experiencia de compra y recogida de alimentos en la cooperativa media
 
 **Adaptar** > - Adaptaremos los procesos de cobro y preparación que mantiene la cooperativa escolar a la idea propuesta final que se encuentra en [algoritmo-circulo-innovacion.md](algoritmo-circulo-innovacion.md).
 
+**Modificar**
+
+**Propuesta** 
+
 **Eliminar** > - Vamos a reducir las funciones del personal en la gestión de cobro para métodos como tarjeta, Mercado Pago o PayPal; cuando se trate de pago en efectivo se mantiene la misma gestión. También vamos a reducir el espacio generado por las filas causadas por alumnos, profesores y personal del plantel para poder comprar un alimento.
+
+**Reemplazar**
