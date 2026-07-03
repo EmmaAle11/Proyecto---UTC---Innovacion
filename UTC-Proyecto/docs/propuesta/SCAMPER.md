@@ -1,16 +1,39 @@
-# Proceso de SCAMPER para el proyecto UTC Pick Sazón. 
+# SCAMPER básico — UTC Pick Sazón
 
-El objetivo + ocurrencias, ideas, propuesta final se encuentran citadas en el documento con ruta [`algoritmo-circulo-innovacion.md`](algoritmo-circulo-innovacion.md) o en su defecto en *UTC Pick Sazón.pdf* 
+Este documento presenta una versión básica del análisis SCAMPER para el proyecto UTC Pick Sazón. La idea central es convertir la compra y recogida de alimentos en un proceso más ordenado, rápido y digital, reduciendo la congestión en la cooperativa escolar.
 
-> *S* -Sustituir. 
-> *C* -Combinar.
-> *A* -Adaptar.
-> *P* -Propuesta.
-> *E* -Eliminar.
-> *R* -Reemplazar. 
+La información más amplia sobre ocurrencias, ideas y propuesta final se encuentra en [algoritmo-circulo-innovacion.md](algoritmo-circulo-innovacion.md).
 
-*Sustiuir* > - Vamos a sustituir la manera en la que los *alumnos y profesores* adquieren alimentos, junto con como los recogen de la cooperativa escolar por plantel. A su vez afectará la forma en la que los *dependientes* de la cooperativa registran los cobros y entrega de los alimentos. 
+## 1. Objetivo
 
-*Combinar* > - Combinaremos las ideas de los alumnos en el ejercicio ejecutado en clase *brainwriting* más nuevas ocurrencias/ideas implementadas por el equipo elaborador de dicha app. 
+Mejorar la experiencia de compra y recogida de alimentos en la cooperativa mediante una app que permita:
 
-*Adaptar* > - Adaptaremos los procesos de cobro y preparación que mantiene la cooperativa escolar a la idea propuesta final que se encuentra en [`algoritmo-circulo-innovacion.md`](algoritmo-circulo-innovacion.md) 
+- pedir desde cualquier lugar,
+- pagar de forma sencilla,
+- recibir notificaciones cuando el pedido esté listo,
+- recogerlo con un código o número de pedido,
+- reducir filas y tiempos de espera innecesarios.
+
+## 2. SCAMPER básico
+
+> *S* - Sustituir.  
+> *C* - Combinar.  
+> *A* - Adaptar.  
+> *M* - Modificar.  
+> *P* - Propuesta.  
+> *E* - Eliminar.  
+> *R* - Reordenar.
+
+**Sustituir** > - Vamos a sustituir la manera en la que los alumnos, profesores y personal del plantel adquieren alimentos, junto con la forma en que los recogen de la cooperativa escolar por plantel. A su vez afectará la forma en la que los dependientes de la cooperativa registran los cobros y la entrega de los alimentos.
+
+**Combinar** > - Combinaremos las ideas de los alumnos en el ejercicio ejecutado en clase brainwriting, más nuevas ocurrencias e ideas implementadas por el equipo elaborador de dicha app.
+
+**Adaptar** > - Adaptaremos los procesos de cobro y preparación que mantiene la cooperativa escolar a la idea propuesta final que se encuentra en [algoritmo-circulo-innovacion.md](algoritmo-circulo-innovacion.md).
+
+**Modificar** > - Modificaremos el modelo de compra para hacerlo más práctico, ágil y ordenado, permitiendo tiempos estimados de preparación, pedidos programados y una mejor comunicación del estado del pedido.
+
+**Propuesta** > - Crear una app sencilla para que el alumno pueda pedir, pagar y recoger su alimento sin necesidad de hacer fila, mientras la cooperativa organiza mejor la cocina, los tiempos de preparación y la atención del personal.
+
+**Eliminar** > - Vamos a reducir las funciones del **personal** en la gestión de cobro para métodos como **tarjeta**, **Mercado Pago** o **PayPal**; cuando se trate de **pago en efectivo** se mantiene la misma gestión. También vamos a reducir el espacio generado por las filas causadas por **alumnos**, **profesores** y **personal** del plantel para poder comprar un alimento.
+
+**Reordenar** > - Reordenaremos el proceso para que sea más eficiente: primero el usuario revisa el menú y el estado de la cooperativa, luego elige productos y método de pago, después el sistema registra el pedido y asigna un número o turno, la cooperativa prepara el pedido y finalmente el usuario recibe la notificación y recoge su alimento sin formar fila.
