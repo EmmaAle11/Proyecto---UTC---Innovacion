@@ -49,10 +49,13 @@ function buildService(opts: {
   prepAverages?: { productId: string; avg: number }[];
   thresholds?: { congestionYellow: number; congestionRed: number };
   gatewayAuthorize?: jest.Mock;
+  overdue?: unknown[];
 }) {
   const orderSave = jest.fn((o: unknown) =>
     Promise.resolve({ ...(o as object), id: 'order-1' }),
   );
+  // D-037: registra cada UPDATE de inventario (reserve/release) para asertar el ciclo.
+  const stockOps: Array<{ id: string; expr: string; qty: number }> = [];
   const itemSave = jest.fn((x: unknown) => Promise.resolve(x));
   const paymentSave = jest.fn((p: unknown) => Promise.resolve(p));
   const prepSave = jest.fn((x: unknown) => Promise.resolve(x));
@@ -68,16 +71,53 @@ function buildService(opts: {
     },
     ProductEntity: {
       findBy: jest.fn().mockResolvedValue(opts.products ?? []),
+      // D-037: QueryBuilder de inventario. Captura la expresión SQL, el id y la cantidad.
+      createQueryBuilder: jest.fn(() => {
+        const cap = { id: '', expr: '', qty: 0 };
+        const qb: {
+          update: jest.Mock;
+          set: jest.Mock;
+          where: jest.Mock;
+          setParameter: jest.Mock;
+          execute: jest.Mock;
+        } = {
+          update: jest.fn(() => qb),
+          set: jest.fn((obj: { stock: () => string }) => {
+            cap.expr = obj.stock();
+            return qb;
+          }),
+          where: jest.fn((_sql: string, params: { id: string }) => {
+            cap.id = params.id;
+            return qb;
+          }),
+          setParameter: jest.fn((_k: string, v: number) => {
+            cap.qty = v;
+            return qb;
+          }),
+          execute: jest.fn(() => {
+            stockOps.push({ ...cap });
+            return Promise.resolve({ affected: 1 });
+          }),
+        };
+        return qb;
+      }),
     },
     OrderEntity: {
       create: jest.fn((x: unknown) => x),
       save: orderSave,
+      find: jest.fn().mockResolvedValue(opts.overdue ?? []),
       count: jest.fn().mockResolvedValue(opts.queueCount ?? 0),
       createQueryBuilder: jest.fn(() => {
+        // Sirve a congestion (where/andWhere/getCount) y a expireOverdue
+        // (update/set/where/andWhere/returning/execute con RETURNING de ids).
         const qb: {
           where: jest.Mock;
           andWhere: jest.Mock;
           getCount: jest.Mock;
+          update: jest.Mock;
+          set: jest.Mock;
+          returning: jest.Mock;
+          execute: jest.Mock;
         } = {
           where: jest.fn(() => qb),
           andWhere: jest.fn((sql: string) => {
@@ -85,6 +125,13 @@ function buildService(opts: {
             return qb;
           }),
           getCount: jest.fn().mockResolvedValue(opts.queueCount ?? 0),
+          update: jest.fn(() => qb),
+          set: jest.fn(() => qb),
+          returning: jest.fn(() => qb),
+          execute: jest.fn().mockResolvedValue({
+            raw: (opts.overdue ?? []).map((o) => ({ id: (o as { id: string }).id })),
+            affected: (opts.overdue ?? []).length,
+          }),
         };
         return qb;
       }),
@@ -137,6 +184,7 @@ function buildService(opts: {
     paymentSave,
     prepSave,
     congestionWhere,
+    stockOps,
   };
 }
 
@@ -447,6 +495,171 @@ describe('OrdersService.updateStatus', () => {
     }>;
     expect(rows).toHaveLength(2);
     expect(rows[0].durationSeconds).toBeGreaterThan(0);
+  });
+});
+
+describe('OrdersService inventario (stock dark kitchen, D-037)', () => {
+  const withItems = (status: OrderStatus, items: unknown[]) => ({
+    id: 'o1',
+    status,
+    acceptedAt: status === OrderStatus.PENDING ? null : new Date(),
+    createdAt: new Date(),
+    readyAt: null,
+    pickupDeadline: null,
+    pickedUpAt: null,
+    items,
+  });
+
+  it('aceptar (pending→preparing) APARTA del almacén: GREATEST(0, stock−cant) por línea', async () => {
+    const { service, stockOps } = buildService({
+      order: withItems(OrderStatus.PENDING, [
+        { id: 'i1', product: { id: 'p1' }, quantity: 2 },
+        { id: 'i2', product: { id: 'p2' }, quantity: 1 },
+      ]),
+    });
+    await service.updateStatus('o1', OrderStatus.PREPARING);
+    expect(stockOps).toHaveLength(2);
+    expect(stockOps.every((o) => o.expr.includes('GREATEST(0'))).toBe(true);
+    expect(stockOps).toContainEqual(expect.objectContaining({ id: 'p1', qty: 2 }));
+    expect(stockOps).toContainEqual(expect.objectContaining({ id: 'p2', qty: 1 }));
+  });
+
+  it('entregar (→picked_up) NO toca el stock (ya se apartó al aceptar)', async () => {
+    const { service, stockOps } = buildService({
+      order: withItems(OrderStatus.READY, [
+        { id: 'i1', product: { id: 'p1' }, quantity: 3 },
+      ]),
+    });
+    await service.updateStatus('o1', OrderStatus.PICKED_UP);
+    expect(stockOps).toHaveLength(0);
+  });
+
+  it('no recogido (→not_picked_up) DEVUELVE como excedente: stock + cant', async () => {
+    const { service, stockOps } = buildService({
+      order: withItems(OrderStatus.READY, [
+        { id: 'i1', product: { id: 'p1' }, quantity: 2 },
+      ]),
+    });
+    await service.updateStatus('o1', OrderStatus.NOT_PICKED_UP);
+    expect(stockOps).toEqual([expect.objectContaining({ id: 'p1', qty: 2 })]);
+    expect(stockOps[0].expr).toContain('+');
+    expect(stockOps[0].expr).not.toContain('GREATEST');
+  });
+
+  it('expireOverdue vence los READY vencidos (UPDATE condicional) y devuelve su comida al inventario', async () => {
+    const overdue = [
+      {
+        ...withItems(OrderStatus.READY, [
+          { id: 'i1', product: { id: 'p1' }, quantity: 1 },
+        ]),
+        id: 'o1',
+      },
+      {
+        ...withItems(OrderStatus.READY, [
+          { id: 'i2', product: { id: 'p2' }, quantity: 4 },
+        ]),
+        id: 'o2',
+      },
+    ];
+    const { service, stockOps } = buildService({ overdue });
+    const n = await service.expireOverdue();
+    expect(n).toBe(2); // solo cuenta lo que el UPDATE...RETURNING venció
+    expect(stockOps).toHaveLength(2);
+    expect(stockOps.every((o) => o.expr.includes('+'))).toBe(true);
+    expect(stockOps).toContainEqual(expect.objectContaining({ id: 'p1', qty: 1 }));
+    expect(stockOps).toContainEqual(expect.objectContaining({ id: 'p2', qty: 4 }));
+  });
+
+  it('cancelOwn desde READY devuelve la comida como excedente (release)', async () => {
+    const { service, stockOps } = buildService({
+      profile: PROFILE,
+      order: withItems(OrderStatus.READY, [
+        { id: 'i1', product: { id: 'p1' }, quantity: 1 },
+      ]),
+    });
+    await service.cancelOwn('o1', USER);
+    expect(stockOps).toEqual([expect.objectContaining({ id: 'p1', qty: 1 })]);
+  });
+
+  it('cancelOwn desde PENDING NO toca el stock (nunca se apartó)', async () => {
+    const { service, stockOps } = buildService({
+      profile: PROFILE,
+      order: withItems(OrderStatus.PENDING, [
+        { id: 'i1', product: { id: 'p1' }, quantity: 1 },
+      ]),
+    });
+    await service.cancelOwn('o1', USER);
+    expect(stockOps).toHaveLength(0);
+  });
+
+  it('cancelOwn re-valida el estado FRESCO: si entre el chequeo y la tx pasó a picked_up → BadRequest, sin liberar stock (TOCTOU)', async () => {
+    const owned = { id: 'o1', status: OrderStatus.READY, user: { id: 'prof-1' } };
+    const fresh = {
+      id: 'o1',
+      status: OrderStatus.PICKED_UP, // el admin lo entregó entre el guard y la tx
+      items: [{ id: 'i1', product: { id: 'p1' }, quantity: 1 }],
+    };
+    const orderFindOne = jest
+      .fn()
+      .mockResolvedValueOnce(owned) // findOwnedByUser → propiedad (READY, pasa el guard)
+      .mockResolvedValueOnce(fresh) // lock FOR UPDATE
+      .mockResolvedValueOnce(fresh); // carga con relaciones (ya PICKED_UP)
+    const orderSave = jest.fn();
+    const stockQb = {
+      update: jest.fn(() => stockQb),
+      set: jest.fn(() => stockQb),
+      where: jest.fn(() => stockQb),
+      setParameter: jest.fn(() => stockQb),
+      execute: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
+    const repos: Record<string, unknown> = {
+      UserProfileEntity: { findOne: jest.fn().mockResolvedValue(PROFILE) },
+      OrderEntity: { findOne: orderFindOne, save: orderSave },
+      ProductEntity: { createQueryBuilder: jest.fn(() => stockQb) },
+    };
+    const getRepository = (e: { name: string }) => repos[e.name];
+    const dataSource = {
+      getRepository,
+      transaction: (cb: (m: { getRepository: typeof getRepository }) => unknown) =>
+        cb({ getRepository }),
+    } as unknown as DataSource;
+    const service = new OrdersService(
+      dataSource,
+      { authorize: jest.fn() } as unknown as PaymentGatewayService,
+    );
+    await expect(service.cancelOwn('o1', USER)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(orderSave).not.toHaveBeenCalled();
+    expect(stockQb.execute).not.toHaveBeenCalled(); // no liberó stock
+  });
+
+  it('extendOwn re-valida el estado FRESCO: si venció (not_picked_up) entre el chequeo y la tx → BadRequest, sin revivir el terminal (TOCTOU)', async () => {
+    const owned = { id: 'o1', status: OrderStatus.READY, user: { id: 'prof-1' } };
+    const fresh = { id: 'o1', status: OrderStatus.NOT_PICKED_UP }; // venció mientras tanto
+    const orderFindOne = jest
+      .fn()
+      .mockResolvedValueOnce(owned) // findOwnedByUser → propiedad (READY, pasa el guard)
+      .mockResolvedValueOnce(fresh); // lock FOR UPDATE (ya NOT_PICKED_UP)
+    const orderSave = jest.fn();
+    const repos: Record<string, unknown> = {
+      UserProfileEntity: { findOne: jest.fn().mockResolvedValue(PROFILE) },
+      OrderEntity: { findOne: orderFindOne, save: orderSave },
+    };
+    const getRepository = (e: { name: string }) => repos[e.name];
+    const dataSource = {
+      getRepository,
+      transaction: (cb: (m: { getRepository: typeof getRepository }) => unknown) =>
+        cb({ getRepository }),
+    } as unknown as DataSource;
+    const service = new OrdersService(
+      dataSource,
+      { authorize: jest.fn() } as unknown as PaymentGatewayService,
+    );
+    await expect(service.extendOwn('o1', USER)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(orderSave).not.toHaveBeenCalled(); // no revivió el pedido terminal
   });
 });
 

@@ -136,7 +136,23 @@ La cooperativa mantiene un **mínimo y máximo** de productos con etiqueta "Prep
 
 El sistema también muestra **cuánto tiempo lleva preparado** cada producto, para que el administrador decida sobre su venta, reoferta o cambio de estado.
 
-> **Estado actual (honesto):** el **mínimo/máximo de stock** son **campos que el admin edita** por producto (se guardan y se validan: `max ≥ min`), pero **no hay gestión automática** todavía (no se descuenta el stock al pedir ni saltan alertas de bajo stock). Sirven como parámetro/etiqueta; la automatización queda como trabajo futuro. Lo que sí es funcional: la etiqueta "Preparado | Sin tiempo de espera", el "hace X min preparado", el cambio de estado y la **reoferta** (§3.11).
+#### Inventario real: "stock de dark kitchen" (D-037)
+
+El `stock` de cada producto son **unidades físicas disponibles ahora** para nuevos pedidos (ya sea porque están **almacenadas** —las bebidas, gelatinas— o porque son **excedente ya preparado**). Es un stock tradicional que **el ciclo de vida del pedido mueve solo**, con una regla propia de *dark kitchen*: **el `0` NO impide vender**, porque la cooperativa **no prepara sin orden** y cocina al momento. El candado real de venta es que el producto esté **disponible** (`isAvailable`), no el número de stock.
+
+El inventario cambia **automáticamente y en el servidor** (transaccional, nunca baja de 0) en estas transiciones:
+
+| Momento | Efecto en el stock | Por qué |
+|---|---|---|
+| **El admin acepta** el pedido (`por preparar → preparando`) | **Aparta** lo que haya: `stock = máx(0, stock − cantidad)` | Reserva del almacén lo disponible; el faltante se **cocina al momento** (no baja de 0). |
+| **Se entrega** (`recogido`) | Sin cambio | Ya se apartó al aceptar; el alumno solo recoge. |
+| **No se recoge** (`no recogido`: por el admin, o por **vencimiento automático** de un pedido **listo** que supera su ventana de ~20 min) | **Devuelve** como excedente: `stock = stock + cantidad` | Lo preparado y no reclamado queda **reofertable** (§3.11). |
+| **El alumno cancela** un pedido **ya listo** | **Devuelve** como excedente: `stock = stock + cantidad` | El alimento no fue tocado → vuelve a estar disponible. |
+| **El alumno cancela** un pedido **pendiente** | Sin cambio | Nunca se apartó. |
+
+**Ejemplos con datos reales.** *Agua de horchata* (almacenada, stock 12): se acepta un pedido de 1 → 11; se entrega → 11; si no se recoge → **vuelve al 12** (no se inventa una unidad). *Hamburguesa* (stock 0, se cocina al momento): se acepta → sigue en 0 (se cocina); si **no se recoge** → **1** (excedente); al **reofertarse** y venderse → 0, y si no se vende **queda 1 para mañana**.
+
+> **Decisión de diseño (honesta):** el stock sube **solo cuando una unidad preparada queda sin reclamar**, no "al empezar a prepararla" — así una unidad en preparación (ya apartada para un cliente) nunca se muestra como libre y **no se puede vender dos veces**. Todas las transiciones que mueven el stock están **serializadas con un bloqueo de fila** (dos "Aceptar" simultáneos no doble-descuentan; una entrega y un vencimiento no se pisan). El **mínimo/máximo de stock** siguen siendo etiquetas que el admin edita (`max ≥ min`); **no** disparan reórdenes ni alertas automáticas todavía (eso queda como trabajo futuro). **Matiz honesto del vencimiento automático:** el barrido automático solo vence pedidos en estado **listo** (`ready`) que superan su ventana; un pedido **extendido** (`ready_later`, §3.10) **no** se vence solo — su stock se devuelve cuando el **admin** lo marca "no recogido" o el **cliente** lo cancela (un barrido de fin de día para los extendidos queda como trabajo futuro). Lo funcional hoy: el descuento/devolución de stock del ciclo, la etiqueta "Preparado | Sin tiempo de espera", el "hace X min preparado", el cambio de estado y la **reoferta** (§3.11).
 
 ### 3.8. Caso: alumno no recoge su pedido
 

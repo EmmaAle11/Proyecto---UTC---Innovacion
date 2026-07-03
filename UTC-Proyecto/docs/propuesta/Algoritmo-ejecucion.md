@@ -63,7 +63,7 @@ UTC-Proyecto/
 - Seguimiento del pedido (con su código de recogida, que es un número de pedido secuencial tipo U-00001) y las pestañas de Pedidos y Perfil.
 
 6.- Construir el panel del administrador (la cooperativa):
-- Dar de alta y editar el menú (productos, precios, fotos y el stock de "Preparados").
+- Dar de alta y editar el menú (productos, precios, fotos y el stock de "Preparados"). El stock además **se mueve solo** con el ciclo del pedido (ver §18).
 - Recibir los pedidos y marcarlos como "Listo" (eso dispara el aviso al alumno con su número de pedido).
 - Ver el semáforo de congestión en vivo: menos de 5 = Verde, de 5 a 10 = Amarillo, más de 10 = Rojo (parámetros y visibilidad en §12).
 - Manejar la reoferta / "Pon tu precio" para vender lo que ya está hecho.
@@ -141,5 +141,13 @@ El checkout ofrece cinco métodos: Mercado Pago, PayPal, Tarjeta de crédito (TD
 - Mercado Pago / PayPal: se registran como método (correo/titular + referencia); cobro real diferido.
 - Efectivo al recoger: el único real — se cobra en el mostrador al entregar (hasta entonces el pago queda pendiente).
 Las pasarelas reales quedan fuera del alcance de la demo (trabajo futuro; ver decisiones D-006/D-033).
+
+18.- Inventario real — "stock de dark kitchen" (D-037)
+El stock de cada producto son unidades físicas disponibles ahora (almacenadas o excedente ya preparado) y el ciclo del pedido lo mueve solo, en el servidor y transaccional (nunca baja de 0). Regla de dark kitchen: el 0 NO impide vender, porque la cooperativa no prepara sin orden y cocina al momento; el candado de venta es que el producto esté disponible (isAvailable), no el número.
+- Al ACEPTAR (por preparar → preparando): aparta lo que haya, stock = máx(0, stock − cantidad); el faltante se cocina al momento.
+- Al ENTREGAR (recogido): sin cambio (ya se apartó al aceptar).
+- NO RECOGIDO (por el admin, o por vencimiento automático de un pedido LISTO que supera su ventana de ~20 min) y CANCELACIÓN de un pedido YA LISTO: devuelve como excedente reofertable, stock = stock + cantidad.
+- Cancelar un pedido PENDIENTE: sin cambio (nunca se apartó).
+Ejemplo: horchata almacenada 12 → aceptas 1 → 11 → entregado 11; si no se recoge vuelve a 12. Hamburguesa 0 (se cocina) → aceptada 0 → no recogida 1 (excedente) → reofertada y vendida 0, o queda 1 para mañana. Decisión honesta: el stock sube solo cuando una unidad preparada queda sin reclamar (no "al empezar a prepararla"), para no venderla dos veces; las transiciones se serializan con bloqueo de fila (FOR UPDATE) para que peticiones simultáneas no doble-cuenten. Matiz: el vencimiento automático solo alcanza pedidos LISTOS; un pedido EXTENDIDO (ready_later) libera su stock por acción del admin o por cancelación del cliente (barrido de fin de día = trabajo futuro). El min/máx siguen siendo etiquetas del admin (sin reorden automático todavía).
 
 Nota de puerto (este equipo): el backend corre por defecto en el puerto 3002 (el 3001 lo ocupa otro proyecto).

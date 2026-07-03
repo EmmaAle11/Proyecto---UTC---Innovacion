@@ -249,10 +249,57 @@ export class OrdersService {
    * Cambia el estado de un pedido validando la transición (BR-004) y fijando los
    * timestamps con la hora del SERVIDOR (BR-005). Operación de una sola tabla (atómica).
    */
+  /**
+   * Ciclo de vida del INVENTARIO real ("stock de dark kitchen", D-037). El `stock`
+   * son unidades físicas disponibles ahora; el `0` NO bloquea vender (se cocina al
+   * momento, el candado sigue siendo `isAvailable`). Atómico vía SQL (respeta el
+   * CHECK `stock >= 0`), server-side y dentro de la transacción del caller:
+   *  - `reserve` (al ACEPTAR): aparta del almacén lo que haya, el faltante se cocina
+   *    al momento → `stock = GREATEST(0, stock − cantidad)` (nunca baja de 0).
+   *  - `release` (no recogido / cancelado ya listo): lo preparado y no reclamado queda
+   *    como EXCEDENTE reofertable → `stock = stock + cantidad`.
+   */
+  private async applyStockDelta(
+    manager: EntityManager,
+    order: OrderEntity,
+    action: 'reserve' | 'release',
+  ): Promise<void> {
+    const repo = manager.getRepository(ProductEntity);
+    // Orden estable por productId: dos pedidos concurrentes con los mismos productos
+    // toman los locks de fila en el MISMO orden → sin deadlock (D-037).
+    const items = [...(order.items ?? [])].sort((a, b) =>
+      (a.product?.id ?? '').localeCompare(b.product?.id ?? ''),
+    );
+    for (const it of items) {
+      const productId = it.product?.id;
+      if (!productId || it.quantity <= 0) continue;
+      const expr =
+        action === 'reserve'
+          ? 'GREATEST(0, "stock" - :qty)' // aparta; cocina al momento si no alcanza
+          : '"stock" + :qty'; // excedente reofertable
+      await repo
+        .createQueryBuilder()
+        .update()
+        .set({ stock: () => expr })
+        .where('id = :id', { id: productId })
+        .setParameter('qty', it.quantity)
+        .execute();
+    }
+  }
+
   async updateStatus(id: string, status: OrderStatus): Promise<OrderEntity> {
-    // Transacción: cambio de estado + (si pasa a "listo") registro de tiempos, atómico.
+    // Transacción: cambio de estado + (si pasa a "listo") registro de tiempos +
+    // ajuste de inventario (D-037), atómico.
     return this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(OrderEntity);
+      // Lock pesimista de la fila (FOR UPDATE) para SERIALIZAR transiciones concurrentes
+      // del mismo pedido (evita doble-reserva/doble-liberación, D-037). Sin joins para que
+      // Postgres permita el FOR UPDATE; las relaciones se cargan aparte.
+      const locked = await repo.findOne({
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!locked) throw new NotFoundException('Pedido no encontrado');
       const order = await repo.findOne({
         where: { id },
         relations: ORDER_RELATIONS,
@@ -269,12 +316,18 @@ export class OrdersService {
 
       const now = new Date(); // BR-005: hora del servidor, nunca del frontend
       order.status = status;
-      if (status === OrderStatus.PREPARING) order.acceptedAt = now;
+      if (status === OrderStatus.PREPARING) {
+        order.acceptedAt = now;
+        await this.applyStockDelta(manager, order, 'reserve'); // D-037: aparta del almacén
+      }
       if (status === OrderStatus.READY) {
         order.readyAt = now;
         order.pickupDeadline = new Date(now.getTime() + 20 * 60 * 1000); // +20 min (D-005)
       }
       if (status === OrderStatus.PICKED_UP) order.pickedUpAt = now;
+      if (status === OrderStatus.NOT_PICKED_UP) {
+        await this.applyStockDelta(manager, order, 'release'); // D-037: excedente reofertable
+      }
 
       await repo.save(order);
       if (status === OrderStatus.READY) {
@@ -400,16 +453,52 @@ export class OrdersService {
    * servidor (`now()`). Devuelve cuántos pedidos venció.
    */
   async expireOverdue(): Promise<number> {
-    const res = await this.dataSource
-      .getRepository(OrderEntity)
-      .createQueryBuilder()
-      .update()
-      .set({ status: OrderStatus.NOT_PICKED_UP })
-      .where('status = :ready', { ready: OrderStatus.READY })
-      .andWhere('pickup_deadline IS NOT NULL')
-      .andWhere('pickup_deadline < now()')
-      .execute();
-    return res.affected ?? 0;
+    const now = new Date(); // BR-005: hora del servidor
+    return this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(OrderEntity);
+      // Flip ATÓMICO y condicional: solo pedidos que SIGAN en READY con deadline pasado.
+      // El `WHERE status=ready` evita pisar una transición concurrente (p. ej. picked_up)
+      // y garantiza que solo devolvemos stock de los pedidos que ESTE update venció (D-037).
+      const flipped = await repo
+        .createQueryBuilder()
+        .update()
+        .set({ status: OrderStatus.NOT_PICKED_UP })
+        .where('status = :ready', { ready: OrderStatus.READY })
+        .andWhere('pickup_deadline IS NOT NULL')
+        .andWhere('pickup_deadline < :now', { now })
+        .returning(['id'])
+        .execute();
+      const ids = ((flipped.raw as Array<{ id: string }>) ?? []).map((r) => r.id);
+      if (ids.length) {
+        const orders = await repo.find({
+          where: { id: In(ids) },
+          relations: ORDER_RELATIONS,
+        });
+        // Agrega la devolución por producto de TODAS las órdenes vencidas y la aplica en
+        // orden GLOBAL de productId. Como es multi-orden, no sirve el orden por-orden de
+        // applyStockDelta; agregar + ordenar global evita deadlocks con transiciones de
+        // un solo pedido (que también lockean productos en orden de productId). (D-037)
+        const byProduct = new Map<string, number>();
+        for (const order of orders) {
+          for (const it of order.items ?? []) {
+            const pid = it.product?.id;
+            if (!pid || it.quantity <= 0) continue;
+            byProduct.set(pid, (byProduct.get(pid) ?? 0) + it.quantity);
+          }
+        }
+        const productRepo = manager.getRepository(ProductEntity);
+        for (const pid of [...byProduct.keys()].sort((a, b) => a.localeCompare(b))) {
+          await productRepo
+            .createQueryBuilder()
+            .update()
+            .set({ stock: () => '"stock" + :qty' })
+            .where('id = :id', { id: pid })
+            .setParameter('qty', byProduct.get(pid))
+            .execute();
+        }
+      }
+      return ids.length;
+    });
   }
 
   // Nota: cancelOwn/extendOwn NO reusan ALLOWED_TRANSITIONS (esa es la política del
@@ -429,15 +518,41 @@ export class OrdersService {
    * Cancela un pedido PROPIO (§3.8/§3.9). Propiedad por JWT (BR-014). Atómica.
    */
   async cancelOwn(id: string, user: JwtUser): Promise<OrderEntity> {
-    const order = await this.findOwnedByUser(id, user);
-    if (!OrdersService.CLIENT_CANCELLABLE.includes(order.status)) {
+    const owned = await this.findOwnedByUser(id, user); // BR-014: propiedad por JWT
+    if (!OrdersService.CLIENT_CANCELLABLE.includes(owned.status)) {
       throw new BadRequestException(
         'Solo puedes cancelar un pedido pendiente o uno listo que aún no recogiste',
       );
     }
-    order.status = OrderStatus.CANCELLED;
-    await this.dataSource.getRepository(OrderEntity).save(order);
-    return order;
+    // Atómica: cancelar + (si ya estaba preparado) devolver la comida como excedente (D-037).
+    return this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(OrderEntity);
+      // Lock pesimista (FOR UPDATE) + carga con relaciones aparte (ver updateStatus).
+      const locked = await repo.findOne({
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!locked) throw new NotFoundException('Pedido no encontrado');
+      const order = await repo.findOne({
+        where: { id },
+        relations: ORDER_RELATIONS,
+      });
+      if (!order) throw new NotFoundException('Pedido no encontrado');
+      // Re-valida sobre el estado FRESCO ya bloqueado (cierra el TOCTOU: entre el chequeo
+      // de propiedad y la transacción, el admin pudo entregarlo/vencerlo). No pisa terminales.
+      if (!OrdersService.CLIENT_CANCELLABLE.includes(order.status)) {
+        throw new BadRequestException(
+          'Solo puedes cancelar un pedido pendiente o uno listo que aún no recogiste',
+        );
+      }
+      const wasPrepared =
+        order.status === OrderStatus.READY ||
+        order.status === OrderStatus.READY_LATER;
+      order.status = OrderStatus.CANCELLED;
+      if (wasPrepared) await this.applyStockDelta(manager, order, 'release');
+      await repo.save(order);
+      return order;
+    });
   }
 
   /**
@@ -445,15 +560,35 @@ export class OrdersService {
    * Propiedad por JWT (BR-014). Una sola tabla (atómica).
    */
   async extendOwn(id: string, user: JwtUser): Promise<OrderEntity> {
-    const order = await this.findOwnedByUser(id, user);
-    if (order.status !== OrderStatus.READY) {
+    const owned = await this.findOwnedByUser(id, user); // BR-014: propiedad por JWT
+    if (owned.status !== OrderStatus.READY) {
       throw new BadRequestException(
         'Solo puedes extender un pedido que está listo para recoger',
       );
     }
-    order.status = OrderStatus.READY_LATER;
-    await this.dataSource.getRepository(OrderEntity).save(order);
-    return order;
+    // Atómica con lock de fila + re-validación del estado FRESCO: no revive un terminal
+    // (not_picked_up/picked_up) que un vencimiento/entrega concurrente ya haya fijado (D-037).
+    return this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(OrderEntity);
+      const locked = await repo.findOne({
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!locked) throw new NotFoundException('Pedido no encontrado');
+      if (locked.status !== OrderStatus.READY) {
+        throw new BadRequestException(
+          'Solo puedes extender un pedido que está listo para recoger',
+        );
+      }
+      const order = await repo.findOne({
+        where: { id },
+        relations: ORDER_RELATIONS,
+      });
+      if (!order) throw new NotFoundException('Pedido no encontrado');
+      order.status = OrderStatus.READY_LATER;
+      await repo.save(order);
+      return order;
+    });
   }
 
   /** Pedidos del usuario autenticado, más recientes primero (BR-014). */
