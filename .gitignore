@@ -53,6 +53,9 @@ secrets/
 *.key
 *.secret.json
 *.secret.local
+# Documento de respaldo de credenciales por ruta (NO commitear — texto plano)
+SECRETOS.txt
+**/SECRETOS.txt
 
 # --- Docker / datos locales (PostgreSQL + Keycloak) ---
 # El volumen 'pgdata' es named (no cae en el árbol); esto es defensivo por si
