@@ -259,6 +259,34 @@ logOrderStateChange('order-uuid', 'pending', 'preparing', 'admin@utc.mx')
 
 ---
 
+### Organización: Carpeta Centralizada OWASP (13:21)
+
+**Cambio:** Creada carpeta `docs/OWASP/` con documentación de cumplimiento ASVS L2.
+
+**Descripción:**
+- Nueva carpeta: `docs/OWASP/` (punto central para auditoría de seguridad)
+- Archivos movidos:
+  - `OWASP-ASVS-L2-Analysis.md` (análisis de 14 dominios)
+  - `OWASP-ASVS-L2-Recommendations.md` (plan técnico 7h)
+  - `threat-model.md` (STRIDE formal, 31 amenazas)
+- Índice: `docs/OWASP/README.md` (master checklist, resumen L2)
+- Beneficio: fácil auditoría trimestral, referencia única para tesis
+
+**Estructura:**
+```
+docs/OWASP/
+├── README.md (resumen + checklist L2)
+├── OWASP-ASVS-L2-Analysis.md (V1–V14, estado actual)
+├── OWASP-ASVS-L2-Recommendations.md (plan 7h)
+└── threat-model.md (STRIDE, riesgos residuales)
+```
+
+**Verificación:** `ls docs/OWASP/` → 4 archivos presentes, enlaces internos OK
+
+**Decisión:** D-043 (documentación centralizada OWASP).
+
+---
+
 ## Reglas de documentación
 
 Cada cambio en este changelog debe incluir:
