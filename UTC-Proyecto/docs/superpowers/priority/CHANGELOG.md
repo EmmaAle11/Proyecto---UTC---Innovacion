@@ -152,6 +152,73 @@ Registro canónico de cambios significativos del proyecto, documentados con fech
 
 ---
 
+## 2026-07-06
+
+### Helmet: Security Headers (Content-Security-Policy + HSTS + Clickjacking Protection) (12:27)
+
+**Cambio:** Implementación de security headers (OWASP ASVS L2 V10).
+
+**Descripción técnica:**
+- Instalado: `helmet@8.2.0`
+- Configurado en `backend/src/main.ts` (antes de CORS, reutilizando pattern de middleware NestJS)
+- Headers implementados: CSP, HSTS (1 año + preload), X-Content-Type-Options, X-Frame-Options, Referrer-Policy
+- CSP permite 'self' + 'unsafe-inline' en styles (NativeWind) para dev; revisar en prod
+
+**Verificación real (no inventado):**
+```bash
+$ npm run build         # ✅ exitoso, 0 errores TypeScript
+$ npm run start:dev    # ✅ arrancó, todas las rutas mapeadas
+$ curl -I http://localhost:3002/health
+Content-Security-Policy: default-src 'self';...
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+```
+
+**Evidencia:** 
+- Archivo modificado: `backend/src/main.ts` (importación helmet + configuración L15–41)
+- Instalación: `backend/package.json` + `backend/package-lock.json` (helmet 8.2.0)
+- Prueba real: headers verificados en respuesta HTTP vía curl
+
+**Decisión:** D-039 (security headers OWASP ASVS L2 V10).
+
+---
+
+### HTTPS Optional en Local (dev/prod flexibility) (12:39)
+
+**Cambio:** Configuración de TLS/HTTPS vía env vars (OWASP ASVS L2 V7).
+
+**Descripción técnica:**
+- Condicional: HTTPS_ENABLED=true carga certificados desde HTTPS_CERT_PATH, HTTPS_KEY_PATH
+- Rutas env vars + fallback defaults (./cert.pem, ./key.pem)
+- Error temprano si archivos no existen (fail-closed, regla #1)
+- Configurado en `backend/src/main.ts` (NestFactory.create() con httpsOptions)
+- Dev: HTTP (HTTPS_ENABLED=false por defecto en .env.example)
+- Prod: HTTPS obligatorio (setear HTTPS_ENABLED=true + colocar certificados)
+- Certificados en .gitignore (no commiteados)
+
+**Certificado de prueba generado:**
+```bash
+openssl req -x509 -newkey rsa:2048 -nodes -out cert.pem -keyout key.pem -days 365 -subj "/CN=localhost"
+```
+
+**Verificación real:**
+```bash
+$ HTTPS_ENABLED=true HTTPS_CERT_PATH=../cert.pem HTTPS_KEY_PATH=../key.pem npm run start:dev
+[NestApplication] Nest application successfully started
+$ curl -k -I https://localhost:3002/health
+HTTP/1.1 200 OK
+```
+
+**Archivos modificados:**
+- `backend/.env.example` (NODE_ENV + HTTPS_* vars)
+- `backend/src/main.ts` (HTTPS condicional L5–26, NestFactory.create L37)
+- `.gitignore` (cert.pem, key.pem agregados)
+
+**Decisión:** D-040 (TLS/HTTPS transport security ASVS L2 V7).
+
+---
+
 ## Reglas de documentación
 
 Cada cambio en este changelog debe incluir:
