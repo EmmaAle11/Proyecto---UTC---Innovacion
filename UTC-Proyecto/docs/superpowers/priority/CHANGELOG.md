@@ -219,6 +219,46 @@ HTTP/1.1 200 OK
 
 ---
 
+### Audit Logging: Acciones Críticas Registradas (12:45)
+
+**Cambio:** Servicio de auditoría para login, cambios de estado, accesos denegados (OWASP ASVS L2 V8 — Error Handling and Logging).
+
+**Descripción técnica:**
+- Nuevo servicio: `src/shared/logging/audit-log.service.ts` (reutiliza NestJS Logger, no custom logger)
+- Métodos: `logLogin()`, `logOrderStateChange()`, `logUnauthorizedAccess()`, `logMFARequired()`, `logInvalidToken()`
+- Formato: JSON estructurado (fácil parsing en logs centralizados)
+- **NO loguea:** tokens, passwords, secrets (regla #0 — evidence or block)
+- Inyectable global: agregado a `app.module.ts` como provider
+- Integración:
+  - `src/application/auth/auth.service.ts`: loguea login exitoso/fallido (user + admin)
+  - `src/presentation/orders/orders.controller.ts`: loguea cambio de estado (quién, qué, cuándo)
+
+**Auditoría implementada:**
+```typescript
+// Login exitoso
+logLogin('user@edu.utc.mx', true, 'user')
+// Output: {"action":"login","email":"user@edu.utc.mx","method":"user","success":true,"timestamp":"2026-07-06T12:45:00Z"}
+
+// Cambio de estado
+logOrderStateChange('order-uuid', 'pending', 'preparing', 'admin@utc.mx')
+// Output: {"action":"order_state_change","orderId":"order-uuid","from":"pending","to":"preparing","admin":"admin@utc.mx","timestamp":"2026-07-06T12:45:00Z"}
+```
+
+**Verificación:**
+- `npm run build` OK (TypeScript compila, no type errors)
+- AuditLogService inyectable en todos lados (app.module provider)
+- Logs van a stdout (NestJS Logger) → fácil redirigir a ELK/Datadog en prod
+
+**Archivos modificados:**
+- `src/shared/logging/audit-log.service.ts` (nuevo)
+- `src/app.module.ts` (AuditLogService en providers)
+- `src/application/auth/auth.service.ts` (importa AuditLogService, loguea login)
+- `src/presentation/orders/orders.controller.ts` (importa AuditLogService, loguea cambio de estado)
+
+**Decisión:** D-041 (audit logging ASVS L2 V8).
+
+---
+
 ## Reglas de documentación
 
 Cada cambio en este changelog debe incluir:

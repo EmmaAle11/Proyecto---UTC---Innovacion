@@ -12,6 +12,7 @@ import { SettingsModule } from './presentation/settings/settings.module';
 import { JwtStrategy } from './infrastructure/auth/jwt.strategy';
 import { JwtAuthGuard } from './presentation/auth/guards/jwt-auth.guard';
 import { RolesGuard } from './presentation/auth/guards/roles.guard';
+import { AuditLogService } from './shared/logging/audit-log.service';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { RolesGuard } from './presentation/auth/guards/roles.guard';
   // Orden de guards globales: rate-limit → JWT (autenticación) → roles (autorización).
   providers: [
     JwtStrategy,
+    AuditLogService, // global: inyectable en cualquier service/controller
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },

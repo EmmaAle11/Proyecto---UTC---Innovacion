@@ -7,6 +7,7 @@ import {
 } from '../../infrastructure/keycloak/keycloak-admin.service';
 import { UserProfileEntity } from '../../infrastructure/database/entities/user-profile.entity';
 import { UserRole } from '../../infrastructure/database/entities/enums';
+import { AuditLogService } from '../../shared/logging/audit-log.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { AdminLoginDto } from './dto/admin-login.dto';
@@ -19,6 +20,7 @@ export class AuthService {
     private readonly keycloak: KeycloakAdminService,
     @InjectRepository(UserProfileEntity)
     private readonly profiles: Repository<UserProfileEntity>,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   /**
@@ -61,12 +63,26 @@ export class AuthService {
   }
 
   async login(dto: LoginDto): Promise<Tokens> {
-    return this.keycloak.login(dto.email, dto.password);
+    try {
+      const tokens = await this.keycloak.login(dto.email, dto.password);
+      this.auditLog.logLogin(dto.email, true, 'user');
+      return tokens;
+    } catch (err) {
+      this.auditLog.logLogin(dto.email, false, 'user', err.message);
+      throw err;
+    }
   }
 
   /** Login del administrador: credenciales + MFA contra Keycloak, exige rol admin (ver D-014, rules §6). */
   async loginAdmin(dto: AdminLoginDto): Promise<Tokens> {
-    return this.keycloak.loginAdmin(dto.email, dto.password, dto.totp);
+    try {
+      const tokens = await this.keycloak.loginAdmin(dto.email, dto.password, dto.totp);
+      this.auditLog.logLogin(dto.email, true, 'admin');
+      return tokens;
+    } catch (err) {
+      this.auditLog.logLogin(dto.email, false, 'admin', err.message);
+      throw err;
+    }
   }
 
   /** Renueva la sesión (cliente o admin) con el refresh_token. */

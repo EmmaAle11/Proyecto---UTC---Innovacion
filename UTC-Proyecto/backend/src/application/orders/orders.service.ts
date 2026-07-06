@@ -13,6 +13,7 @@ import { PreparationTimeEntity } from '../../infrastructure/database/entities/pr
 import { AppSettingsEntity } from '../../infrastructure/database/entities/app-settings.entity';
 import { PaymentGatewayService } from '../payments/payment-gateway.service';
 import { CircuitOpenError } from '../../shared/resilience/circuit-breaker';
+import { AuditLogService } from '../../shared/logging/audit-log.service';
 import type { CongestionResponse } from './dto/order-response';
 import type {
   OrderMetrics,
@@ -96,6 +97,7 @@ export class OrdersService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly paymentGateway: PaymentGatewayService,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   /**

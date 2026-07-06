@@ -22,6 +22,7 @@ import {
 } from '../../application/orders/dto/order-response';
 import { Roles } from '../auth/decorators/roles.decorator';
 import type { JwtUser } from '../../infrastructure/auth/jwt.strategy';
+import { AuditLogService } from '../../shared/logging/audit-log.service';
 
 /**
  * Pedidos del cliente. Ambas rutas exigen JWT (guard global); sin `@Roles`, así que
@@ -30,7 +31,10 @@ import type { JwtUser } from '../../infrastructure/auth/jwt.strategy';
  */
 @Controller('orders')
 export class OrdersController {
-  constructor(private readonly orders: OrdersService) {}
+  constructor(
+    private readonly orders: OrdersService,
+    private readonly auditLog: AuditLogService,
+  ) {}
 
   /** POST /orders → crea un pedido (201). Total y precios los calcula el backend. */
   @Post()
@@ -82,10 +86,20 @@ export class OrdersController {
   @Patch(':id/status')
   @Roles('admin')
   async updateStatus(
+    @Req() req: Request & { user?: JwtUser },
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateOrderStatusDto,
   ): Promise<OrderResponse> {
-    return toOrderResponse(await this.orders.updateStatus(id, dto.status));
+    const user = this.requireUser(req);
+    const updatedOrder = await this.orders.updateStatus(id, dto.status);
+    // Auditoría: registra quién cambió el pedido a qué estado, cuándo.
+    this.auditLog.logOrderStateChange(
+      id,
+      updatedOrder.status,
+      dto.status,
+      user.email ?? 'unknown',
+    );
+    return toOrderResponse(updatedOrder);
   }
 
   /** PATCH /orders/:id/cancel → el cliente cancela SU pedido (§3.8, solo si `pending`). */
