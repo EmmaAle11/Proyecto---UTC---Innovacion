@@ -950,6 +950,107 @@ Cierre: código modular con comentarios específicos = revisable, testeable y co
 menos superficie de bug; el reuso (ponytail) evita el código basura antes de escribirlo.
 
 ---
+
+# 42. UBICACIÓN DEL CÓDIGO — YAGNI + REUTILIZACIÓN
+
+> Decision 2026-07-06. Antes de escribir código, Claude debe preguntarse dónde 
+> debe vivir. Esta regla previene código duplicado y decisiones de ubicación 
+> por conveniencia.
+
+```txt
+Antes de escribir código, responder OBLIGATORIAMENTE:
+
+¿Existe ya un lugar
+donde este código debería vivir?
+
+SI ↓
+   Moverlo ahí.
+   (Reutilizar: buscar en domain/, application/, 
+    infrastructure/, shared/ — en ese orden)
+
+NO ↓
+   Crear el lugar adecuado.
+   (Aplicar arquitectura limpia: en qué capa vive)
+
+Nunca crear código por conveniencia.
+```
+
+Aplicar **siempre**, especialmente bajo presión de tiempo:
+
+```txt
+- NO copiar una función si ya existe en shared/
+- NO duplicar un servicio si está en application/
+- NO crear un helper si TypeORM ya lo provee
+- NO escribir validación si class-validator ya la cubre
+```
+
+Regla dura:
+
+```txt
+Código duplicado = BLOQUEADO hasta encontrar la ubicación real.
+```
+
+Cierre: la ubicación correcta es parte de la calidad del código, no un lujo.
+
+---
+
+# 43. DECISIONES ARQUITECTÓNICAS — ANÁLISIS OBLIGATORIO
+
+> Decision 2026-07-06. Toda decisión arquitectónica debe responder 6 preguntas 
+> explícitamente. Aplica a cambios que tocan > 1 módulo o introducen nuevas 
+> dependencias.
+
+```txt
+Antes de implementar un cambio arquitectónico, responder:
+
+1. ¿Por qué aquí?
+   (Justificar ubicación específica: por qué en este módulo/capa)
+
+2. ¿Por qué no en otro módulo?
+   (Considerar alternativas: por qué no en X, Y, Z)
+
+3. ¿Qué dependencia nueva introduce?
+   (Listar deps: npm packages, módulos internos, externos)
+
+4. ¿Rompe encapsulamiento?
+   (¿Viola límites de módulo? ¿Expone internals?)
+
+5. ¿Aumenta el acoplamiento?
+   (¿Más módulos dependiendo de uno? ¿Circular?)
+
+6. ¿Disminuye la cohesión?
+   (¿La función del módulo sigue clara? ¿Sigue teniendo UNA responsabilidad?)
+
+---
+
+Preguntas de futuro (si aplica):
+
+7. ¿Este cambio hace más fácil o más difícil
+   mantener DOXIA en dos años?
+   (D = Durabilidad, O = Observabilidad, X = eXtensibilidad, 
+    I = Independencia, A = Autotestabilidad)
+
+```
+
+Prohibido:
+
+```txt
+implementar cambio arquitectónico sin responder las 6 preguntas
+responder "probablemente sí" en lugar de analizar
+ignorar impacto en acoplamiento/cohesión por prisa
+decidir arquitectura basado en "parece limpio"
+```
+
+Regla dura:
+
+```txt
+Si no puedes responder las 6 preguntas, BLOQUEADO.
+El cambio se vuelve un riesgo técnico no documentado.
+```
+
+Cierre: buena arquitectura = decisiones **conscientes y documentadas**, no intuiciones.
+
+---
 ---
 
 # BUSINESS RULES — UTC PICK SAZÓN (BR)

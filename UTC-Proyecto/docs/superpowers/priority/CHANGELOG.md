@@ -287,6 +287,26 @@ docs/OWASP/
 
 ---
 
+### Reglas 42 y 43: Guardrails Arquitectónicos (13:45)
+
+**Cambio:** Agregadas dos nuevas reglas obligatorias a `docs/superpowers/priority/rules.md`.
+
+**Descripción técnica:**
+- **Regla 42 — Ubicación del código (YAGNI + Reutilización)**: Antes de escribir código, preguntar dónde debe vivir. Buscar reutilización en: domain/ → application/ → infrastructure/ → shared/. Nunca crear código por conveniencia. Regla dura: código duplicado = BLOQUEADO.
+  
+- **Regla 43 — Decisiones arquitectónicas (análisis obligatorio)**: Toda decisión multi-módulo o con nuevas dependencias debe responder 6 preguntas: (1) ¿Por qué aquí? (2) ¿Por qué no X? (3) ¿Qué deps introduce? (4) ¿Rompe encapsulamiento? (5) ¿Aumenta acoplamiento? (6) ¿Disminuye cohesión? Bonus: ¿Facilita DOXIA en 2 años? Regla dura: sin respuestas = BLOQUEADO.
+
+**Verificación:**
+- `grep -n "# 42\|# 43"` → Regla 42 línea 954, Regla 43 línea 997 ✅
+- `wc -l rules.md` → 1318 líneas (+90 respecto a 1228) ✅
+- Reglas sin errores de sintaxis: lectura manual de ambas ✅
+
+**Decisión:** D-044 (cierre arquitectónico pre-producción).
+
+**Contexto:** 2 meses hasta producción. Arquitectura congelada. Estas reglas son guardrails contra decisiones improvisadas y duplicación de código bajo presión.
+
+---
+
 ## Reglas de documentación
 
 Cada cambio en este changelog debe incluir:
