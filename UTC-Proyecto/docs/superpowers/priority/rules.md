@@ -849,6 +849,107 @@ Reglas del doble frente:
 Cierre: una explicacion no esta completa si falta cualquiera de los dos frentes.
 
 ---
+
+# 39. DOCUMENTACIÓN OBLIGATORIA DE CAMBIOS — CON HORA Y EXPLICACIÓN
+
+> Decision 2026-07-06. Todo cambio técnico significativo del proyecto debe
+> quedar documentado en el CHANGELOG con fecha, hora estimada, descripción y
+> decisión relacionada. La documentación es parte de la entrega, no opcional.
+
+```txt
+OBLIGATORIO en docs/superpowers/priority/CHANGELOG.md:
+- Commit hash (git show <hash> --stat)
+- Fecha ISO 8601 + hora estimada (ej. 2026-07-03 14:00)
+- Descripción breve (qué cambió en 1-2 líneas)
+- Explicación técnica (por qué, qué implicaciones, decisión)
+- Decisión relacionada (D-00X en docs/arquitectura/decisiones.md, si aplica)
+- Evidencia verificable (git show, archivo leído, prueba ejecutada)
+```
+
+Cambios que REQUIEREN CHANGELOG:
+
+```txt
+- Feature nueva (desde 100 líneas)
+- Fix crítico (auth, pagos, estado)
+- Refactor de arquitectura
+- Migración de tecnología
+- Cambio de puerto/host/config
+- Decision que afecta scope o reglas de negocio
+```
+
+Cambios que NO requieren CHANGELOG:
+
+```txt
+- Typo en documentación
+- Indentación
+- Cambio de variable local sin impacto
+- Bump de version minor (npm update)
+```
+
+Regla dura:
+
+```txt
+El CHANGELOG es la fuente de verdad del progreso. Si no está, el cambio no cuenta
+como validado. Mínimo semanal: revisar git log y actualizar CHANGELOG.
+```
+
+Cierre: documentar ES TRABAJAR. La historia del proyecto vive en CHANGELOG,
+junto a git log; ambos deben estar sincronizados.
+
+---
+
+# 40. AUTOCRÍTICA OBLIGATORIA — NO DAR LA RAZÓN POR DEFECTO
+
+> Decision 2026-07-01. Claude NO es un complaciente. Debe evaluar críticamente
+> TANTO lo que el usuario afirma COMO lo que el propio Claude propone/hizo.
+
+```txt
+- NO asumir que el usuario tiene razon solo porque lo dice. Evaluar con lógica +
+  evidencia (regla #0). Si el usuario acierta: decirlo CON el razonamiento y, si
+  aplica, la autocritica del propio error. Si NO: argumentar en contra con
+  evidencia, respetuosamente, en vez de ceder.
+- NO asumir que lo que Claude propuso/implementó está bien: buscar activamente el
+  contra-argumento, el caso que lo rompe, el supuesto no validado. Preferir
+  "esto puede fallar si X" antes que "esto queda perfecto".
+- Prohibido el patron yes-man: "tienes toda la razon" sin verificar; aceptar un
+  requisito sin señalar su riesgo/costo; confirmar que algo funciona sin evidencia.
+- Al recibir feedback/correccion: primero verificar si es correcto (a veces el
+  usuario tambien se equivoca); luego reconocer el propio error explicitamente si
+  lo hubo, sin adornarlo.
+- Aplica SIEMPRE, especialmente bajo presion de tiempo o cuando "parece obvio".
+```
+
+Cierre: dar la razon por inercia es una falla; la lealtad es a la VERDAD verificable
+y al mejor resultado del usuario, no a complacerlo en el momento.
+
+---
+
+# 41. CÓDIGO MODULAR OBLIGATORIO — SUBRUTINAS + COMENTARIOS ESPECÍFICOS
+
+> Decision 2026-07-06. Todo código NUEVO que se escriba se descompone en
+> subrutinas/funciones con una sola responsabilidad y lleva comentarios
+> específicos. Aplica al código nuevo — NO obliga a re-modularizar código
+> existente (respeta la regla #28 MINIMUM SAFE CHANGE).
+
+```txt
+- MODULAR: extraer la lógica en funciones/subrutinas de una sola responsabilidad,
+  preferentemente puras y testeables sin DI (patron vigencias-dates.ts /
+  carga-nueva.ts / extracted-fecha.ts). NADA de bloques monolíticos inline cuando
+  la lógica tiene nombre propio y es reutilizable.
+- REUSO PRIMERO (ponytail): antes de escribir, buscar si ya existe la función/helper
+  y reusarlo; solo escribir código nuevo si no hay algo que reusar. Menos código = menos bugs.
+- COMENTARIOS ESPECÍFICOS: cada subrutina explica QUÉ hace, sus entradas/salidas y
+  el PORQUÉ / invariante no obvio (ej. "ancla mediodia UTC para no retroceder 1 dia
+  en MX"). Prohibidos los comentarios genéricos que solo repiten el nombre.
+- ALCANCE: aplica al código nuevo del cambio en curso. NO gatilla refactors del
+  código viejo circundante (regla #28); si el código existente ya es monolítico,
+  se deja salvo que el cambio lo toque directamente.
+```
+
+Cierre: código modular con comentarios específicos = revisable, testeable y con
+menos superficie de bug; el reuso (ponytail) evita el código basura antes de escribirlo.
+
+---
 ---
 
 # BUSINESS RULES — UTC PICK SAZÓN (BR)
