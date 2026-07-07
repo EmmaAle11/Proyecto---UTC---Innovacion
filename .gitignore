@@ -37,7 +37,7 @@ web-build/
 /frontend/android/
 
 # --- Entorno / SECRETOS (rules §17 — la regla de oro) ---
-# Reales (con valores): infra/.env, backend/.env. Se versionan SOLO los .example.
+# Reales (con valores): infra/.env, backend/.env, frontend/.env. Se versionan SOLO los .example.
 .env
 .env.local
 .env.*.local
@@ -49,10 +49,17 @@ web-build/
 !**/.env.example
 # Llaves, certificados y secretos sueltos
 secrets/
+cert.pem
+key.pem
 *.pem
 *.key
 *.secret.json
 *.secret.local
+*.jks
+*.p8
+*.p12
+*.keystore
+*.mobileprovision
 # Documento de respaldo de credenciales por ruta (NO commitear — texto plano)
 SECRETOS.txt
 **/SECRETOS.txt
