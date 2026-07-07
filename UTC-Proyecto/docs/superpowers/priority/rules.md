@@ -1051,6 +1051,90 @@ El cambio se vuelve un riesgo técnico no documentado.
 Cierre: buena arquitectura = decisiones **conscientes y documentadas**, no intuiciones.
 
 ---
+
+# 44. NO CREAR CARPETAS SIN JUSTIFICACIÓN
+
+> Decision 2026-07-07. Claude tiende a crear carpetas demasiado rápido. Antes de
+> proponer una carpeta nueva, debe existir una razón arquitectónica clara.
+
+Antes de crear una carpeta nueva, responder las 4 preguntas:
+
+```txt
+1. ¿Qué responsabilidad encapsula?
+2. ¿Qué problema evita?
+3. ¿Qué principio SOLID mejora?
+4. ¿Qué ocurrirá dentro de un año si NO existe?
+```
+
+Regla dura:
+
+```txt
+Si no puedes responder las 4 preguntas, NO crees la carpeta.
+```
+
+Cierre: una carpeta sin responsabilidad clara es deuda estructural desde el día 1.
+
+---
+
+# 45. NO ACEPTAR PATRONES POR AUTORIDAD
+
+> Decision 2026-07-07. Ningún patrón se adopta solo porque venga de una fuente
+> prestigiosa. Se adopta si aporta valor al proyecto **actual**.
+
+```txt
+Aunque el patrón provenga de Microsoft, AWS, Google, ThoughtWorks o Martin
+Fowler, verifica primero si aporta valor a UTC Pick Sazón en su contexto real
+(1 dev, 160h, tesis, futuro AZURE).
+
+Critica TODAS las decisiones antes de aceptarlas. Analiza críticamente cada
+propuesta — la mía, la de ChatGPT, la de cualquier libro.
+```
+
+Cierre: la autoridad de la fuente no reemplaza el análisis. El contexto manda.
+
+---
+
+# 46. UMBRALES YAGNI DE ESTRUCTURA (cuándo subdividir)
+
+> Decision 2026-07-07. Complemento de la regla 44. No se crean sub-carpetas
+> "para después": se crean cuando el volumen real las pide. Umbrales concretos:
+
+```txt
+application/         → archivos planos (CreateOrder.ts, GetOrder.ts) hasta 5 casos
+                       de uso. A partir de ~20 casos → separar commands/ y queries/.
+
+infrastructure/      → arrancar solo con persistence/ y external/.
+                       messaging/, cache/, queue/ se agregan cuando aparezca el
+                       primer RabbitMQ / Redis / Azure Queue real. No antes.
+
+presentation/        → archivos planos (OrdersController.ts, OrderGuard.ts) mientras
+                       haya UNO de cada tipo. Carpetas controllers/ guards/ pipes/
+                       filters/ solo cuando existan VARIOS.
+
+tests/               → solo unit/ e integration/ al inicio.
+                       contract/, builders/, fixtures/ cuando realmente aparezcan.
+
+contracts/           → dentro del módulo (modules/orders/contracts/) por defecto.
+                       Solo se promueve a backend/contracts/ (API pública) si se
+                       genera SDK / OpenAPI client / frontend automático. Eso es
+                       una decisión arquitectónica (regla 43), no un default.
+
+frontend (FSD v2)    → app, pages, widgets, features, entities, shared.
+                       processes/ SOLO para flujos largos reales (Checkout,
+                       Onboarding, Order Tracking). NO usar flows/ además de
+                       processes/: duplica responsabilidades.
+```
+
+Regla dura:
+
+```txt
+Carpeta con un solo archivo dentro = huele a prematura. Colapsar a archivo plano.
+```
+
+Cierre: la estructura sigue al código, no lo precede. Ver [[bounded-contexts]] para
+qué módulo puede hablar con cuál.
+
+---
 ---
 
 # BUSINESS RULES — UTC PICK SAZÓN (BR)
