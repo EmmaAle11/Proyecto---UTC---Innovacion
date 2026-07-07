@@ -1,10 +1,11 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import type { IProductRepository } from '../../domain/product/product.repository';
+import { PRODUCT_REPOSITORY } from '../../domain/product/product.repository';
 import { ProductEntity } from '../../infrastructure/database/entities/product.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -17,17 +18,17 @@ import { UpdateProductDto } from './dto/update-product.dto';
 @Injectable()
 export class ProductsService {
   constructor(
-    @InjectRepository(ProductEntity)
-    private readonly products: Repository<ProductEntity>,
+    @Inject(PRODUCT_REPOSITORY)
+    private readonly products: IProductRepository,
   ) {}
 
   /** Lista el catálogo completo, ordenado por categoría y nombre. */
   findAll(): Promise<ProductEntity[]> {
-    return this.products.find({ order: { category: 'ASC', name: 'ASC' } });
+    return this.products.findAll();
   }
 
   /** Alta de producto (admin). */
-  create(dto: CreateProductDto): Promise<ProductEntity> {
+  async create(dto: CreateProductDto): Promise<ProductEntity> {
     if (dto.maxStock != null && dto.maxStock < (dto.minStock ?? 0)) {
       throw new BadRequestException(
         'max_stock debe ser mayor o igual a min_stock',
@@ -36,27 +37,26 @@ export class ProductsService {
     if (dto.reofferPrice != null && dto.reofferPrice >= dto.price) {
       throw new BadRequestException('La reoferta debe ser menor al precio');
     }
-    const entity = this.products.create({
-      name: dto.name,
-      description: dto.description ?? null,
-      price: dto.price.toFixed(2),
-      category: dto.category,
-      imageUrl: dto.imageUrl ?? null,
-      basePrepTimeSeconds: dto.basePrepTimeSeconds,
-      stock: dto.stock ?? 0,
-      minStock: dto.minStock ?? 0,
-      maxStock: dto.maxStock ?? null,
-      status: dto.status,
-      isAvailable: dto.isAvailable ?? true,
-      reofferPrice:
-        dto.reofferPrice != null ? dto.reofferPrice.toFixed(2) : null,
-    });
+    const entity = new ProductEntity();
+    entity.name = dto.name;
+    entity.description = dto.description ?? null;
+    entity.price = dto.price.toFixed(2);
+    entity.category = dto.category;
+    entity.imageUrl = dto.imageUrl ?? null;
+    entity.basePrepTimeSeconds = dto.basePrepTimeSeconds;
+    entity.stock = dto.stock ?? 0;
+    entity.minStock = dto.minStock ?? 0;
+    entity.maxStock = dto.maxStock ?? null;
+    entity.status = dto.status;
+    entity.isAvailable = dto.isAvailable ?? true;
+    entity.reofferPrice =
+      dto.reofferPrice != null ? dto.reofferPrice.toFixed(2) : null;
     return this.products.save(entity);
   }
 
   /** Edición parcial de producto (admin). Solo aplica los campos enviados. */
   async update(id: string, dto: UpdateProductDto): Promise<ProductEntity> {
-    const p = await this.products.findOne({ where: { id } });
+    const p = await this.products.findById(id);
     if (!p) throw new NotFoundException('Producto no encontrado');
 
     if (dto.name !== undefined) p.name = dto.name;

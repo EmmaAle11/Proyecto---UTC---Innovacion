@@ -1,8 +1,8 @@
 import { Test } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import { ProductsService } from './products.service';
 import { ProductEntity } from '../../infrastructure/database/entities/product.entity';
 import { ProductStatus } from '../../infrastructure/database/entities/enums';
+import { PRODUCT_REPOSITORY } from '../../domain/product/product.repository';
 
 /** Producto de prueba con TODOS los campos del esquema (con una reoferta puesta). */
 function aProduct(): ProductEntity {
@@ -31,10 +31,9 @@ function aProduct(): ProductEntity {
 describe('ProductsService.update', () => {
   let service: ProductsService;
   const repo = {
-    findOne: jest.fn(),
+    findAll: jest.fn(),
+    findById: jest.fn(),
     save: jest.fn(),
-    create: jest.fn(),
-    find: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -43,7 +42,7 @@ describe('ProductsService.update', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         ProductsService,
-        { provide: getRepositoryToken(ProductEntity), useValue: repo },
+        { provide: PRODUCT_REPOSITORY, useValue: repo },
       ],
     }).compile();
     service = moduleRef.get(ProductsService);
@@ -51,7 +50,7 @@ describe('ProductsService.update', () => {
 
   // Regresión: antes `reofferPrice: null` reventaba con `null.toFixed(2)` → 500.
   it('reofferPrice:null limpia la reoferta sin lanzar (regresión del 500)', async () => {
-    repo.findOne.mockResolvedValue(aProduct());
+    repo.findById.mockResolvedValue(aProduct());
     const out = await service.update('a0000000-0000-4000-8000-000000000001', {
       reofferPrice: null,
     });
@@ -62,7 +61,7 @@ describe('ProductsService.update', () => {
   });
 
   it('reofferPrice numérico se persiste como string con 2 decimales', async () => {
-    repo.findOne.mockResolvedValue(aProduct());
+    repo.findById.mockResolvedValue(aProduct());
     const out = await service.update('a0000000-0000-4000-8000-000000000001', {
       reofferPrice: 5,
     });
@@ -70,7 +69,7 @@ describe('ProductsService.update', () => {
   });
 
   it('producto inexistente lanza NotFoundException', async () => {
-    repo.findOne.mockResolvedValue(null);
+    repo.findById.mockResolvedValue(null);
     await expect(
       service.update('a0000000-0000-4000-8000-000000000099', { price: 10 }),
     ).rejects.toThrow('Producto no encontrado');

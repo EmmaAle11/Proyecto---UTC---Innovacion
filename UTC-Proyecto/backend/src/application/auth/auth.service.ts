@@ -1,25 +1,24 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Inject, Injectable } from '@nestjs/common';
+import type { IUserProfileRepository } from '../../domain/user-profile/user-profile.repository';
+import { USER_PROFILE_REPOSITORY } from '../../domain/user-profile/user-profile.repository';
 import {
   KeycloakAdminService,
   Tokens,
 } from '../../infrastructure/keycloak/keycloak-admin.service';
-import { UserProfileEntity } from '../../infrastructure/database/entities/user-profile.entity';
-import { UserRole } from '../../infrastructure/database/entities/enums';
 import { AuditLogService } from '../../shared/logging/audit-log.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { RefreshDto } from './dto/refresh.dto';
+import { UserRole } from '../../infrastructure/database/entities/enums';
 
 /** Orquesta el registro y login del cliente contra Keycloak + perfil local (ver D-014). */
 @Injectable()
 export class AuthService {
   constructor(
     private readonly keycloak: KeycloakAdminService,
-    @InjectRepository(UserProfileEntity)
-    private readonly profiles: Repository<UserProfileEntity>,
+    @Inject(USER_PROFILE_REPOSITORY)
+    private readonly profiles: IUserProfileRepository,
     private readonly auditLog: AuditLogService,
   ) {}
 
@@ -38,15 +37,13 @@ export class AuthService {
       lastName: dto.lastName,
     });
     try {
-      await this.profiles.save(
-        this.profiles.create({
-          keycloakId,
-          email: dto.email,
-          firstName: dto.firstName,
-          lastName: dto.lastName,
-          role: UserRole.USER,
-        }),
-      );
+      await this.profiles.create({
+        keycloakId,
+        email: dto.email,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        role: UserRole.USER,
+      });
     } catch (err) {
       // Compensación: si falla el perfil local, deshacer el usuario de Keycloak.
       await this.keycloak.removeUser(keycloakId);
