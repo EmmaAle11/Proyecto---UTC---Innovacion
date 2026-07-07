@@ -1,121 +1,78 @@
-# Roadmap — UTC Pick Sazón 8 Semanas
+# Roadmap — UTC Pick Sazón
 
-**Documentos maestros para ejecución del MVP de tesis.**
-
----
-
-## 📋 Planes
-
-### 1. **MASTER_PLAN_8WEEKS.md**
-3 frentes paralelos en 8 semanas (semana-by-semana detallado):
-- ✅ OWASP ASVS L2 (seguridad)
-- ✅ Arquitectura DDD + CQRS (modularidad)
-- ✅ Admin Panel visual (cálculos, ventas, facturación, minería datos)
-
-**Leer primero:** Confirma equipo, stack, dependencias → START WEEK 1.
+**Índice de navegación del proyecto de tesis.** Arquitectura congelada, ejecución secuencial con overlap, 1 dev, ~160h en 8 semanas. **Deadline: 2026-09-07.**
 
 ---
 
-### 2. **REFACTORING_PLAN_DDD.md** (en `.claude/`)
-Refactorización backend: Clean Architecture → DDD Híbrido.
-- 6 fases (4 semanas)
-- Agregados ricos + Value Objects
-- CQRS separado (commands/queries)
-- Event Bus para domain events
-- Timeline: Fase 1-6 detallada
+## 🧭 Punto de entrada #1 (empieza AQUÍ)
 
-**Leer después:** Entiende por qué cada semana del master plan hace qué.
+Todo dev o Claude nuevo lee PRIMERO y COMPLETO:
+
+### → [`PROMPT_CONTEXTO_ARQUITECTURA.md`](./PROMPT_CONTEXTO_ARQUITECTURA.md)
+
+Es el **contexto maestro**: qué arquitectura tenemos, por qué, cómo replicarla, estado honesto y primera acción. Es autosuficiente y actúa como índice de las fuentes canónicas (que ganan si hay contradicción). No abras nada más hasta terminarlo.
 
 ---
 
-### 3. **Architecture.md** (en `.claude/`)
-Manual de 20+ secciones para arquitecto/agente IA:
-- Visión + principios
-- Capas y dependencias
-- Flujos completos (orden, admin, pagos, autenticación)
-- Modelo de datos (entidades, relaciones)
-- Invariantes + límites LOC
-- Puntos de regresión críticos
-- Diagramas Mermaid
+## 🏛️ Documentos de gobierno de arquitectura (`docs/arquitectura/`)
 
-**Leer en paralelo:** Actualiza conforme avanza cada semana.
+| Documento | Qué responde |
+|-----------|--------------|
+| [`decisiones.md`](../arquitectura/decisiones.md) | ADRs (registro vivo D-001…D-040). **Por qué** se decidió cada cosa. |
+| [`bounded-contexts.md`](../arquitectura/bounded-contexts.md) | **Quién habla con quién**: Bounded Context Map + Context Map (direcciones permitidas, prohibiciones anti-ciclo). |
+| [`dependency-rules.md`](../arquitectura/dependency-rules.md) | **Qué puede importar qué** por capa y por módulo (el más consultado). |
+| [`decision-matrix.md`](../arquitectura/decision-matrix.md) | **Cuándo crear** cada pieza (Aggregate/VO/Service/Módulo/Event/Adapter/Process). |
 
 ---
 
-## 🗂️ Estructura Recomendada
+## 🗓️ Plan de ejecución
 
-```
-docs/
-├── roadmap/                        ← TÚ ESTÁS AQUÍ
-│   ├── README.md                   (este archivo)
-│   ├── MASTER_PLAN_8WEEKS.md       (plan maestro + sprints)
-│   ├── SEMANA_1.md                 (tareas específicas, en progreso)
-│   ├── SEMANA_2.md
-│   └── ...
-├── arquitectura/
-│   ├── decisiones.md               (ADRs D-001..D-047)
-│   └── ...
-├── OWASP/
-│   ├── README.md                   (checklist L2)
-│   └── ...
-└── ...
-```
+### → [`MASTER_PLAN_8WEEKS_HEXAGONAL.md`](./MASTER_PLAN_8WEEKS_HEXAGONAL.md) — **VIGENTE**
+Plan secuencial-con-overlap de 8 semanas / 160h para 1 dev. Módulo piloto `orders` primero; luego los 5 restantes (más chatos); después OWASP L2 embebido + panel admin.
+
+### ~~`MASTER_PLAN_8WEEKS.md`~~ — **SUPERADO / histórico**
+El plan viejo de "3 frentes paralelos" (OWASP + DDD + Admin en simultáneo). Asumía varios devs y un panel admin web separado; ambos descartados. Se conserva solo como referencia histórica. **No lo uses para planear.**
 
 ---
 
-## 🚀 Cómo Usar Este Roadmap
+## 📏 Reglas del proyecto
 
-### Lunes de cada semana:
-1. Abre `MASTER_PLAN_8WEEKS.md` → sección correspondiente (SEMANA X)
-2. Copia tareas a tu board (Trello/Jira/GitHub Issues)
-3. Actualiza `.claude/Architecture.md` conforme avanza
-
-### Diariamente:
-- **Backend dev:** Sigue REFACTORING_PLAN_DDD.md (Fase actual)
-- **Frontend dev:** Sigue MASTER_PLAN_8WEEKS.md (Semana actual)
-- **Security:** Sigue MASTER_PLAN_8WEEKS.md (FRENTE 1 — OWASP)
-
-### Gate (§22, fin de semana):
-- Verifica que el cumplimiento alcanzado ≥ 95% del plan semanal
-- Si < 95%: reajusta semana siguiente (no avances a siguiente Fase)
+### → [`docs/superpowers/priority/rules.md`](../superpowers/priority/rules.md)
+Todas las reglas (1…46). Foco para arquitectura y proceso:
+- **42–46** — ubicación del código, análisis arquitectónico obligatorio, no crear carpetas/patrones sin justificar (YAGNI + regla 45: no aceptar por autoridad).
+- **§0 / §22** — gate de verdad: `tsc` 0 + tests verdes + verificación real contra Postgres. Nada se maquilla.
+- **§23** — commits/push los hace el **usuario a mano**; Claude propone, no ejecuta.
+- **§24** — docs vivos: todo cambio de arquitectura actualiza el doc canónico en su tono.
 
 ---
 
-## ⚙️ Stack Confirmado (Completar)
+## 🏗️ Arquitectura vigente (una frase)
 
-- [ ] **Equipo:** N personas (especificar roles)
-- [ ] **Backend:** NestJS 11 + TypeORM + PostgreSQL 16 ✅
-- [ ] **Frontend cliente:** React Native + Expo SDK 56 ✅
-- [ ] **Admin panel:** React Web (vite + recharts) ← **DECIDE**
-- [ ] **Repo:** Mismo (`frontend-admin/`) o separado? ← **DECIDE**
+**Hexagonal + DDD + Vertical Slice (`modules/`) + kernel minimalista (sin ports) + CQRS ligero + FSD v2 en el frontend.**
 
----
+**Estado:** migración **incremental** en curso (NO big-bang). `orders` es el módulo **piloto**; el spike D-040 (kernel + agregado `Order` + mapper + caso de uso + test) ya probó el molde: `tsc` 0, tests verdes. El resto de módulos replican ese patrón, más chatos según lo pida el volumen (regla 46).
 
-## 📊 Métricas Semanales
-
-Al fin de cada semana, reportar:
-
-| Métrica | Objetivo | Alcance | % |
-|---------|----------|---------|---|
-| Commits | ~2-3 por dev | ? | ? |
-| Tests | +20% cobertura | ? | ? |
-| LOC | < alertas (ver Architecture.md) | ? | ? |
-| Bugs abiertos | 0 críticos, < 5 alerta | ? | ? |
-| OWASP L2 items | +5-10 por semana | ? | ? |
+Regla mental que lo une: **borra `infrastructure/` de un módulo → su `domain/` debe seguir compilando.**
 
 ---
 
-## 🎯 Entregables Finales (Semana 8)
+## ⚙️ Stack confirmado (decidido — sin pendientes)
 
-- ✅ Backend: tsc 0, 75%+ tests, 0 regresiones
-- ✅ Admin Panel: Dashboard + Reportes + Facturación + Minería
-- ✅ OWASP L2: 100% conformidad certificada
-- ✅ Documentación: Architecture.md + D-045..D-047 ADRs
-- ✅ Tesis: Ejecutiva + técnica + apéndices (ready)
+- **Backend:** NestJS 11 + TypeORM + PostgreSQL 16.
+- **App:** React Native + Expo (SDK 53+). **Cliente y admin viven en la MISMA app, separados por rol** — NO hay web admin separada. Dev build APK = solo Android.
+- **Auth:** Keycloak local (JWT + roles + MFA TOTP admin), **AZURE-ready** (nuevo adapter, dominio intacto).
+- **Pagos:** **simulados** dentro de `orders` (Stripe/AZURE real = futuro).
+- **Notificaciones:** push local (Opción A).
+
+**Puertos en este equipo** (remapeados por otro proyecto): PostgreSQL **5433**, Keycloak **8082**, backend Nest **3002**.
 
 ---
 
-**Inicio:** 2026-07-07  
-**Deadline:** 2026-09-07 (8 semanas)
+## 🚀 Cómo usar este roadmap
 
-¿Listo para START WEEK 1? ⚡
+1. Lee `PROMPT_CONTEXTO_ARQUITECTURA.md` completo.
+2. Lee los 4 docs de gobierno y `rules.md` (foco 42–46).
+3. Estudia el molde real en código: `backend/src/kernel/` + `backend/src/modules/orders/`.
+4. Sigue `MASTER_PLAN_8WEEKS_HEXAGONAL.md` semana a semana; cada cierre pasa el gate (§22).
+
+**Inicio:** 2026-07-07 · **Deadline:** 2026-09-07.

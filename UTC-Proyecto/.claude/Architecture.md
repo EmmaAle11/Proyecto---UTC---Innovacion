@@ -4,7 +4,7 @@
 **Última actualización:** 2026-07-07  
 **Objetivo:** Manual de referencia para arquitecto de software, agentes de IA, y revisores de código.  
 **Scope:** Backend NestJS + Frontend React Native (Expo) + PostgreSQL + Keycloak.  
-**Próximas actualizaciones:** Conforme progresa refactorización DDD (D-045, semanas 1-4).
+**Próximas actualizaciones:** Conforme avanza la migración INCREMENTAL a Hexagonal + DDD + Vertical Slice (D-038/D-039/D-040). Fuente única de verdad: `docs/roadmap/PROMPT_CONTEXTO_ARQUITECTURA.md`.
 
 ---
 
@@ -41,7 +41,7 @@
 
 | Principio | Descripción | Implicación |
 |-----------|-------------|------------|
-| **Clean Architecture** | Capas desacopladas: domain → application → infrastructure → presentation | Lógica de negocio aislada de detalles técnicos (BD, HTTP, Keycloak). |
+| **Hexagonal + Vertical Slice (D-038)** | Código organizado por **módulo de negocio** (`modules/<contexto>/`), no por capa técnica global. El dominio define **puertos** (interfaces); la infraestructura los **implementa** (adapters). | Cambiar Keycloak→AZURE = nuevo adapter, dominio intacto. Cada módulo es un mini-sistema autónomo y copiable. |
 | **DDD Híbrido** | Agregados ricos con comportamiento, value objects, reglas explícitas. | Order no es un "DTO pasivo", es una **entidad que valida sus propias reglas**. |
 | **Single Responsibility** | Cada módulo tiene una razón para cambiar. | Service orquesta; Aggregate regula; Repository persiste. |
 | **Type Safety** | TypeScript + Value Objects (no strings sueltos para BranchId, UserId, etc.). | Evita bugs como "pedir en rama A y que responda rama B". |
@@ -50,29 +50,43 @@
 
 ### 1.3 Principios de Evolución
 
-- **Arquitectura congelada 2 meses** (D-044): hasta MVP operativo, no cambios estructurales.
-- **Reglas 42-43** (D-042, D-043): YAGNI (no anticipar), reutilizar antes de crear.
+- **Arquitectura objetivo congelada** (D-038): Hexagonal + DDD + Vertical Slice + kernel minimalista. No se re-discute; se ejecuta. Si crees que está mal, se dice UNA vez con argumento (regla 45), no se reabre.
+- **Migración INCREMENTAL** (D-040): el molde nuevo (`kernel/` + `modules/orders/`) coexiste con el layout viejo (`domain/application/infrastructure/presentation`); nunca big-bang. El repo siempre compila y los tests siguen verdes.
+- **Reglas 42-46:** ubicar el código antes de escribir + reutilizar (42), análisis de 6 preguntas ante cambios que cruzan módulos (43), no crear carpetas sin justificar (44), no aceptar patrones por autoridad (45), umbrales YAGNI de estructura (46).
 - **Metrics-driven:** si un archivo crece, refactor en esa semana (no dejar tech debt).
 
 ---
 
 ## 2. Decisiones Arquitectónicas Clave
 
-### 2.1 Clean Architecture + DDD (D-045, en progreso)
+### 2.1 Hexagonal + DDD + Vertical Slice (D-038)
 
-**Decisión:** Clean Architecture (capas: domain ← application ← infrastructure ← presentation) + DDD (agregados ricos, value objects, eventos).
+**Decisión:** un solo stack coherente, cada dimensión resuelta por una arquitectura distinta:
 
-**Justificación:**
-- Clean es **escalable y mantenible** (cada capa tiene responsabilidad clara).
-- DDD es **expresivo** (código refleja las reglas del negocio).
-- Juntos: **Clean estructura**, DDD semántica.
+- **Vertical Slice** → *¿cómo organizo el código?* Por **módulo de negocio** (`modules/orders/`, `modules/products/`…), no por capa técnica global. Cada módulo es un mini-sistema autónomo (contracts + domain + application + infrastructure + presentation + tests **juntos**) y copiable a otro proyecto sin arrastrar dependencias.
+- **DDD** → *¿dónde vive la lógica de negocio?* En **agregados ricos** (`Order`), value objects, domain events y domain services. NO en services anémicos ni en repos.
+- **Hexagonal (Ports & Adapters)** → *¿cómo aíslo la tecnología externa?* El dominio define **puertos** (interfaces); la infraestructura los **implementa** (adapters). Cambiar Keycloak→AZURE = nuevo adapter, dominio intacto (AZURE-ready).
+
+**Piezas congeladas:**
+
+| Pieza | Regla congelada |
+|-------|-----------------|
+| **kernel minimalista** | Solo abstracciones de dominio PURAS: `Entity`, `AggregateRoot`, `ValueObject` (⌁ nace con la 1ª VO), `DomainEvent`, `DomainError`, `UseCase`. **SIN ports** — los ports NO viven en el kernel. |
+| **Puertos** | En `modules/<x>/domain/ports/`. Hablan tipos de **dominio** (`Order`), nunca `OrderEntity` (TypeORM). |
+| **CQRS ligero** | `commands/` y `queries/` son solo carpetas (nacen a ~20 casos). **SIN `CommandBus`/`QueryBus`/`Mediator`** — se llama al caso de uso directo. |
+| **contracts** | DTOs públicos **dentro del módulo** (`modules/<x>/contracts/`). Se promueven a `backend/contracts/` SOLO si se genera SDK/OpenAPI público real. |
+| **Estrategia de error** | ÚNICA: excepciones de dominio (`DomainError extends Error`, D-039). Los VOs validan en constructor y lanzan `DomainError`; Nest mapea cada subtipo a su HTTP. **`Result`/`Either` ELIMINADOS** del kernel (no se mezclan dos estilos con las excepciones que Nest ya usa). |
+
+La regla mental que lo une todo: **si borro toda la carpeta `infrastructure/` de un módulo, su `domain/` debe seguir compilando.** Todo apunta al dominio; el dominio no apunta a nadie.
 
 **Alternativas rechazadas:**
-- CQRS completo (commands/queries separadas): overkill para 2 meses. Revisitar en Fase 3.
-- Microservicios: no justificado aún (una cooperativa por instancia es suficiente).
-- Entidades anémicas: conducen a servicios gordos y difíciles de entender.
+- **Capas horizontales globales** (`application/`, `domain/`, `infrastructure/`, `presentation/` como raíces): dispersan un caso de negocio en 4 carpetas. Para 1 dev es peor que Vertical Slice. Es el layout VIEJO — se retira módulo a módulo (D-040).
+- **CQRS completo con Mediator/bus:** overkill; se usa CQRS ligero (solo carpetas).
+- **`Result`/`Either`:** descartados (D-039) — una sola estrategia de error.
+- **Microservicios:** no justificado (una cooperativa por instancia basta).
+- **Entidades anémicas:** conducen a services gordos; la lógica va al agregado.
 
-**Validación:** Feedback ChatGPT "9.5/10 para startup en crecimiento"; refactorización en curso.
+**Cómo se llegó aquí:** tres rondas de crítica cruzada (Claude ↔ ChatGPT), aterrizadas al contexto real (1 dev, 160h, tesis, AZURE futuro). Ver `docs/roadmap/PROMPT_CONTEXTO_ARQUITECTURA.md` PARTE II y `decisiones.md` D-038.
 
 ---
 
@@ -134,147 +148,118 @@
 
 ## 3. Estructura del Backend
 
-### 3.1 Layout de Carpetas
+### 3.1 Layout de Carpetas (Vertical Slice — objetivo)
+
+Así se ve un módulo **completamente crecido**. NO se crea así de golpe: las sub-carpetas marcadas `⌁` **nacen por umbral** (regla 46, ver §9 y PARTE X del PROMPT_CONTEXTO). Hoy se arranca mínimo.
 
 ```
-backend/
-├── src/
-│   ├── domain/                          # Lógica de negocio pura
-│   │   ├── order/
-│   │   │   ├── Order.ts                 # Agregado raíz (en progreso)
-│   │   │   ├── OrderItem.ts             # Value object dentro Order
-│   │   │   ├── OrderNumber.ts           # Value object: U-00001 format
-│   │   │   ├── OrderStatus.ts           # Enum + helpers
-│   │   │   ├── OrderPolicy.ts           # Reglas: transiciones válidas
-│   │   │   ├── DomainEvents/
-│   │   │   │   ├── OrderCreated.ts
-│   │   │   │   ├── OrderAccepted.ts
-│   │   │   │   └── ...
-│   │   │   └── order.repository.ts      # Interfaz (contrato)
-│   │   ├── product/
-│   │   │   ├── Product.ts               # Agregado raíz (en progreso)
-│   │   │   ├── Money.ts                 # Value object: precio
-│   │   │   ├── PreparedStock.ts         # Value object: stock con invariantes
-│   │   │   ├── ProductStatus.ts
-│   │   │   └── product.repository.ts
-│   │   ├── settings/
-│   │   │   ├── AppSettings.ts           # Agregado: thresholds, horarios
-│   │   │   └── settings.repository.ts
-│   │   ├── user-profile/
-│   │   │   ├── UserProfile.ts           # Agregado: usuario + rol + sucursal
-│   │   │   └── user-profile.repository.ts
-│   │   └── shared/                      # Value objects compartidos
-│   │       ├── BranchId.ts              # Type-safe branch ID
-│   │       ├── UserId.ts                # Keycloak sub
-│   │       ├── OrderNumber.ts
-│   │       ├── Money.ts
-│   │       ├── TimeRange.ts
-│   │       └── Coordinates.ts           # Lat/lon geolocalización
-│   │
-│   ├── application/                     # Casos de uso + orquestación
-│   │   ├── orders/
-│   │   │   ├── orders.service.ts        # Orquesta Order aggregate + repo
-│   │   │   ├── dto/
-│   │   │   │   ├── create-order.dto.ts
-│   │   │   │   ├── order-response.ts
-│   │   │   │   └── ...
-│   │   │   ├── orders.service.spec.ts
-│   │   │   └── ...
-│   │   ├── products/
-│   │   │   ├── products.service.ts
-│   │   │   ├── dto/
-│   │   │   └── ...
-│   │   ├── settings/
-│   │   ├── auth/
-│   │   │   ├── auth.service.ts          # Login, refresh, MFA
-│   │   │   └── ...
-│   │   └── payments/
-│   │       ├── payment-gateway.service.ts  # Circuit breaker + pasarela simulada
-│   │       └── ...
-│   │
-│   ├── infrastructure/                  # Técnica: BD, Keycloak, logging
-│   │   ├── database/
-│   │   │   ├── entities/                # TypeORM entities (ORM layer)
-│   │   │   │   ├── order.entity.ts
-│   │   │   │   ├── product.entity.ts
-│   │   │   │   ├── user-profile.entity.ts
-│   │   │   │   └── enums.ts
-│   │   │   ├── migrations/              # TypeORM migrations
-│   │   │   │   ├── 1782168106072-Init.ts
-│   │   │   │   └── ...
-│   │   │   ├── repositories/            # Implementaciones (TypeORM)
-│   │   │   │   ├── typeorm-order.repository.ts
-│   │   │   │   ├── typeorm-product.repository.ts
-│   │   │   │   └── ...
-│   │   │   └── data-source.ts           # Configuración TypeORM
-│   │   ├── keycloak/
-│   │   │   ├── keycloak-admin.service.ts  # Admin API (crear usuarios, roles)
-│   │   │   ├── keycloak.strategy.ts      # JWT RS256 validation
-│   │   │   └── realm-utc-pick-sazon.json # Config realm
-│   │   ├── auth/
-│   │   │   └── jwt.strategy.ts
-│   │   ├── email/
-│   │   └── logger/
-│   │
-│   ├── presentation/                    # HTTP + NestJS
-│   │   ├── http/
-│   │   │   ├── controllers/
-│   │   │   │   ├── orders.controller.ts
-│   │   │   │   ├── products.controller.ts
-│   │   │   │   ├── auth.controller.ts
-│   │   │   │   └── ...
-│   │   │   ├── guards/
-│   │   │   │   ├── jwt-auth.guard.ts
-│   │   │   │   ├── roles.guard.ts
-│   │   │   │   └── ...
-│   │   │   ├── filters/
-│   │   │   ├── interceptors/
-│   │   │   ├── decorators/
-│   │   │   ├── pipes/
-│   │   │   └── swagger/
-│   │   ├── orders.module.ts
-│   │   ├── products.module.ts
-│   │   ├── auth.module.ts
-│   │   └── ...
-│   │
-│   ├── shared/                          # Utilerías compartidas
-│   │   ├── api/
-│   │   │   └── client.ts                # HTTP client con retry logic
-│   │   ├── resilience/
-│   │   │   └── circuit-breaker.ts       # Circuit breaker pattern (D-020)
-│   │   ├── logging/
-│   │   │   └── audit-log.service.ts     # Audit logging (D-041)
-│   │   ├── config/
-│   │   ├── exceptions/
-│   │   ├── validators/
-│   │   └── constants.ts
-│   │
-│   ├── app.module.ts                    # Root module
-│   └── main.ts                          # Entry point
+backend/src/
 │
-├── .env.example                         # Variables de entorno (sin valores)
-├── package.json
-├── tsconfig.json
-├── jest.config.js
-└── ...
+├── kernel/                                  # abstracciones de dominio PURAS (una sola vez)
+│   └── domain/
+│       ├── Entity.ts                         # identidad por id
+│       ├── AggregateRoot.ts                  # raíz + acumula domain events
+│       ├── ValueObject.ts                    # ⌁ nace con la 1ª VO (Money/Email)
+│       ├── DomainEvent.ts                    # "algo pasó" (nombre en pasado)
+│       ├── DomainError.ts                    # ÚNICA estrategia de error (D-039)
+│       └── UseCase.ts                        # interfaz execute(input): output
+│                                             #  (SIN ports aquí — los ports van al módulo)
+│
+├── modules/                                 # VERTICAL SLICE: un módulo = un bounded context
+│   │
+│   ├── orders/                              # ← módulo autónomo (PILOTO, spike D-040)
+│   │   ├── contracts/                        # DTOs públicos del módulo (request/response/dto)
+│   │   ├── domain/                           # NÚCLEO puro (sin Nest, sin TypeORM)
+│   │   │   ├── entities/
+│   │   │   │   ├── Order.ts                   # AGREGADO raíz: mueve estados + reglas
+│   │   │   │   └── OrderItem.ts               # entidad hija / value object
+│   │   │   ├── value-objects/                 # ⌁ Money, OrderNumber, BranchId
+│   │   │   ├── services/                      # ⌁ OrderDomainService (lógica que cruza agregados)
+│   │   │   ├── events/
+│   │   │   │   ├── OrderCancelled.ts
+│   │   │   │   └── OrderReady.ts
+│   │   │   └── ports/                         # PUERTOS (interfaces) — hablan tipos de DOMINIO
+│   │   │       ├── order.repository.port.ts
+│   │   │       └── payment.gateway.port.ts
+│   │   ├── application/                       # ORQUESTACIÓN — casos de uso PLANOS
+│   │   │   ├── create-order.use-case.ts       #   (⌁ commands/ + queries/ solo a ~20 casos)
+│   │   │   ├── cancel-order.use-case.ts
+│   │   │   └── get-order.use-case.ts
+│   │   ├── infrastructure/                    # ADAPTERS (implementan los puertos)
+│   │   │   ├── persistence/
+│   │   │   │   ├── order.repository.ts         # impl TypeORM del puerto
+│   │   │   │   └── order.mapper.ts             # Order (dominio) ⇄ OrderEntity (TypeORM)
+│   │   │   ├── external/                       # ⌁ stripe/keycloak/azure adapters
+│   │   │   ├── messaging/                      # ⌁ nace con RabbitMQ/AZURE Queue real
+│   │   │   └── cache/                          # ⌁ nace con Redis real
+│   │   ├── presentation/                      # HTTP (NestJS) — PLANO al inicio
+│   │   │   ├── orders.controller.ts            #   (⌁ controllers/ guards/ pipes/ filters/
+│   │   │   ├── orders.module.ts                #    solo cuando haya VARIOS de un tipo)
+│   │   │   └── order.guard.ts
+│   │   └── tests/
+│   │       ├── unit/                           # test del agregado, VOs, casos de uso
+│   │       ├── integration/                    # e2e del módulo contra BD real
+│   │       └── contract/                       # ⌁ cuando exista contrato público
+│   │
+│   ├── products/                             # mismo molde, MÁS CHATO (casi CRUD)
+│   ├── users/                                # (user-profile)
+│   ├── settings/                             # umbrales semáforo/sucursal/horario
+│   ├── auth/                                 # Keycloak adapter, JWT, roles, MFA
+│   └── notifications/                        # push local; escucha eventos de orders
+│
+└── shared/                                  # CASI INEXISTENTE (regla 44/46)
+                                             #  lo de un módulo va al módulo; lo base va al kernel
 ```
 
-### 3.2 Capas y Dependencias
+> `⌁` = **NO existe hoy**; nace por umbral, nunca antes.
+
+#### Nota honesta — migración INCREMENTAL (D-040)
+
+El árbol de arriba es el **objetivo**. Hoy **coexiste** con el layout VIEJO de capas horizontales globales (`src/domain/`, `src/application/`, `src/infrastructure/`, `src/presentation/`, `src/shared/`), que se retira **módulo a módulo**, no de un golpe. El molde nuevo ya existe y compila: `src/kernel/domain/` + `src/modules/orders/` (spike D-040, `tsc` 0, 2/2 tests verdes).
+
+> ⚠️ **El `domain/` viejo tiene FUGA.** `src/domain/order/order.repository.ts` (y sus hermanos product/settings/user-profile) **importan `OrderEntity` (TypeORM)**, `enums` de infra y DTOs de `application/`. Eso viola `dependency-rules.md §2` (dominio→infra prohibido): es una abstracción con fugas, NO es DDD todavía — es Clean anémico. **Se retira al migrar cada módulo al molde nuevo** (el puerto habla `Order`, no `OrderEntity`); no se apila trabajo sobre él. La lógica de negocio de `orders` (transiciones + stock D-037) hoy vive en `infrastructure/database/repositories/typeorm-order.repository.ts` y debe **migrar al agregado `Order`**.
+
+### 3.2 Capas y Dependencias (fuente: `dependency-rules.md`)
+
+Las capas viven **dentro de cada módulo**, no como raíces globales. Dirección única: **todo apunta al dominio; el dominio no apunta a nadie.** Los adapters de `infrastructure/` **implementan** los puertos del dominio (apuntan HACIA el dominio, nunca al revés).
 
 ```
-Presentation (HTTP/NestJS)
-    ↓ (depende de)
-Application (Servicios, DTO)
-    ↓ (depende de)
-Domain (Agregados, Policies, Value Objects)
-    ↓ (depende de)
-Infrastructure (TypeORM, Keycloak, Logging)
-Shared (Constants, Validators, Utils)
+Presentation  ──→  Application  ──→  Domain  ──→  (Ports)
+                                                     ▲
+Infrastructure ─────────────────────────────────────┘
+   (Adapters IMPLEMENTAN los Ports; apuntan HACIA el dominio)
 ```
 
-**Regla crítica:** `domain/` NUNCA importa de `application/`, `infrastructure/`, `presentation/`.
+**Nivel de CAPA — permitido ✅ / prohibido ✗:**
 
-**Verificación:** `grep -r "import.*application" src/domain/ || echo "✓ Clean"`.
+```
+✅ Presentation   → Application            (controller invoca caso de uso)
+✅ Application    → Domain / Domain Ports  (orquesta; depende de la INTERFAZ)
+✅ Infrastructure → Domain Ports           (adapter IMPLEMENTA la interfaz)
+✅ Infrastructure → Domain (tipos)         (el mapper conoce el agregado)
+✅ Cualquier capa → kernel/domain          (Entity, DomainError, ValueObject…)
+
+✗ Domain          → Infrastructure         (el dominio NO conoce TypeORM/Keycloak/HTTP)
+✗ Domain          → Application / Presentation
+✗ Application      → Infrastructure concreto (depende del PORT, no del adapter)
+✗ kernel           → cualquier módulo / Infrastructure
+```
+
+**Prueba mnemónica:** borra `infrastructure/` de un módulo → su `domain/` sigue compilando. Si no compila, hay una dependencia prohibida.
+
+**Nivel de MÓDULO** (detalle en `bounded-contexts.md`):
+
+```
+✅ orders → products / users / settings   (lectura, vía contracts/ del destino)
+✅ orders ▷ notifications                  (por Domain Event, NO llamada directa)
+✅ (todos) ← auth                           (cross-cutting: JWT/guard, no import de módulo)
+
+✗ products / users / settings / notifications → orders   (nunca de vuelta → evita ciclos)
+✗ import directo del domain/ interno de otro módulo
+✗ imports circulares entre módulos (BLOQUEADO)
+```
+
+Romper un ciclo: **el que SABE publica un evento; el que REACCIONA se suscribe** (`orders` emite `OrderReady`; `notifications` lo escucha). El emisor no conoce al receptor.
 
 ---
 
@@ -795,28 +780,29 @@ erDiagram
 
 ## 8. Invariantes Arquitectónicas
 
-### 8.1 Por Capa
+### 8.1 Por Capa (dentro del módulo)
 
 | Capa | Invariante | Verificación |
 |------|-----------|------------|
-| **domain/** | NUNCA importa de application/, infrastructure/, presentation/ | `grep -r "^import.*[ips]/" src/domain/` → debe estar vacío |
-| **domain/** | Cada agregado tiene su repository.ts (interfaz) | `find src/domain -name "*.repository.ts"` → debe existir |
-| **application/** | NUNCA tiene SQL directo (solo usa repositories) | `grep -r "SELECT\|INSERT\|UPDATE" src/application/` → debe estar vacío |
-| **application/** | DTOs no mutables (readonly) | Code review |
-| **infrastructure/database/repositories/** | Mapea Entity ↔ Aggregate | Tests de mapper |
-| **presentation/** | NUNCA tiene lógica de negocio (solo orquestación HTTP) | Controllers < 200 LOC |
-| **shared/** | NUNCA importa de features/ (frontend) | `grep -r "^import.*features" src/shared/` → debe estar vacío |
+| **domain/** (del módulo) | NUNCA importa Nest, TypeORM, HTTP, ni otra capa (application/infrastructure/presentation) | `grep -rE "@nestjs\|typeorm" src/modules/*/domain/` → debe estar vacío; borra `infrastructure/` → `domain/` compila |
+| **domain/ports/** | Los puertos hablan tipos de DOMINIO (`Order`), nunca `OrderEntity` | Firma del port referencia el agregado, no la entity TypeORM |
+| **application/** | Orquesta; depende del PORT (interfaz), no del adapter concreto. NUNCA SQL directo | `grep -rE "SELECT\|INSERT\|UPDATE" src/modules/*/application/` → vacío |
+| **infrastructure/persistence/** | El `mapper` es el ÚNICO que conoce ambos mundos (Order ⇄ OrderEntity) | Tests de mapper |
+| **presentation/** | NUNCA lógica de negocio (solo orquestación HTTP + cableado del port por símbolo) | Controllers < 200 LOC |
+| **kernel/domain/** | Solo abstracciones puras; SIN ports, sin dependencia a ningún módulo | `grep -rE "modules/\|typeorm" src/kernel/` → vacío |
+| **shared/** (frontend) | NUNCA importa de features/ | `grep -r "^import.*features" src/shared/` → vacío |
 
 ### 8.2 Por Patrón
 
 | Patrón | Regla | Excepción |
 |--------|-------|-----------|
-| **Agregados** | Un `Order` = una transacción DB | Composición de múltiples agregados = múltiples tx (con eventos) |
-| **Value Objects** | Inmutables, sin identidad | Permitir factory methods para construcción |
-| **Events** | Emitidos al final de tx, antes de response | Sin side effects durante construcción |
-| **Repositories** | Una interfaz por agregado | OK múltiples métodos de query |
-| **Services** | Inyectable (Nest @Injectable) | No singletons estáticos |
-| **Locks** | FOR UPDATE en órdenes concurrentes | Solo en raíz de agregado (no en items) |
+| **Agregados** | Rico, no anémico: la invariante vive en el agregado (`Order.cancelByOwner()`), no en el service. Un `Order` = una transacción DB | Cambios cruzados = múltiples tx vía Domain Event, no un mega-agregado |
+| **Value Objects** | Inmutables, sin identidad; validan en constructor y lanzan `DomainError` | Factory methods (`Money.of(...)`) permitidos |
+| **Ports** | Viven en `modules/<x>/domain/ports/`; hablan tipos de dominio; se cablean en Nest por símbolo (`{ provide: ORDER_REPOSITORY_PORT, useClass }`) | — |
+| **Errores** | ÚNICA estrategia: `DomainError` (D-039). Subtipos (`OrderNotFoundError`) que la presentación mapea a HTTP | Prohibido `Result`/`Either` |
+| **Events** | "Algo pasó" (nombre en pasado); `record()` en el agregado, `pullEvents()` tras persistir | Sin side effects durante construcción |
+| **CQRS** | `commands/`/`queries/` son solo carpetas (a ~20 casos). SIN `CommandBus`/`QueryBus`/`Mediator` | — |
+| **Locks** | FOR UPDATE en transiciones concurrentes (D-037) | Solo en raíz de agregado (no en items) |
 
 ---
 
@@ -1006,45 +992,50 @@ it('cliente renueva token al 401 y reintenta', async () => {
 
 ### 12.1 Diagrama de Componentes (Backend)
 
+Vertical Slice: cada módulo agrupa sus capas; el `kernel` da las abstracciones base; los adapters implementan los puertos del dominio del módulo.
+
 ```mermaid
 graph TB
-    subgraph Domain["Domain Layer"]
-        OA["Order Aggregate<br/>+ OrderItem, OrderPolicy"]
-        PA["Product Aggregate<br/>+ Money VO"]
-        UPA["UserProfile Aggregate"]
-        ORep["IOrderRepository<br/>interface"]
-        PRep["IProductRepository<br/>interface"]
+    subgraph Kernel["kernel/domain (abstracciones puras, SIN ports)"]
+        K["Entity · AggregateRoot · DomainEvent<br/>DomainError · UseCase · ValueObject(⌁)"]
     end
-    
-    subgraph Application["Application Layer"]
-        OS["OrdersService<br/>orquesta Order"]
-        PS["ProductsService<br/>orquesta Product"]
-        AuthS["AuthService<br/>login, refresh"]
+
+    subgraph OrdersMod["modules/orders (Vertical Slice)"]
+        direction TB
+        OPres["presentation/<br/>orders.controller · orders.module"]
+        OApp["application/<br/>cancel-order.use-case (PLANO)"]
+        subgraph ODom["domain/ (núcleo puro)"]
+            OA["Order (agregado rico)<br/>+ OrderItem, events"]
+            OPort["ports/<br/>OrderRepositoryPort · PaymentGatewayPort<br/>(hablan tipos de dominio)"]
+        end
+        OInfra["infrastructure/persistence/<br/>order.repository (TypeORM) · order.mapper"]
     end
-    
-    subgraph Infrastructure["Infrastructure Layer"]
-        TypeORM["TypeORM Repositories<br/>typeorm-order.repository"]
-        DB["PostgreSQL 16<br/>Order, Product, UserProfile entities"]
-        KC["Keycloak 26<br/>Auth, JWKS"]
+
+    subgraph OtherMods["modules/products · users · settings · auth · notifications"]
+        OM["mismo molde, más chatos (casi CRUD)"]
     end
-    
-    subgraph Presentation["Presentation Layer"]
-        Ctrl["NestJS Controllers<br/>OrdersController, AuthController"]
-        Guards["Guards<br/>JwtAuthGuard, RolesGuard"]
+
+    subgraph Ext["Infra externa"]
+        DB["PostgreSQL 16"]
+        KC["Keycloak 26 (auth adapter)"]
     end
-    
-    Ctrl -->|orquesta| OS
-    OS -->|usa| OA
-    OS -->|inyecta| ORep
-    ORep -.->|implementa| TypeORM
-    TypeORM -->|CRUD| DB
-    AuthS -->|valida contra| KC
-    Guards -->|valida JWT| KC
-    
-    style Domain fill:#e1f5ff
-    style Application fill:#f3e5f5
-    style Infrastructure fill:#fce4ec
-    style Presentation fill:#fff3e0
+
+    OPres -->|invoca| OApp
+    OApp -->|orquesta| OA
+    OApp -->|depende del PORT| OPort
+    OInfra -.->|IMPLEMENTA| OPort
+    OInfra -->|mapper Order⇄Entity| DB
+    OA --> K
+    OPort --> K
+    OrdersMod -->|▷ evento OrderReady| OtherMods
+    OtherMods --> KC
+
+    style Kernel fill:#e1f5ff
+    style ODom fill:#e8f5e9
+    style OApp fill:#f3e5f5
+    style OInfra fill:#fce4ec
+    style OPres fill:#fff3e0
+    style OtherMods fill:#fff9c4
 ```
 
 ### 12.2 Diagrama de Flujo: Crear Pedido
@@ -1136,11 +1127,20 @@ graph LR
 - [ ] **Sección 7.3:** Ejemplos de queries complejas y optimizaciones
 - [ ] **Sección 10.7-10.10:** Más puntos de regresión (concurrencia, pagos, notificaciones)
 - [ ] **Sección 12.4-12.6:** Diagramas Entity-Relationship, Deployment, Timeline
-- [ ] **Apéndice A:** Checklist de Code Review por arqui. layer
+- [ ] **Apéndice A:** Checklist de Code Review por capa (dependency-rules)
 - [ ] **Apéndice B:** Troubleshooting común (stock negativo, 401 infinito, etc.)
+
+### Mapas de gobierno (verdad viva — este manual es el índice, ellos ganan si contradicen)
+
+- `docs/roadmap/PROMPT_CONTEXTO_ARQUITECTURA.md` — contexto maestro de arquitectura (el molde completo).
+- `docs/arquitectura/decisiones.md` — ADRs (D-037…D-040 congelados).
+- `docs/arquitectura/bounded-contexts.md` — Bounded Context Map + Context Map (quién habla con quién).
+- `docs/arquitectura/dependency-rules.md` — reglas de dependencia por capa y por módulo (el más consultado).
+- `docs/arquitectura/decision-matrix.md` — cuándo crear Aggregate/VO/Service/Módulo/Event/Adapter.
+- **Molde en código:** `backend/src/kernel/` + `backend/src/modules/orders/`.
 
 ---
 
-**Mantenimiento:** Actualizar este documento conforme avance D-045 (semanas 1-4).  
+**Mantenimiento:** Actualizar este documento conforme avanza la migración incremental Hexagonal + DDD + Vertical Slice (D-038/D-039/D-040).  
 **Propiedad:** Arquitecto del sistema + Lead Developer.  
 **Revisiones:** Cada 2 semanas con el equipo completo.

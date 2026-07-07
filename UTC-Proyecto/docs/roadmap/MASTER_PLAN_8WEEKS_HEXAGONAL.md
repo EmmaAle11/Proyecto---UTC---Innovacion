@@ -52,72 +52,86 @@
 
 ---
 
-## Arquitectura (Hexagonal + DDD + CQRS)
+## Arquitectura (Hexagonal + DDD + Vertical Slice + CQRS ligero)
+
+> Fuente de verdad: `docs/roadmap/PROMPT_CONTEXTO_ARQUITECTURA.md` (PARTE IV.A) +
+> `docs/arquitectura/decisiones.md` (D-038). Layout **VERTICAL SLICE**: el código se
+> organiza por **módulo de negocio** (`modules/orders/`), NO por capa técnica global.
+> Cada módulo es un mini-sistema autónomo y copiable con TODO junto
+> (contracts, domain, application, infrastructure, presentation, tests).
+
+Así se ve un módulo **completamente crecido**. NO se crea así de golpe: las
+sub-carpetas marcadas `⌁` **nacen por umbral** (regla 46). Hoy se arranca mínimo.
 
 ```
 backend/src/
-├── domain/                           # CORE PURO
-│   ├── order/
-│   │   ├── Order.ts                 (agregado)
-│   │   ├── OrderPolicy.ts           (reglas)
-│   │   ├── DomainEvents/
-│   │   ├── order.repository.ts      (PUERTO)
-│   │   ├── order.email-sender.ts    (PUERTO: IEmailSender)
-│   │   └── order-domain.service.ts
-│   ├── product/
-│   ├── user-profile/
-│   ├── shared/
-│   │   └── ports/
-│   │       ├── IEmailSender.ts      (PUERTO)
-│   │       ├── IUserAuthService.ts  (PUERTO)
-│   │       └── IPaymentGateway.ts   (PUERTO)
-│   └── README.md
 │
-├── application/                      # ORQUESTACIÓN (CQRS)
-│   ├── orders/
-│   │   ├── commands/
-│   │   │   ├── CreateOrder/
-│   │   │   │   ├── CreateOrderCommand.ts
-│   │   │   │   ├── CreateOrderHandler.ts  (usa puerto IEmailSender)
-│   │   │   │   └── CreateOrderResponse.ts
-│   │   │   └── ...
-│   │   ├── queries/
-│   │   ├── event-handlers/
-│   │   │   └── OrderReadyHandler.ts (usa IEmailSender para notif)
-│   │   └── orders.module.ts
-│   └── ...
+├── kernel/                                  # abstracciones de dominio PURAS (una sola vez)
+│   └── domain/
+│       ├── Entity.ts                         # identidad por id
+│       ├── AggregateRoot.ts                  # raíz + acumula domain events
+│       ├── ValueObject.ts                    # ⌁ nace con la 1ª VO (Money/Email)
+│       ├── DomainEvent.ts                    # "algo pasó" (nombre en pasado)
+│       ├── DomainError.ts                    # ÚNICA estrategia de error (D-039)
+│       └── UseCase.ts                        # interfaz execute(input): output
+│                                             #  ⚠ el kernel NO tiene ports
 │
-├── infrastructure/                   # ADAPTERS (Intercambiables)
-│   ├── database/
-│   │   ├── repositories/
-│   │   │   └── typeorm-order.repository.ts  (impl de IOrderRepository)
-│   │   └── entities/
-│   ├── email/                        # EMAIL ADAPTERS
-│   │   ├── keycloak-email.adapter.ts       (impl actual: Keycloak)
-│   │   ├── azure-email.adapter.ts          (impl futuro: AZURE)
-│   │   ├── sendgrid-email.adapter.ts       (impl fallback)
-│   │   └── email.module.ts                 (inyecta el correcto)
-│   ├── auth/
-│   │   ├── keycloak-auth.adapter.ts        (impl actual)
-│   │   ├── azure-auth.adapter.ts           (impl futuro)
-│   │   └── auth.module.ts
-│   ├── payment/
-│   │   ├── mock-payment.adapter.ts         (impl actual: simulado)
-│   │   ├── stripe-payment.adapter.ts       (impl futuro)
-│   │   └── payment.module.ts
-│   └── ...
+├── modules/                                 # VERTICAL SLICE: un módulo = un bounded context
+│   │
+│   ├── orders/                              # ← módulo autónomo (PILOTO — D-040)
+│   │   ├── contracts/                        # DTOs públicos del módulo (request/response/dto)
+│   │   │   ├── create-order.request.ts
+│   │   │   ├── create-order.response.ts
+│   │   │   └── order.dto.ts
+│   │   ├── domain/                           # NÚCLEO puro (sin Nest, sin TypeORM)
+│   │   │   ├── entities/
+│   │   │   │   ├── Order.ts                   # AGREGADO raíz: mueve estados + reglas + stock D-037
+│   │   │   │   └── OrderItem.ts               # entidad hija / value object
+│   │   │   ├── value-objects/                 # ⌁ Money, OrderNumber, BranchId
+│   │   │   ├── services/                      # ⌁ OrderDomainService (lógica que cruza agregados)
+│   │   │   ├── events/
+│   │   │   │   ├── OrderCancelled.ts
+│   │   │   │   └── OrderReady.ts
+│   │   │   └── ports/                         # PUERTOS (interfaces) — hablan tipos de DOMINIO
+│   │   │       ├── order.repository.port.ts   #   (aquí viven los ports, NO en kernel/ ni shared/)
+│   │   │       └── payment.gateway.port.ts
+│   │   ├── application/                       # ORQUESTACIÓN — casos de uso PLANOS
+│   │   │   ├── create-order.use-case.ts       #   (⌁ commands/ + queries/ solo a ~20 casos)
+│   │   │   ├── cancel-order.use-case.ts       #    SIN Mediator/bus (CQRS ligero)
+│   │   │   └── get-order.use-case.ts
+│   │   ├── infrastructure/                    # ADAPTERS (implementan los puertos)
+│   │   │   ├── persistence/
+│   │   │   │   ├── order.repository.ts         # impl TypeORM del puerto
+│   │   │   │   └── order.mapper.ts             # Order (dominio) ⇄ OrderEntity (TypeORM)
+│   │   │   ├── external/                       # ⌁ stripe/keycloak/azure adapters del módulo
+│   │   │   ├── messaging/                      # ⌁ nace con RabbitMQ/AZURE Queue real
+│   │   │   └── cache/                          # ⌁ nace con Redis real
+│   │   ├── presentation/                      # HTTP (NestJS) — PLANO al inicio
+│   │   │   ├── orders.controller.ts            #   (⌁ controllers/ guards/ pipes/ filters/
+│   │   │   ├── orders.module.ts                #    solo cuando haya VARIOS de un tipo)
+│   │   │   └── order.guard.ts
+│   │   └── tests/
+│   │       ├── unit/                           # test del agregado, VOs, casos de uso
+│   │       ├── integration/                    # e2e del módulo contra BD real
+│   │       └── contract/                       # ⌁ cuando exista contrato público
+│   │
+│   ├── products/                             # mismo molde, MÁS CHATO (casi CRUD)
+│   ├── users/                                # (user-profile)
+│   ├── settings/                             # umbrales semáforo/sucursal/horario
+│   ├── auth/                                 # Keycloak adapter, JWT, roles, MFA (external/)
+│   └── notifications/                        # push local; escucha eventos de orders
 │
-├── presentation/                     # HTTP / NestJS
-│   ├── controllers/
-│   ├── guards/
-│   └── ...
-│
-└── shared/
-    ├── event-bus/
-    └── ...
+└── shared/                                  # CASI INEXISTENTE (regla 44/46)
+                                             #  lo de un módulo va al módulo; lo base va al kernel
 ```
 
-**Clave:** Domain es puro, application orquesta, infrastructure es intercambiable.
+> `⌁` = **NO existe hoy**; nace por umbral, nunca antes (regla 46).
+
+**Clave:** el dominio de cada módulo es puro, `application/` orquesta con casos de uso
+planos, `infrastructure/` es intercambiable (adapters detrás de puertos). Los adapters de
+email/auth/pago del módulo viven en `modules/<x>/infrastructure/external/`, NO en un
+`infrastructure/email/` global. Regla mental (Hexagonal): **si borro `infrastructure/` de
+un módulo, su `domain/` debe seguir compilando.**
 
 ---
 
@@ -132,13 +146,18 @@ backend/src/
 
 | Semana | Fase | Horas | Qué | Natalia |
 |--------|------|-------|-----|---------|
-| **1-2** | ARQUITECTURA | 32h | Agregados (Order, Product) + Puertos (email, auth, payment) | Wireframes admin |
-| **3-4** | ADAPTERS | 32h | Impl adapters (Keycloak, Mock Payment) + CQRS | Diseños admin |
+| **1-2** | MIGRAR NÚCLEO | 32h | `orders` completo al molde (lógica+stock D-037 al agregado) + replicar a `products`/`users` | Wireframes admin |
+| **3-4** | REPLICAR RESTO | 32h | `settings`/`auth`/`notifications` al molde (chatos, regla 46) + retirar `domain/` viejo | Diseños admin |
 | **5-6** | ADMIN PANEL | 40h | Dashboard + Reportes + Facturación | Assets finales |
 | **7-8** | TESTS + CIERRE | 24h | E2E + Regresión + OWASP L2 + Docs | Support |
 | **+ OWASP** | Paralelo | 20h (embedded) | Auditoría + remediación V6/V7/V9/V14 | - |
 
 **Total:** 160h + 20h audit = 180h (realista para 1 dev + fin de semana buffer).
+
+> **Punto de partida (D-040):** el spike YA está hecho — `kernel/` + `modules/orders/`
+> (Order + mapper + CancelOrder + test) compilan `tsc` 0, 2/2 verde. El molde está probado;
+> Semanas 1-4 lo **replican**, no lo inventan. La migración es **INCREMENTAL**: el repo
+> siempre compila y los tests quedan verdes (NO big-bang).
 
 ---
 
@@ -146,22 +165,24 @@ backend/src/
 
 ### SEMANA 1 (2026-07-07 a 2026-07-13) — 4h/día = 20h
 
-**Objetivo:** Agregados + Puertos.
+**Objetivo:** migrar el módulo **`orders` COMPLETO** al molde (PARTE V del PROMPT_CONTEXTO).
+El spike (D-040) ya dejó el esqueleto verde; ahora se le mete TODA la lógica real.
 
 **Backend (16h):**
-- [ ] `domain/order/Order.ts` (agregado raíz)
-- [ ] `domain/order/OrderItem.ts` (value object)
-- [ ] `domain/order/OrderPolicy.ts` (reglas de transición)
-- [ ] `domain/shared/ports/IEmailSender.ts` (PUERTO para email)
-- [ ] `domain/shared/ports/IPaymentGateway.ts` (PUERTO para pagos)
-- [ ] `domain/shared/ports/IUserAuthService.ts` (PUERTO para auth)
-- [ ] Value Objects: `OrderNumber.ts`, `Money.ts`, `BranchId.ts`
-- [ ] Tests unitarios: 50+ cobertura
+- [ ] Mover la lógica de negocio del repo TypeORM (~499 líneas de `infrastructure/database/repositories/typeorm-order.repository.ts`) al **agregado `modules/orders/domain/entities/Order.ts`**: transiciones + **stock D-037** + concurrencia como métodos con invariantes (`accept()`, `deliver()`, `expire()`, `cancelByOwner()`, `extend()`) que emiten domain events.
+- [ ] `modules/orders/domain/entities/OrderItem.ts` (entidad hija / VO).
+- [ ] El **puerto** `modules/orders/domain/ports/order.repository.port.ts` habla `Order`, NO `OrderEntity` (con su `Symbol('OrderRepositoryPort')`).
+- [ ] `modules/orders/infrastructure/persistence/order.mapper.ts`: traduce `Order` ⇄ `OrderEntity` (incluida la traducción de `OrderStatus` dominio ⇄ infra).
+- [ ] `modules/orders/infrastructure/persistence/order.repository.ts`: impl TypeORM del puerto, **solo persistencia** (el repo deja de decidir; ya no tiene reglas).
+- [ ] Casos de uso **PLANOS** en `modules/orders/application/` (`create-order.use-case.ts`, `cancel-order.use-case.ts`, `get-order.use-case.ts`…). SIN carpetas commands/queries, SIN Mediator/bus (CQRS ligero; regla 46: carpetas solo a ~20 casos).
+- [ ] Cablear el adapter en `orders.module.ts` **por el símbolo del puerto**: provider `{ provide: ORDER_REPOSITORY_PORT, useClass: OrderRepository }`.
+- [ ] Errores: subtipos de `DomainError` (D-039), la presentación los mapea a HTTP. NADA de Result/Either.
+- [ ] **Gate (§22):** `tsc --noEmit` = 0 + **los 65 tests verdes** + `dependency-rules` respetadas (borra `infrastructure/` mentalmente → `domain/` compila).
 
 **Docs (4h):**
-- [ ] Actualizar `Architecture.md` con diagrama Hexagonal
-- [ ] ADR D-048: Por qué Hexagonal (AZURE future-proof)
-- [ ] README del domain/ explicando puertos
+- [ ] Actualizar `Architecture.md` con el layout Vertical Slice + flujo del molde.
+- [ ] Registrar el cierre de la migración de `orders` en `decisiones.md` (referencia D-038/D-040).
+- [ ] README de `modules/orders/` explicando el molde a replicar.
 
 **Natalia (paralelo):**
 - [ ] Wireframes admin dashboard (figma o papel)
@@ -171,14 +192,13 @@ backend/src/
 
 ### SEMANA 2 (2026-07-14 a 2026-07-20) — 4h/día = 20h
 
-**Objetivo:** Product, UserProfile agregados.
+**Objetivo:** replicar el molde a **`products`** y **`users`** (más chatos que orders).
 
 **Backend (16h):**
-- [ ] `domain/product/Product.ts` (agregado)
-- [ ] `domain/product/Money.ts` (value object: precio)
-- [ ] `domain/user-profile/UserProfile.ts` (agregado)
-- [ ] Domain Services (si hay lógica que cruza agregados)
-- [ ] Tests: 65%+ cobertura
+- [ ] `modules/products/` al molde: es **casi CRUD** → agregado ligero `Product.ts` (solo la regla real: `isAvailable` como candado, precio como `Money` cuando aparezca la VO), `application/` plano, infra solo `persistence/` (repo + mapper). NO clonar la estructura completa de orders si no la necesita (regla 46).
+- [ ] `modules/users/` (user-profile) al molde: `UserProfile.ts` + puerto de repo + mapper + casos de uso planos.
+- [ ] Retirar `domain/product/*.repository.ts` y `domain/user-profile/*.repository.ts` viejos cuando los nuevos los reemplacen (coexisten durante la migración, no antes).
+- [ ] **Gate (§22):** `tsc` 0 + tests verdes; el `orders.service.spec.ts` viejo (~3 errores preexistentes) queda resuelto al cablear el módulo nuevo.
 
 **OWASP L2 (4h):**
 - [ ] Leer V6/V7/V9/V14 gaps en ASVS
@@ -192,15 +212,14 @@ backend/src/
 
 ### SEMANA 3 (2026-07-21 a 2026-07-27) — 4h/día = 20h
 
-**Objetivo:** Adapters + CQRS.
+**Objetivo:** replicar el molde a **`settings`**, **`auth`** y **`notifications`**.
 
 **Backend (12h):**
-- [ ] `infrastructure/email/keycloak-email.adapter.ts` (impl actual)
-- [ ] `infrastructure/email/azure-email.adapter.ts` (stub, comentado)
-- [ ] `infrastructure/auth/keycloak-auth.adapter.ts` (impl)
-- [ ] `infrastructure/payment/mock-payment.adapter.ts` (simulado)
-- [ ] `application/orders/commands/CreateOrderHandler.ts` (inyecta IEmailSender)
-- [ ] CommandBus + QueryBus setup
+- [ ] `modules/settings/` al molde (chato): umbrales semáforo/sucursal/horario; puerto de repo + mapper + casos de uso planos.
+- [ ] `modules/auth/`: el adapter de Keycloak (JWT/roles/MFA, AZURE-ready) vive en **`modules/auth/infrastructure/external/keycloak-auth.adapter.ts`** detrás del puerto del módulo — NO en un `infrastructure/auth/` global. Stub AZURE comentado como referencia del intercambio (D-038, AZURE-ready).
+- [ ] `modules/notifications/`: escucha domain events de `orders` (`OrderReady`, `OrderCancelled`) vía event dispatcher; el adapter de push local va en `modules/notifications/infrastructure/external/`. `orders` NO llama a `notifications` (solo emite; rompe ciclos — bounded-contexts.md).
+- [ ] El pago **simulado** sigue dentro de `orders` detrás de `payment.gateway.port.ts` con su adapter en `modules/orders/infrastructure/external/mock-payment.adapter.ts` (no es módulo `payments` hoy; se extrae solo con Stripe/AZURE real, regla 43).
+- [ ] **Gate (§22):** `tsc` 0 + tests verdes.
 
 **OWASP L2 (4h):**
 - [ ] Implementar V6 bcrypt para admin passwords
@@ -214,14 +233,14 @@ backend/src/
 
 ### SEMANA 4 (2026-07-28 a 2026-08-03) — 4h/día = 20h
 
-**Objetivo:** TypeORM repositories + Event Bus.
+**Objetivo:** cerrar la migración — retirar el `domain/` viejo y consolidar.
 
 **Backend (16h):**
-- [ ] `infrastructure/database/repositories/typeorm-order.repository.ts` (mapper Order ↔ OrderEntity)
-- [ ] TypeORM repositories para Product, UserProfile
-- [ ] Event Bus service
-- [ ] Event handlers (OrderReadyHandler usa IEmailSender)
-- [ ] Tests: 75%+ cobertura
+- [ ] **Retirar** los `domain/order|product|settings|user-profile/*.repository.ts` VIEJOS (los que importaban `OrderEntity`/enums de infra y violaban `dependency-rules` §2) una vez que todos los módulos nuevos los reemplazan.
+- [ ] Verificar que cada módulo respeta la dirección de dependencias: `domain/` sin imports de TypeORM/Nest/HTTP; adapters cableados por símbolo del puerto.
+- [ ] Unificar (con cuidado) el `OrderStatus` duplicado dominio/infra si el ripple de imports lo permite; si no, dejar el puente `as unknown as` documentado del mapper.
+- [ ] Consolidar el despacho de domain events (`pullEvents()` tras persistir) para `orders ▷ notifications`.
+- [ ] **Gate (§22):** `tsc` 0 + **65 tests verdes** + 75%+ cobertura.
 
 **OWASP L2 (4h):**
 - [ ] Implementar V9 CORS whitelist
@@ -242,7 +261,7 @@ backend/src/
 
 **Docs (4h):**
 - [ ] Architecture.md: completar flujos
-- [ ] D-048 + D-049 (OWASP L2 final)
+- [ ] Actualizar `decisiones.md` (D-038/D-039/D-040 vigentes) + registrar cierre OWASP L2
 
 ---
 
@@ -278,7 +297,7 @@ backend/src/
 
 **Docs (5h):**
 - [ ] Architecture.md: finalizar todas las secciones
-- [ ] ADRs D-048, D-049
+- [ ] ADRs al día (D-038/D-039/D-040 + el ADR que cierre OWASP L2)
 - [ ] Checklist pre-tesis
 
 ---
@@ -308,7 +327,7 @@ backend/src/
 
 | Aspecto | Original | HEXAGONAL |
 |---------|----------|-----------|
-| Arquitectura | Clean + DDD | **Hexagonal + DDD + CQRS** |
+| Arquitectura | Clean + DDD (capas horizontales, dominio anémico) | **Hexagonal + DDD + Vertical Slice + CQRS ligero** |
 | Adapters | Monolíticos (Keycloak, TypeORM) | **Intercambiables** (AZURE-ready) |
 | Equipo | 3 devs × 40h | **1 dev × 4h/día + fin de semana** |
 | Timeline | 3 frentes paralelos | **Secuencial + overlap (Natalia paralela)** |
@@ -333,8 +352,8 @@ backend/src/
 ## Presupuesto de Tiempo: Desglose
 
 ```
-Domain (Semanas 1-2):        40h  (agregados + puertos)
-Adapters (Semanas 3-4):      40h  (impl. de interfaces)
+Migrar núcleo (Semanas 1-2): 40h  (orders al molde + products/users)
+Replicar resto (Semanas 3-4):40h  (settings/auth/notifications + retirar domain/ viejo)
 Admin Panel (Semanas 5-6):   40h  (dashboard + reportes)
 Tests + Cierre (Semanas 7-8):20h  (E2E + regresión)
 OWASP L2 (Embedded):         20h  (auditoría + remediar)
@@ -379,7 +398,7 @@ Fin de semana buffer:        ~20-40h (si es necesario)
 
 ## Stack Final
 
-- **Backend:** NestJS 11 + TypeORM + PostgreSQL 16 (Hexagonal, DDD, CQRS)
+- **Backend:** NestJS 11 + TypeORM + PostgreSQL 16 (Hexagonal, DDD, Vertical Slice, CQRS ligero)
 - **Frontend Admin:** React Web (vite + recharts)
 - **Frontend Cliente:** React Native (Expo) — intacto
 - **Auth:** Keycloak local (Hexagonal adapter, AZURE-ready)
