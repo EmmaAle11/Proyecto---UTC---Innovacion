@@ -120,71 +120,137 @@ Ejemplos:
 
 ---
 
-## Fase 2: Application Layer — Orquestación (Semana 1-2)
+## Fase 2: Application Layer — CQRS + Orquestación (Semana 2)
 
-### 2.1 Refactor Application Services
+### 2.1 CQRS Separado: Commands y Queries
 
-**Patrón actual:**
-```typescript
-// ❌ Antes: lógica de negocio en el service
-async createOrder(dto: CreateOrderDto, user: JwtUser) {
-  // validar usuario
-  // cargar productos
-  // calcular total
-  // validar transiciones
-  // actualizar stock
-  // persistir
-}
+**Estructura:**
+```
+application/orders/
+├── commands/
+│   ├── CreateOrder/
+│   │   ├── CreateOrderCommand.ts         (DTO input: { items, payMethod, branchId })
+│   │   ├── CreateOrderCommandHandler.ts  (orquestador: carga repos, delega a agregado)
+│   │   └── CreateOrderResponse.ts        (DTO output: { orderId, orderNumber, total })
+│   ├── AcceptOrder/
+│   ├── CancelOrder/
+│   ├── TransitionStatus/                 (admin: PENDING → PREPARING, etc.)
+│   └── ...
+├── queries/
+│   ├── GetOrder/
+│   │   ├── GetOrderQuery.ts              (DTO input: { id, userId })
+│   │   ├── GetOrderQueryHandler.ts       (carga y mapea)
+│   │   └── GetOrderResponse.ts           (DTO: OrderDetail)
+│   ├── GetOrderMetrics/
+│   ├── GetCongestion/
+│   └── ...
+├── dto/
+│   ├── CreateOrderDto.ts
+│   └── ...
+└── orders.module.ts
 ```
 
-**Patrón nuevo:**
+**Handler = service antiguo, pero enfocado:**
 ```typescript
-// ✅ Después: service orquesta agregados
-async createOrder(dto: CreateOrderDto, user: JwtUser): Promise<Order> {
-  const userProfile = await this.userProfileRepo.findById(user.sub);
-  if (!userProfile) throw new UserNotFound();
-  
-  const products = await this.productRepo.findByIds(dto.items.map(i => i.productId));
-  const order = Order.create({ user: userProfile, items: products, ... });
-  
-  // Order ya validó internamente:
-  // - usuario existe
-  // - ítems son válidos
-  // - no hay duplicados
-  // - total > 0
-  
-  await this.orderRepo.save(order);
-  await this.eventBus.publish(order.domainEvents);
-  
-  return order;
+// CreateOrderCommandHandler.ts
+@Injectable()
+export class CreateOrderCommandHandler {
+  async handle(cmd: CreateOrderCommand): Promise<CreateOrderResponse> {
+    const user = await this.userRepo.findById(cmd.userId);
+    const products = await this.productRepo.findByIds(cmd.items.map(i => i.productId));
+    const order = Order.create({ user, items: products, ... });
+    
+    await this.orderRepo.save(order);
+    await this.eventBus.publish(order.domainEvents); // ← Dispara notificaciones
+    
+    return new CreateOrderResponse({ orderId: order.id, ... });
+  }
+}
+
+// En controller
+@Post('create')
+async createOrder(@Body() dto: CreateOrderDto, @User() user: JwtUser) {
+  const cmd = new CreateOrderCommand(user.sub, dto.items);
+  return await this.commandBus.execute(cmd);
 }
 ```
-
-**No hay CQRS explícito** (commands/queries separadas en carpetas), pero el service es **limpio y delegador**.
 
 ---
 
-### 2.2 Reorganización de Application Services
+### 2.2 Event Bus para Domain Events
 
-Cambio mínimo: mantener `orders.service.ts`, `products.service.ts`, etc., pero **simplificar**.
+**Por qué:** Domain events no solo se loguean (audit), sino que se **publican** a handlers que notifican admin, actualizan métricas, etc.
 
+**Diagrama:**
 ```
-application/
-├── orders/
-│   ├── orders.service.ts       (refactorizado, solo orquestación)
-│   ├── dto/                    (CreateOrderDto, UpdateOrderStatusDto, etc.)
-│   └── ...
-├── products/
-│   ├── products.service.ts     (refactorizado)
-│   └── ...
+Order.ts (agregado)
+  ↓ emite
+OrderCreated, OrderAccepted, OrderReady, OrderNotPickedUp (domain events)
+  ↓
+EventBusService.publish([...events])
+  ↓ (dispatch async a handlers)
+  ├→ AuditLogHandler (registra en BD)
+  ├→ NotificationHandler (WebSocket/polling: "U-00001 está listo")
+  ├→ MetricsHandler (actualiza counters)
+  └→ ...
 ```
 
-Cada service:
-1. Valida entrada (DTO).
-2. Carga agregados del repositorio.
-3. Ejecuta operación en el agregado (p. ej. `order.transitionTo(READY)`).
-4. Persiste cambios.
-5. Publica eventos de dominio.
+**Implementación:**
+```typescript
+// shared/event-bus.service.ts
+@Injectable()
+export class EventBusService {
+  private handlers = new Map<string, Array<(event: DomainEvent) => Promise<void>>>();
+  
+  subscribe(eventName: string, handler: (event: DomainEvent) => Promise<void>) {
+    const key = eventName;
+    if (!this.handlers.has(key)) this.handlers.set(key, []);
+    this.handlers.get(key)!.push(handler);
+  }
+  
+  async publish(events: DomainEvent[]): Promise<void> {
+    for (const event of events) {
+      const handlers = this.handlers.get(event.constructor.name) ?? [];
+      Promise.allSettled(handlers.map(h => h(event))).catch(err => 
+        console.error(`Event failed:`, err)
+      );
+    }
+  }
+}
+
+// application/orders/event-handlers/OrderReadyHandler.ts
+@Injectable()
+export class OrderReadyHandler {
+  constructor(private notificationService: NotificationService) {}
+  
+  async handle(event: OrderReady): Promise<void> {
+    // Notificar admin (guardar en BD para que polling lo lea)
+    await this.notificationService.notifyOrderReady(event.orderId);
+  }
+}
+
+// orders.module.ts
+@Module({
+  providers: [
+    OrderReadyHandler,
+    {
+      provide: 'ORDER_READY_HANDLER',
+      useFactory: (handler: OrderReadyHandler, bus: EventBusService) => {
+        bus.subscribe('OrderReady', h => handler.handle(h));
+        return handler;
+      },
+      inject: [OrderReadyHandler, EventBusService],
+    },
+  ],
+})
+```
+
+**Handlers registrados:**
+- `OrderCreated` → AuditLog
+- `OrderAccepted` → AuditLog
+- `OrderReady` → AuditLog + notificación admin
+- `OrderCancelled` → AuditLog
+- `OrderNotPickedUp` → AuditLog + reverso de stock
 
 ---
 
@@ -346,16 +412,16 @@ Decisión arquitectónica:
 
 ---
 
-## Timeline
+## Timeline (ACTUALIZADO 2026-07-07)
 
 | Semana | Hito | Commit |
 |--------|------|--------|
-| 1 (hoy) | D-037 committeado + Fase 1 Order/Product agregados listos | feat(domain): agregados Order, Product, Value Objects (D-045) |
-| 1-2 | Fase 2 Services refactorizados | refactor(application): services delegan a agregados |
-| 2 | Fase 3 Repositories mappean dominio ↔ ORM | refactor(infrastructure): TypeORM repositories retornan agregados |
-| 2-3 | Fase 4 Presentation wiring (controllers siguen siendo controllers) | - (sin cambios funcionales) |
-| 3-4 | Fase 5 Tests + regresión | test(domain): suite de agregados verde |
-| 4 | Fase 6 Docs + Architecture.md completado | docs: Architecture.md + D-045 |
+| 1 (hoy) | D-037 committeado + Fase 1 Order/Product/UserProfile agregados listos | feat(domain): agregados Order, Product, Value Objects (D-045) |
+| 2 | Fase 2 CQRS (commands/queries handlers) + Event Bus (publish domain events) | refactor(application): CQRS handlers + EventBusService + event handlers |
+| 2-3 | Fase 3 Repositories mappean dominio ↔ ORM | refactor(infrastructure): TypeORM repositories retornan agregados |
+| 3 | Fase 4 Presentation wiring (controllers inyectan handlers, no services) | refactor(presentation): controllers → commandBus / queryBus |
+| 3-4 | Fase 5 Tests + regresión completa | test(domain + application): agregados + handlers + event bus |
+| 4 | Fase 6 Docs + Architecture.md completado + D-045 ADR | docs: Architecture.md + D-045 (cierre arquitectónico) |
 
 ---
 
@@ -368,7 +434,119 @@ Decisión arquitectónica:
 
 ---
 
-**Preguntas abiertas:**
-- ¿En 2 meses necesitamos CQRS separadas (commands/queries folders) o services limpios es suficiente?
-- ¿Campos calculados (ej: `order.estimatedReadyTime`) viven en Order.ts o son DTOs?
-- ¿Domain events se publican a un event bus o se loguean solo en audit?
+---
+
+## DECISIONES CONFIRMADAS (2026-07-07)
+
+### ✅ CQRS Separado (Commands/Queries)
+
+**Decisión:** Sí, separar en **commands** y **queries** por caso de uso.
+
+**Estructura:**
+```
+application/orders/
+├── commands/
+│   ├── CreateOrder/
+│   │   ├── CreateOrderCommand.ts       (DTO: input)
+│   │   ├── CreateOrderCommandHandler.ts (orquestador)
+│   │   └── CreateOrderResponse.ts      (DTO: output)
+│   ├── AcceptOrder/
+│   ├── CancelOrder/
+│   └── ...
+├── queries/
+│   ├── GetOrders/
+│   ├── GetOrderMetrics/
+│   └── ...
+└── dto/                                 (DTOs compartidos)
+```
+
+**Beneficio:** Separación explícita entre mutación (comando) y lectura (query).
+
+**Fase:** Semana 2 (después de agregados listos).
+
+---
+
+### ✅ Campos Calculados → Order Aggregate (VERIFIED)
+
+**Hallazgo en código:**
+- `estimatedReadyAt` existe en `OrderEntity` (BD) pero NO se calcula en application.
+- `avgPrepByProduct()` en `orders.service.ts` lee de `preparation_times` (J5).
+
+**Decisión:** Campos calculados viven en **Order aggregate**, NO en DTOs.
+
+**Ejemplos:**
+```typescript
+// ❌ NUNCA en DTO
+export class OrderResponse {
+  estimatedReadyAt: Date;  // ← Mal
+}
+
+// ✅ SIEMPRE en Order.ts
+class Order {
+  estimatedReadyAt: Date;  // calculado del prepTimeSeconds
+  
+  get readyIn(): number {
+    if (!this.acceptedAt) return null;
+    return this.prepTimeSeconds - (now - this.acceptedAt);
+  }
+}
+```
+
+**Responsable:** Order.ts → calcula en constructor/método → DTO solo lee y mapea.
+
+---
+
+### ✅ Domain Events → Event Bus (NO solo Audit)
+
+**Decisión:** Domain events se publican a **Event Bus** (además de AuditLog).
+
+**Casos de uso:**
+- Admin recibe notificación cuando pedido está READY.
+- Frontend polling se dispara (en lugar de esperar 15s).
+- Otras features se suscriben a eventos (ej: notificaciones, métricas).
+
+**Implementación (Fase 2-3):**
+```typescript
+// domain/order/DomainEvents/OrderReady.ts
+export class OrderReady extends DomainEvent {
+  constructor(public orderId: string, public orderNumber: string) {
+    super();
+  }
+}
+
+// application/events/event-bus.service.ts
+@Injectable()
+export class EventBusService {
+  private handlers = new Map<string, any[]>();
+  
+  subscribe(eventName: string, handler: (event: any) => Promise<void>) {
+    if (!this.handlers.has(eventName)) this.handlers.set(eventName, []);
+    this.handlers.get(eventName)!.push(handler);
+  }
+  
+  async publish(events: DomainEvent[]) {
+    for (const event of events) {
+      const handlers = this.handlers.get(event.constructor.name) ?? [];
+      for (const handler of handlers) {
+        await handler(event);  // Async, no bloquea
+      }
+    }
+  }
+}
+
+// En orders.service.ts
+async createOrder(dto, user) {
+  const order = await this.repo.save(...);
+  await this.eventBus.publish(order.domainEvents);
+  // Handlers se disparan: notificación admin, audit log, etc.
+}
+```
+
+**Event Handlers registrados:**
+- `OrderCreated` → AuditLog
+- `OrderAccepted` → AuditLog + quizás notificación interna
+- `OrderReady` → AuditLog + notificación admin (WebSocket/polling)
+- `OrderCancelled` → AuditLog + reverso de stock
+- `OrderNotPickedUp` → AuditLog + reoferta
+
+**Fase:** Semana 3 (después de agregados + commands/queries).
