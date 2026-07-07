@@ -1,6 +1,8 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import type { DataSource } from 'typeorm';
 import { OrdersService } from './orders.service';
+import { TypeOrmOrderRepository } from '../../infrastructure/database/repositories/typeorm-order.repository';
+import { AuditLogService } from '../../shared/logging/audit-log.service';
 import { PaymentGatewayService } from '../payments/payment-gateway.service';
 import {
   OrderStatus,
@@ -177,8 +179,19 @@ function buildService(opts: {
   const authorize =
     opts.gatewayAuthorize ?? jest.fn().mockResolvedValue(PaymentStatus.PAID);
   const paymentGateway = { authorize } as unknown as PaymentGatewayService;
+  // La lógica transaccional (D-037, transiciones, congestion) vive en el repo TypeORM;
+  // el servicio solo delega. Construimos el repo real con el DataSource falso para
+  // ejercitar esa lógica, y el servicio lo recibe como su IOrderRepository.
+  const repo = new TypeOrmOrderRepository(
+    dataSource,
+    repos.OrderEntity as never,
+    repos.ProductEntity as never,
+    repos.UserProfileEntity as never,
+    paymentGateway,
+  );
+  const auditLog = { login: jest.fn(), orderStatusChange: jest.fn() } as unknown as AuditLogService;
   return {
-    service: new OrdersService(dataSource, paymentGateway),
+    service: new OrdersService(repo, auditLog),
     orderSave,
     itemSave,
     paymentSave,
