@@ -4,6 +4,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from '../../application/orders/orders.service';
+import { AuditLogService } from '../../shared/logging/audit-log.service';
 
 /**
  * Test HTTP del controller con el `OrdersService` mockeado y el MISMO `ValidationPipe`
@@ -31,9 +32,21 @@ describe('OrdersController (HTTP)', () => {
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [OrdersController],
-      providers: [{ provide: OrdersService, useValue: service }],
+      providers: [
+        { provide: OrdersService, useValue: service },
+        {
+          provide: AuditLogService,
+          useValue: { logOrderStateChange: jest.fn() },
+        },
+      ],
     }).compile();
     app = moduleRef.createNestApplication();
+    // Los guards no se registran en este test; simulamos el `req.user` que el
+    // JwtAuthGuard adjuntaría, para ejercitar los handlers protegidos.
+    app.use((req: { user?: unknown }, _res: unknown, next: () => void) => {
+      req.user = { sub: 'kc-admin', email: 'admin@edu.utc.mx', roles: ['admin'] };
+      next();
+    });
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,

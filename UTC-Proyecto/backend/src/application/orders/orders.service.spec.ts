@@ -1,7 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import type { DataSource } from 'typeorm';
 import { OrdersService } from './orders.service';
-import { TypeOrmOrderRepository } from '../../infrastructure/database/repositories/typeorm-order.repository';
+import { TypeOrmOrderRepository } from '../../modules/orders/infrastructure/persistence/order.repository';
 import { AuditLogService } from '../../shared/logging/audit-log.service';
 import { PaymentGatewayService } from '../payments/payment-gateway.service';
 import {
@@ -636,10 +636,14 @@ describe('OrdersService inventario (stock dark kitchen, D-037)', () => {
       transaction: (cb: (m: { getRepository: typeof getRepository }) => unknown) =>
         cb({ getRepository }),
     } as unknown as DataSource;
-    const service = new OrdersService(
+    const repo = new TypeOrmOrderRepository(
       dataSource,
+      repos.OrderEntity as never,
+      repos.ProductEntity as never,
+      repos.UserProfileEntity as never,
       { authorize: jest.fn() } as unknown as PaymentGatewayService,
     );
+    const service = new OrdersService(repo, {} as unknown as AuditLogService);
     await expect(service.cancelOwn('o1', USER)).rejects.toBeInstanceOf(
       BadRequestException,
     );
@@ -665,10 +669,14 @@ describe('OrdersService inventario (stock dark kitchen, D-037)', () => {
       transaction: (cb: (m: { getRepository: typeof getRepository }) => unknown) =>
         cb({ getRepository }),
     } as unknown as DataSource;
-    const service = new OrdersService(
+    const repo = new TypeOrmOrderRepository(
       dataSource,
+      repos.OrderEntity as never,
+      repos.ProductEntity as never,
+      repos.UserProfileEntity as never,
       { authorize: jest.fn() } as unknown as PaymentGatewayService,
     );
+    const service = new OrdersService(repo, {} as unknown as AuditLogService);
     await expect(service.extendOwn('o1', USER)).rejects.toBeInstanceOf(
       BadRequestException,
     );

@@ -12,7 +12,7 @@ import { OrderExpiryScheduler } from '../../application/orders/order-expiry.sche
 import { PaymentGatewayService } from '../../application/payments/payment-gateway.service';
 import { OrdersController } from './orders.controller';
 import { ORDER_REPOSITORY } from '../../domain/order/order.repository';
-import { TypeOrmOrderRepository } from '../../infrastructure/database/repositories/typeorm-order.repository';
+import { TypeOrmOrderRepository } from '../../modules/orders/infrastructure/persistence/order.repository';
 
 @Module({
   imports: [
