@@ -7,6 +7,11 @@ import {
 import type { IProductRepository } from '../../domain/product/product.repository';
 import { PRODUCT_REPOSITORY } from '../../domain/product/product.repository';
 import { ProductEntity } from '../../infrastructure/database/entities/product.entity';
+import { DomainError } from '../../kernel/domain/DomainError';
+import {
+  assertProductInvariants,
+  ProductInvariantFields,
+} from '../../modules/products/domain/product.policy';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
@@ -27,16 +32,24 @@ export class ProductsService {
     return this.products.findAll();
   }
 
+  /** Traduce la invariante de dominio (DomainError) a 400 (D-039). */
+  private assertInvariants(fields: ProductInvariantFields): void {
+    try {
+      assertProductInvariants(fields);
+    } catch (e) {
+      if (e instanceof DomainError) throw new BadRequestException(e.message);
+      throw e;
+    }
+  }
+
   /** Alta de producto (admin). */
   async create(dto: CreateProductDto): Promise<ProductEntity> {
-    if (dto.maxStock != null && dto.maxStock < (dto.minStock ?? 0)) {
-      throw new BadRequestException(
-        'max_stock debe ser mayor o igual a min_stock',
-      );
-    }
-    if (dto.reofferPrice != null && dto.reofferPrice >= dto.price) {
-      throw new BadRequestException('La reoferta debe ser menor al precio');
-    }
+    this.assertInvariants({
+      price: dto.price,
+      reofferPrice: dto.reofferPrice ?? null,
+      minStock: dto.minStock ?? 0,
+      maxStock: dto.maxStock ?? null,
+    });
     const entity = new ProductEntity();
     entity.name = dto.name;
     entity.description = dto.description ?? null;
@@ -79,14 +92,12 @@ export class ProductsService {
       p.reofferPrice =
         dto.reofferPrice === null ? null : dto.reofferPrice.toFixed(2);
 
-    if (p.maxStock != null && p.maxStock < p.minStock) {
-      throw new BadRequestException(
-        'max_stock debe ser mayor o igual a min_stock',
-      );
-    }
-    if (p.reofferPrice != null && Number(p.reofferPrice) >= Number(p.price)) {
-      throw new BadRequestException('La reoferta debe ser menor al precio');
-    }
+    this.assertInvariants({
+      price: Number(p.price),
+      reofferPrice: p.reofferPrice != null ? Number(p.reofferPrice) : null,
+      minStock: p.minStock,
+      maxStock: p.maxStock,
+    });
     return this.products.save(p);
   }
 }
