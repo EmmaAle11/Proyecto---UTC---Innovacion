@@ -11,18 +11,18 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { OrdersService } from '../../application/orders/orders.service';
-import { CreateOrderDto } from '../../application/orders/dto/create-order.dto';
-import { UpdateOrderStatusDto } from '../../application/orders/dto/update-order-status.dto';
-import type { OrderMetrics } from '../../application/orders/dto/order-metrics';
+import { OrdersService } from '../application/orders.service';
+import { CreateOrderDto } from '../contracts/create-order.dto';
+import { UpdateOrderStatusDto } from '../contracts/update-order-status.dto';
+import type { OrderMetrics } from '../contracts/order-metrics';
 import {
   OrderResponse,
   CongestionResponse,
   toOrderResponse,
-} from '../../application/orders/dto/order-response';
-import { Roles } from '../auth/decorators/roles.decorator';
-import type { JwtUser } from '../../infrastructure/auth/jwt.strategy';
-import { AuditLogService } from '../../shared/logging/audit-log.service';
+} from '../contracts/order-response';
+import { Roles } from '../../../presentation/auth/decorators/roles.decorator';
+import type { JwtUser } from '../../../infrastructure/auth/jwt.strategy';
+import { AuditLogService } from '../../../shared/logging/audit-log.service';
 
 /**
  * Pedidos del cliente. Ambas rutas exigen JWT (guard global); sin `@Roles`, así que

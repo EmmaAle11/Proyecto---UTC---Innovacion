@@ -1,13 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { IOrderRepository } from '../../domain/order/order.repository';
-import { ORDER_REPOSITORY } from '../../domain/order/order.repository';
-import { OrderEntity } from '../../infrastructure/database/entities/order.entity';
-import { AuditLogService } from '../../shared/logging/audit-log.service';
-import type { CongestionResponse } from './dto/order-response';
-import type { OrderMetrics } from './dto/order-metrics';
-import { OrderStatus } from '../../infrastructure/database/entities/enums';
-import { CreateOrderDto } from './dto/create-order.dto';
-import type { JwtUser } from '../../infrastructure/auth/jwt.strategy';
+import type { IOrderRepository } from '../domain/ports/order.repository.port';
+import { ORDER_REPOSITORY } from '../domain/ports/order.repository.port';
+import { OrderEntity } from '../../../infrastructure/database/entities/order.entity';
+import { AuditLogService } from '../../../shared/logging/audit-log.service';
+import type { CongestionResponse } from '../contracts/order-response';
+import type { OrderMetrics } from '../contracts/order-metrics';
+import { OrderStatus } from '../../../infrastructure/database/entities/enums';
+import { CreateOrderDto } from '../contracts/create-order.dto';
+import type { JwtUser } from '../../../infrastructure/auth/jwt.strategy';
 
 /**
  * Orquestación de lógica de negocio de pedidos. Persistencia delegada a IOrderRepository.

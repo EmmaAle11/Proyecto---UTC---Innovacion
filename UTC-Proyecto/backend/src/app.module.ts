@@ -7,7 +7,7 @@ import { DatabaseModule } from './infrastructure/database/database.module';
 import { HealthController } from './presentation/health/health.controller';
 import { AuthModule } from './presentation/auth/auth.module';
 import { ProductsModule } from './presentation/products/products.module';
-import { OrdersModule } from './presentation/orders/orders.module';
+import { OrdersModule } from './modules/orders/presentation/orders.module';
 import { SettingsModule } from './presentation/settings/settings.module';
 import { JwtStrategy } from './infrastructure/auth/jwt.strategy';
 import { JwtAuthGuard } from './presentation/auth/guards/jwt-auth.guard';

@@ -12,20 +12,20 @@ import { ProductEntity } from '../../../../infrastructure/database/entities/prod
 import { UserProfileEntity } from '../../../../infrastructure/database/entities/user-profile.entity';
 import { PreparationTimeEntity } from '../../../../infrastructure/database/entities/preparation-time.entity';
 import { AppSettingsEntity } from '../../../../infrastructure/database/entities/app-settings.entity';
-import { IOrderRepository } from '../../../../domain/order/order.repository';
+import { IOrderRepository } from '../../domain/ports/order.repository.port';
 import {
   OrderStatus,
   PaymentMethod,
   PaymentStatus,
   UserRole,
 } from '../../../../infrastructure/database/entities/enums';
-import type { CongestionResponse } from '../../../../application/orders/dto/order-response';
+import type { CongestionResponse } from '../../contracts/order-response';
 import type {
   OrderMetrics,
   PeakHour,
   TopProduct,
-} from '../../../../application/orders/dto/order-metrics';
-import type { CreateOrderDto } from '../../../../application/orders/dto/create-order.dto';
+} from '../../contracts/order-metrics';
+import type { CreateOrderDto } from '../../contracts/create-order.dto';
 import type { JwtUser } from '../../../../infrastructure/auth/jwt.strategy';
 import { PaymentGatewayService } from '../../../../application/payments/payment-gateway.service';
 import { CircuitOpenError } from '../../../../shared/resilience/circuit-breaker';

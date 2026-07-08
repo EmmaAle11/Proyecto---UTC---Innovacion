@@ -1,9 +1,13 @@
-import { OrderEntity } from '../../infrastructure/database/entities/order.entity';
-import { OrderStatus } from '../../infrastructure/database/entities/enums';
-import type { CongestionResponse } from '../../application/orders/dto/order-response';
-import type { OrderMetrics } from '../../application/orders/dto/order-metrics';
-import type { CreateOrderDto } from '../../application/orders/dto/create-order.dto';
-import type { JwtUser } from '../../infrastructure/auth/jwt.strategy';
+// ponytail: puerto transicional -- aun tipa contra infra (fuga domain->infra): OrderEntity
+// (retorno), OrderStatus (enum de infra) y JwtUser (auth). Limpieza a un puerto Order-typed
+// (dominio puro) = rebanada posterior; deuda diferida D-040. NO tocar hasta esa rebanada:
+// los 85 tests asertan sobre OrderEntity.
+import { OrderEntity } from '../../../../infrastructure/database/entities/order.entity';
+import { OrderStatus } from '../../../../infrastructure/database/entities/enums';
+import type { CongestionResponse } from '../../contracts/order-response';
+import type { OrderMetrics } from '../../contracts/order-metrics';
+import type { CreateOrderDto } from '../../contracts/create-order.dto';
+import type { JwtUser } from '../../../../infrastructure/auth/jwt.strategy';
 
 export interface IOrderRepository {
   createWithItemsAndPayment(

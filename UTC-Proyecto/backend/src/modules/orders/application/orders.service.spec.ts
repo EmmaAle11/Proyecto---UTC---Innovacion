@@ -1,15 +1,15 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import type { DataSource } from 'typeorm';
 import { OrdersService } from './orders.service';
-import { TypeOrmOrderRepository } from '../../modules/orders/infrastructure/persistence/order.repository';
-import { AuditLogService } from '../../shared/logging/audit-log.service';
-import { PaymentGatewayService } from '../payments/payment-gateway.service';
+import { TypeOrmOrderRepository } from '../infrastructure/persistence/order.repository';
+import { AuditLogService } from '../../../shared/logging/audit-log.service';
+import { PaymentGatewayService } from '../../../application/payments/payment-gateway.service';
 import {
   OrderStatus,
   PaymentMethod,
   PaymentStatus,
-} from '../../infrastructure/database/entities/enums';
-import type { JwtUser } from '../../infrastructure/auth/jwt.strategy';
+} from '../../../infrastructure/database/entities/enums';
+import type { JwtUser } from '../../../infrastructure/auth/jwt.strategy';
 
 const USER: JwtUser = { sub: 'kc-1', email: 'ana@edu.utc.mx', roles: ['user'] };
 const PROFILE = {

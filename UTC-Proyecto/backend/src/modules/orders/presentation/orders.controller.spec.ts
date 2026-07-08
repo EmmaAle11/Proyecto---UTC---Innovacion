@@ -3,8 +3,8 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { OrdersController } from './orders.controller';
-import { OrdersService } from '../../application/orders/orders.service';
-import { AuditLogService } from '../../shared/logging/audit-log.service';
+import { OrdersService } from '../application/orders.service';
+import { AuditLogService } from '../../../shared/logging/audit-log.service';
 
 /**
  * Test HTTP del controller con el `OrdersService` mockeado y el MISMO `ValidationPipe`
