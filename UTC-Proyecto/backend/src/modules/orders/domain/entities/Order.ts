@@ -3,9 +3,9 @@ import { DomainError } from '../../../../kernel/domain/DomainError';
 import { OrderCancelled } from '../events/OrderCancelled';
 
 /**
- * Estados del pedido — concepto de DOMINIO (el infra `enums.ts` comparte los
- * mismos valores string; el mapper traduce). Migrar el enum a este archivo y
- * que infra lo importe es trabajo del turno completo, no del spike.
+ * Estados del pedido — concepto de DOMINIO (el infra `enums.ts` comparte los mismos
+ * valores string; el mapper traduce). Migrar el enum a este archivo y que infra lo
+ * importe es un ripple aparte, no de esta migración.
  */
 export enum OrderStatus {
   PENDING = 'pending',
@@ -17,40 +17,163 @@ export enum OrderStatus {
   READY_LATER = 'ready_later',
 }
 
+/** Efecto que una transición tiene sobre el inventario (D-037). El agregado decide el
+ *  efecto (intención); el adapter ejecuta el SQL sobre las filas de Product. */
+export type StockEffect = 'reserve' | 'release' | 'none';
+
+/** Línea del pedido — lo mínimo que las reglas de stock necesitan (productId + cantidad). */
+export interface OrderLine {
+  readonly productId: string;
+  readonly quantity: number;
+}
+
 export interface OrderSnapshot {
   id: string;
   orderNumber: number;
   status: OrderStatus;
+  items: OrderLine[];
+  acceptedAt: Date | null;
+  readyAt: Date | null;
+  pickupDeadline: Date | null;
+  pickedUpAt: Date | null;
+  scheduledFor: Date | null;
 }
 
+/** Ventana de recogida tras marcar "listo" (D-005): 20 min. */
+const READY_WINDOW_MS = 20 * 60 * 1000;
+
+/** Política del ADMIN (BR-004). Un estado terminal no tiene salidas. */
+const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  [OrderStatus.PENDING]: [OrderStatus.PREPARING, OrderStatus.CANCELLED],
+  [OrderStatus.PREPARING]: [OrderStatus.READY],
+  [OrderStatus.READY]: [
+    OrderStatus.PICKED_UP,
+    OrderStatus.NOT_PICKED_UP,
+    OrderStatus.READY_LATER,
+  ],
+  [OrderStatus.READY_LATER]: [OrderStatus.PICKED_UP, OrderStatus.NOT_PICKED_UP],
+  [OrderStatus.PICKED_UP]: [],
+  [OrderStatus.NOT_PICKED_UP]: [],
+  [OrderStatus.CANCELLED]: [],
+};
+
+/** Política del CLIENTE (§3.8/§3.9) — separada a propósito de la del admin.
+ *  Cancela antes de prepararse (pending) o ya listo pero no recogido (ready/ready_later,
+ *  en cuyo caso el alimento queda para reoferta). NO en preparación ni terminal. */
+const CLIENT_CANCELLABLE: OrderStatus[] = [
+  OrderStatus.PENDING,
+  OrderStatus.READY,
+  OrderStatus.READY_LATER,
+];
+
 /**
- * Agregado Order. El spike sólo modela la regla de `cancelByOwner`; el resto de
- * transiciones (aceptar/entregar/vencer + stock) se migran en Semana 1 completa.
+ * Agregado Order. Dueño de las REGLAS de transición y de su efecto sobre el stock
+ * (la INTENCIÓN). El CÓMO (lock pesimista, transacción, SQL de stock) vive en el adapter.
+ * `now` se inyecta (hora del servidor, BR-005) para mantener el dominio determinista.
+ *
+ * ponytail: `place()` (creación como factory pura) queda diferido — la creación sigue en
+ * el adapter (funciona) hasta su propia rebanada; upgrade path claro cuando aporte.
  */
 export class Order extends AggregateRoot<string> {
   private constructor(
     id: string,
     public readonly orderNumber: number,
     private _status: OrderStatus,
+    public readonly items: readonly OrderLine[],
+    private _acceptedAt: Date | null,
+    private _readyAt: Date | null,
+    private _pickupDeadline: Date | null,
+    private _pickedUpAt: Date | null,
+    public readonly scheduledFor: Date | null,
   ) {
     super(id);
   }
 
-  /** Reconstruye desde persistencia (sin disparar eventos ni validaciones de creación). */
-  static rehydrate(snapshot: OrderSnapshot): Order {
-    return new Order(snapshot.id, snapshot.orderNumber, snapshot.status);
+  /** Reconstruye desde persistencia (el mapper la llama; sin eventos de creación). */
+  static rehydrate(s: OrderSnapshot): Order {
+    return new Order(
+      s.id,
+      s.orderNumber,
+      s.status,
+      s.items,
+      s.acceptedAt,
+      s.readyAt,
+      s.pickupDeadline,
+      s.pickedUpAt,
+      s.scheduledFor,
+    );
   }
 
   get status(): OrderStatus {
     return this._status;
   }
+  get acceptedAt(): Date | null {
+    return this._acceptedAt;
+  }
+  get readyAt(): Date | null {
+    return this._readyAt;
+  }
+  get pickupDeadline(): Date | null {
+    return this._pickupDeadline;
+  }
+  get pickedUpAt(): Date | null {
+    return this._pickedUpAt;
+  }
 
-  /** Regla de negocio: el dueño sólo puede cancelar un pedido PENDING. */
-  cancelByOwner(): void {
-    if (this._status !== OrderStatus.PENDING) {
-      throw new DomainError('Solo puedes cancelar pedidos pendientes');
+  /**
+   * Transición del ADMIN (BR-004): valida contra ALLOWED_TRANSITIONS, fija timestamps y
+   * devuelve el efecto de stock. Idempotente: mismo estado → no-op ('none').
+   */
+  applyAdminTransition(target: OrderStatus, now: Date): StockEffect {
+    if (this._status === target) return 'none'; // idempotente
+    const allowed = ALLOWED_TRANSITIONS[this._status] ?? [];
+    if (!allowed.includes(target)) {
+      throw new DomainError(
+        `Transición no permitida: ${this._status} → ${target}`,
+      );
     }
+    this._status = target;
+    switch (target) {
+      case OrderStatus.PREPARING:
+        this._acceptedAt = now;
+        return 'reserve'; // D-037: aparta del almacén
+      case OrderStatus.READY:
+        this._readyAt = now;
+        this._pickupDeadline = new Date(now.getTime() + READY_WINDOW_MS);
+        return 'none';
+      case OrderStatus.PICKED_UP:
+        this._pickedUpAt = now;
+        return 'none';
+      case OrderStatus.NOT_PICKED_UP:
+        return 'release'; // D-037: excedente reofertable
+      default:
+        return 'none'; // ready_later / cancelled (pending nunca reservó)
+    }
+  }
+
+  /** Cancelación del CLIENTE (§3.8/§3.9). Libera stock solo si ya estaba preparado. */
+  cancelByOwner(): StockEffect {
+    if (!CLIENT_CANCELLABLE.includes(this._status)) {
+      throw new DomainError(
+        'Solo puedes cancelar un pedido pendiente o uno listo que aún no recogiste',
+      );
+    }
+    const wasPrepared =
+      this._status === OrderStatus.READY ||
+      this._status === OrderStatus.READY_LATER;
     this._status = OrderStatus.CANCELLED;
     this.record(new OrderCancelled(this.id));
+    return wasPrepared ? 'release' : 'none';
+  }
+
+  /** Extender un pedido listo para recogerlo después (§3.10: ready → ready_later). */
+  extendByOwner(): StockEffect {
+    if (this._status !== OrderStatus.READY) {
+      throw new DomainError(
+        'Solo puedes extender un pedido que está listo para recoger',
+      );
+    }
+    this._status = OrderStatus.READY_LATER;
+    return 'none';
   }
 }
