@@ -66,13 +66,48 @@ const CLIENT_CANCELLABLE: OrderStatus[] = [
   OrderStatus.READY_LATER,
 ];
 
+/** Anticipación mínima para programar una recogida (30 min, hora del servidor; spec #4). */
+const MIN_SCHEDULE_AHEAD_MS = 30 * 60 * 1000;
+
+/** Snapshot del producto que el adapter trae de la BD para que el dominio decida (BR-015). */
+export interface ProductSnapshot {
+  readonly id: string;
+  readonly name: string;
+  readonly price: number;
+  readonly isAvailable: boolean;
+  readonly basePrepTimeSeconds: number;
+}
+
+/** Entrada de creación: el adapter provee productos + promedios; el dominio valida y calcula. */
+export interface PlaceOrderInput {
+  readonly items: readonly OrderLine[];
+  readonly products: readonly ProductSnapshot[];
+  readonly avgPrepByProductId: Readonly<Record<string, number>>;
+  readonly scheduledForRaw?: string | null;
+  readonly now: Date;
+}
+
+/** Línea ya valorada (precio congelado + subtotal + tiempo de prep). El adapter la persiste. */
+export interface PlacedLine {
+  readonly productId: string;
+  readonly quantity: number;
+  readonly unitPrice: number;
+  readonly subtotal: number;
+  readonly prepTimeSeconds: number;
+}
+
+/** Plan de un pedido nuevo, ya validado y calculado por el dominio. Sin id (lo asigna la BD). */
+export interface OrderPlan {
+  readonly status: OrderStatus;
+  readonly scheduledFor: Date | null;
+  readonly total: number;
+  readonly lines: readonly PlacedLine[];
+}
+
 /**
  * Agregado Order. Dueño de las REGLAS de transición y de su efecto sobre el stock
  * (la INTENCIÓN). El CÓMO (lock pesimista, transacción, SQL de stock) vive en el adapter.
  * `now` se inyecta (hora del servidor, BR-005) para mantener el dominio determinista.
- *
- * ponytail: `place()` (creación como factory pura) queda diferido — la creación sigue en
- * el adapter (funciona) hasta su propia rebanada; upgrade path claro cuando aporte.
  */
 export class Order extends AggregateRoot<string> {
   private constructor(
@@ -87,6 +122,69 @@ export class Order extends AggregateRoot<string> {
     public readonly scheduledFor: Date | null,
   ) {
     super(id);
+  }
+
+  /**
+   * Factory de creación (BR-015/BR-006/spec #4). Valida disponibilidad, congela el precio
+   * del catálogo, calcula subtotales + total, y valida la hora programada — TODO regla de
+   * dominio. Devuelve un plan sin id (la BD asigna id/orderNumber; el pago lo autoriza el
+   * adapter). Lanza DomainError; la presentación lo mapea a 400 (D-039).
+   */
+  static place(input: PlaceOrderInput): OrderPlan {
+    const byId = new Map(input.products.map((p) => [p.id, p]));
+    let total = 0;
+    const lines = input.items.map((it) => {
+      const product = byId.get(it.productId);
+      if (!product) {
+        throw new DomainError(`Producto no encontrado: ${it.productId}`);
+      }
+      if (!product.isAvailable) {
+        throw new DomainError(`Producto no disponible: ${product.name}`);
+      }
+      const unitPrice = product.price; // snapshot del catálogo (BR-015)
+      const subtotal = Math.round(unitPrice * it.quantity * 100) / 100;
+      total += subtotal;
+      return {
+        productId: product.id,
+        quantity: it.quantity,
+        unitPrice,
+        subtotal,
+        // J5: promedio real si hay muestras suficientes; si no, el tiempo base del producto.
+        prepTimeSeconds:
+          input.avgPrepByProductId[product.id] ?? product.basePrepTimeSeconds,
+      };
+    });
+    return {
+      status: OrderStatus.PENDING,
+      scheduledFor: Order.validateSchedule(input.scheduledForRaw, input.now),
+      total: Math.round(total * 100) / 100,
+      lines,
+    };
+  }
+
+  /** Regla de programación (spec #4): ≥30 min de anticipación y mismo día (hora del servidor). */
+  private static validateSchedule(
+    raw: string | null | undefined,
+    now: Date,
+  ): Date | null {
+    if (!raw) return null;
+    const target = new Date(raw);
+    if (Number.isNaN(target.getTime())) {
+      throw new DomainError('Fecha de recogida inválida');
+    }
+    if (target.getTime() - now.getTime() < MIN_SCHEDULE_AHEAD_MS) {
+      throw new DomainError(
+        'La recogida debe programarse con al menos 30 minutos de anticipación',
+      );
+    }
+    if (
+      target.getFullYear() !== now.getFullYear() ||
+      target.getMonth() !== now.getMonth() ||
+      target.getDate() !== now.getDate()
+    ) {
+      throw new DomainError('Solo puedes programar la recogida para hoy');
+    }
+    return target;
   }
 
   /** Reconstruye desde persistencia (el mapper la llama; sin eventos de creación). */

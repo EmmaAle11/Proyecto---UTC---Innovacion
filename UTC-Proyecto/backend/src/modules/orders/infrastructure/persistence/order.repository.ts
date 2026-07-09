@@ -30,7 +30,7 @@ import type { OrderResponse } from '../../contracts/order-response';
 import { PaymentGatewayService } from '../../../../application/payments/payment-gateway.service';
 import { CircuitOpenError } from '../../../../shared/resilience/circuit-breaker';
 import { DomainError } from '../../../../kernel/domain/DomainError';
-import { OrderStatus as DomainStatus } from '../../domain/entities/Order';
+import { Order } from '../../domain/entities/Order';
 import { OrderMapper, toOrderResponse } from './order.mapper';
 
 /**
@@ -58,8 +58,6 @@ const QUEUE_STATUSES = [
 ];
 /** Ventana (min) antes de la hora de recogida en la que un pedido programado "abre". */
 const SCHEDULE_WINDOW_MIN = 20;
-/** Anticipación mínima para programar una recogida (30 min, hora del servidor). */
-const MIN_SCHEDULE_AHEAD_MS = 30 * 60 * 1000;
 /** Promedio de preparación (BR-007/J5): últimas N muestras; con menos de MIN → tiempo base. */
 const MAX_PREP_SAMPLES = 20;
 const MIN_PREP_SAMPLES = 3;
@@ -100,13 +98,11 @@ export class TypeOrmOrderRepository implements IOrderRepository {
     ownerUserId: string,
   ): Promise<OrderResponse> {
     const profile = await this.ensureProfile(ownerUserId);
-    const scheduledFor = this.validateSchedule(input.scheduledFor); // spec #4
     const avgPrepRows = await this.avgPrepByProduct(
       input.items.map((i) => i.productId),
     );
-    const avgPrep = new Map(
-      avgPrepRows.map((r) => [r.product_id, r.avg_seconds]),
-    );
+    const avgPrepByProductId: Record<string, number> = {};
+    for (const r of avgPrepRows) avgPrepByProductId[r.product_id] = r.avg_seconds;
 
     const orderId = await this.dataSource.transaction(async (manager) => {
       const ids = input.items.map((i) => i.productId);
@@ -115,52 +111,44 @@ export class TypeOrmOrderRepository implements IOrderRepository {
         .findBy({ id: In(ids) });
       const byId = new Map(prods.map((p) => [p.id, p]));
 
-      let total = 0;
-      const lines = input.items.map((i) => {
-        const product = byId.get(i.productId);
-        if (!product) {
-          throw new BadRequestException(
-            `Producto no encontrado: ${i.productId}`,
-          );
-        }
-        if (!product.isAvailable) {
-          throw new BadRequestException(
-            `Producto no disponible: ${product.name}`,
-          );
-        }
-        const unit = Number(product.price); // snapshot del precio (BR-015)
-        const subtotal = Math.round(unit * i.quantity * 100) / 100;
-        total += subtotal;
-        return {
-          product,
-          quantity: i.quantity,
-          unitPrice: unit.toFixed(2),
-          subtotal: subtotal.toFixed(2),
-          prepTimeSeconds:
-            avgPrep.get(product.id) ?? product.basePrepTimeSeconds,
-        };
-      });
-      total = Math.round(total * 100) / 100;
+      // El DOMINIO valida disponibilidad, congela precios (BR-015), calcula total y valida
+      // la hora programada. El adapter solo trae los datos y persiste el plan resultante.
+      const plan = this.decide(() =>
+        Order.place({
+          items: input.items,
+          products: prods.map((p) => ({
+            id: p.id,
+            name: p.name,
+            price: Number(p.price),
+            isAvailable: p.isAvailable,
+            basePrepTimeSeconds: p.basePrepTimeSeconds,
+          })),
+          avgPrepByProductId,
+          scheduledForRaw: input.scheduledFor,
+          now: new Date(), // BR-005: hora del servidor
+        }),
+      );
 
       const order = await manager.getRepository(OrderEntity).save(
         manager.getRepository(OrderEntity).create({
           user: profile,
-          status: OrderStatus.PENDING,
-          totalAmount: total.toFixed(2),
-          scheduledFor,
+          status: plan.status,
+          totalAmount: plan.total.toFixed(2),
+          scheduledFor: plan.scheduledFor,
           branchId: input.branchId ?? null,
           branchName: input.branchName ?? null,
         }),
       );
 
       await manager.getRepository(OrderItemEntity).save(
-        lines.map((l) =>
+        plan.lines.map((l) =>
           manager.getRepository(OrderItemEntity).create({
             order,
-            product: l.product,
+            // El dominio ya validó que cada producto existe → byId.get es seguro.
+            product: byId.get(l.productId)!,
             quantity: l.quantity,
-            unitPrice: l.unitPrice,
-            subtotal: l.subtotal,
+            unitPrice: l.unitPrice.toFixed(2),
+            subtotal: l.subtotal.toFixed(2),
             prepTimeSeconds: l.prepTimeSeconds,
           }),
         ),
@@ -171,14 +159,14 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       const payStatus =
         input.payMethod === PaymentMethod.EFECTIVO
           ? PaymentStatus.PENDING
-          : await this.authorizeCardPayment(total);
+          : await this.authorizeCardPayment(plan.total);
 
       await manager.getRepository(PaymentEntity).save(
         manager.getRepository(PaymentEntity).create({
           order,
           method: input.payMethod,
           status: payStatus,
-          amount: total.toFixed(2),
+          amount: plan.total.toFixed(2),
         }),
       );
 
@@ -213,7 +201,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       const now = new Date(); // BR-005: hora del servidor, nunca del frontend
       const domain = OrderMapper.toDomain(order);
       const effect = this.decide(() =>
-        domain.applyAdminTransition(status as unknown as DomainStatus, now),
+        domain.applyAdminTransition(status, now),
       );
       OrderMapper.applyToEntity(domain, order);
       await this.applyStock(manager, order, effect); // D-037
@@ -522,32 +510,6 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       }),
     );
     if (rows.length) await repo.save(rows);
-  }
-
-  /**
-   * Valida la hora de recogida programada (spec #4): ≥30 min de anticipación y mismo día
-   * (hora del SERVIDOR, BR-005). Devuelve `null` si el pedido es inmediato.
-   */
-  private validateSchedule(raw?: string): Date | null {
-    if (!raw) return null;
-    const target = new Date(raw);
-    if (Number.isNaN(target.getTime())) {
-      throw new BadRequestException('Fecha de recogida inválida');
-    }
-    const now = new Date();
-    if (target.getTime() - now.getTime() < MIN_SCHEDULE_AHEAD_MS) {
-      throw new BadRequestException(
-        'La recogida debe programarse con al menos 30 minutos de anticipación',
-      );
-    }
-    if (
-      target.getFullYear() !== now.getFullYear() ||
-      target.getMonth() !== now.getMonth() ||
-      target.getDate() !== now.getDate()
-    ) {
-      throw new BadRequestException('Solo puedes programar la recogida para hoy');
-    }
-    return target;
   }
 
   private async authorizeCardPayment(amount: number): Promise<PaymentStatus> {
