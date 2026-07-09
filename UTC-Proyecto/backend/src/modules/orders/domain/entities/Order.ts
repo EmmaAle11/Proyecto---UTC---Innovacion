@@ -74,6 +74,8 @@ export interface ProductSnapshot {
   readonly id: string;
   readonly name: string;
   readonly price: number;
+  /** Precio de reoferta (§3.11 "Pon tu precio"); si está puesto, es el que se cobra. */
+  readonly reofferPrice: number | null;
   readonly isAvailable: boolean;
   readonly basePrepTimeSeconds: number;
 }
@@ -141,7 +143,9 @@ export class Order extends AggregateRoot<string> {
       if (!product.isAvailable) {
         throw new DomainError(`Producto no disponible: ${product.name}`);
       }
-      const unitPrice = product.price; // snapshot del catálogo (BR-015)
+      // §3.11 "Pon tu precio": si el producto está reofertado (reofferPrice puesto) se cobra
+      // ese precio menor; si no, el de catálogo. Precio congelado al momento de compra (BR-015).
+      const unitPrice = product.reofferPrice ?? product.price;
       const subtotal = Math.round(unitPrice * it.quantity * 100) / 100;
       total += subtotal;
       return {

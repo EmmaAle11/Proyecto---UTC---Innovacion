@@ -13,6 +13,7 @@ function snap(over: Partial<ProductSnapshot> = {}): ProductSnapshot {
     id: 'p1',
     name: 'Torta',
     price: 38,
+    reofferPrice: null,
     isAvailable: true,
     basePrepTimeSeconds: 600,
     ...over,
@@ -45,6 +46,14 @@ describe('Order.place (BR-015 / spec #4)', () => {
     expect(plan.lines[0]).toMatchObject({ unitPrice: 38, subtotal: 76 });
     expect(plan.lines[1]).toMatchObject({ unitPrice: 65, subtotal: 65 });
     expect(plan.total).toBe(141); // 38*2 + 65*1
+  });
+
+  it('§3.11: cobra el precio de REOFERTA cuando está puesto (no el de catálogo)', () => {
+    const plan = Order.place(
+      input({ products: [snap({ price: 38, reofferPrice: 20 })] }),
+    );
+    expect(plan.lines[0]).toMatchObject({ unitPrice: 20, subtotal: 40 }); // 20 * 2
+    expect(plan.total).toBe(40);
   });
 
   it('rechaza producto inexistente', () => {
