@@ -215,7 +215,7 @@ describe('OrdersService.create', () => {
         ],
         payMethod: PaymentMethod.TDC,
       },
-      USER,
+      USER.sub,
     );
     // 38*1 + 65*2 = 168, calculado por el backend.
     expect(orderSave).toHaveBeenCalledWith(
@@ -264,7 +264,7 @@ describe('OrdersService.create', () => {
         ],
         payMethod: PaymentMethod.TDC,
       },
-      USER,
+      USER.sub,
     );
     const lines = itemSave.mock.calls[0][0] as {
       product: { id: string };
@@ -283,7 +283,7 @@ describe('OrdersService.create', () => {
     await expect(
       service.create(
         { items: [{ productId: 'p1', quantity: 1 }], payMethod: PaymentMethod.TDC },
-        USER,
+        USER.sub,
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
@@ -300,7 +300,7 @@ describe('OrdersService.create', () => {
         items: [{ productId: 'p1', quantity: 1 }],
         payMethod: PaymentMethod.EFECTIVO,
       },
-      USER,
+      USER.sub,
     );
     expect(authorize).not.toHaveBeenCalled();
   });
@@ -315,7 +315,7 @@ describe('OrdersService.create', () => {
         items: [{ productId: 'p1', quantity: 1 }],
         payMethod: PaymentMethod.EFECTIVO,
       },
-      USER,
+      USER.sub,
     );
     expect(paymentSave).toHaveBeenCalledWith(
       expect.objectContaining({ status: PaymentStatus.PENDING }),
@@ -333,7 +333,7 @@ describe('OrdersService.create', () => {
           items: [{ productId: 'pX', quantity: 1 }],
           payMethod: PaymentMethod.TDC,
         },
-        USER,
+        USER.sub,
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(orderSave).not.toHaveBeenCalled();
@@ -350,7 +350,7 @@ describe('OrdersService.create', () => {
           items: [{ productId: 'p1', quantity: 1 }],
           payMethod: PaymentMethod.TDC,
         },
-        USER,
+        USER.sub,
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
@@ -371,7 +371,7 @@ describe('OrdersService.create (programado, spec #4)', () => {
         payMethod: PaymentMethod.TDC,
         scheduledFor: target.toISOString(),
       },
-      USER,
+      USER.sub,
     );
     const saved = orderSave.mock.calls[0][0] as { scheduledFor: Date };
     expect(saved.scheduledFor).toBeInstanceOf(Date);
@@ -387,7 +387,7 @@ describe('OrdersService.create (programado, spec #4)', () => {
     await expect(
       service.create(
         { ...item, payMethod: PaymentMethod.TDC, scheduledFor: soon },
-        USER,
+        USER.sub,
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(orderSave).not.toHaveBeenCalled();
@@ -404,7 +404,7 @@ describe('OrdersService.create (programado, spec #4)', () => {
     await expect(
       service.create(
         { ...item, payMethod: PaymentMethod.TDC, scheduledFor: otherDay },
-        USER,
+        USER.sub,
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
@@ -414,7 +414,7 @@ describe('OrdersService.create (programado, spec #4)', () => {
       profile: PROFILE,
       products: [product('p1', '38.00')],
     });
-    await service.create({ ...item, payMethod: PaymentMethod.TDC }, USER);
+    await service.create({ ...item, payMethod: PaymentMethod.TDC }, USER.sub);
     const saved = orderSave.mock.calls[0][0] as { scheduledFor: Date | null };
     expect(saved.scheduledFor).toBeNull();
   });
@@ -423,7 +423,7 @@ describe('OrdersService.create (programado, spec #4)', () => {
 describe('OrdersService.findMine', () => {
   it('sin perfil aún → lista vacía (no revienta)', async () => {
     const { service } = buildService({ profile: null });
-    await expect(service.findMine(USER)).resolves.toEqual([]);
+    await expect(service.findMine(USER.sub)).resolves.toEqual([]);
   });
 });
 
@@ -433,6 +433,7 @@ describe('OrdersService.updateStatus', () => {
       id: 'o1',
       status,
       acceptedAt: null,
+      createdAt: new Date(),
       readyAt: null,
       pickupDeadline: null,
       pickedUpAt: null,
@@ -590,7 +591,7 @@ describe('OrdersService inventario (stock dark kitchen, D-037)', () => {
         { id: 'i1', product: { id: 'p1' }, quantity: 1 },
       ]),
     });
-    await service.cancelOwn('o1', USER);
+    await service.cancelOwn('o1', USER.sub);
     expect(stockOps).toEqual([expect.objectContaining({ id: 'p1', qty: 1 })]);
   });
 
@@ -601,7 +602,7 @@ describe('OrdersService inventario (stock dark kitchen, D-037)', () => {
         { id: 'i1', product: { id: 'p1' }, quantity: 1 },
       ]),
     });
-    await service.cancelOwn('o1', USER);
+    await service.cancelOwn('o1', USER.sub);
     expect(stockOps).toHaveLength(0);
   });
 
@@ -644,7 +645,7 @@ describe('OrdersService inventario (stock dark kitchen, D-037)', () => {
       { authorize: jest.fn() } as unknown as PaymentGatewayService,
     );
     const service = new OrdersService(repo, {} as unknown as AuditLogService);
-    await expect(service.cancelOwn('o1', USER)).rejects.toBeInstanceOf(
+    await expect(service.cancelOwn('o1', USER.sub)).rejects.toBeInstanceOf(
       BadRequestException,
     );
     expect(orderSave).not.toHaveBeenCalled();
@@ -677,7 +678,7 @@ describe('OrdersService inventario (stock dark kitchen, D-037)', () => {
       { authorize: jest.fn() } as unknown as PaymentGatewayService,
     );
     const service = new OrdersService(repo, {} as unknown as AuditLogService);
-    await expect(service.extendOwn('o1', USER)).rejects.toBeInstanceOf(
+    await expect(service.extendOwn('o1', USER.sub)).rejects.toBeInstanceOf(
       BadRequestException,
     );
     expect(orderSave).not.toHaveBeenCalled(); // no revivió el pedido terminal
@@ -721,9 +722,9 @@ describe('OrdersService.cancelOwn / extendOwn (cliente)', () => {
   it('cancela un pedido propio pending → cancelled', async () => {
     const { service, orderSave } = buildService({
       profile: PROFILE,
-      order: { id: 'o1', status: OrderStatus.PENDING },
+      order: { id: 'o1', status: OrderStatus.PENDING, createdAt: new Date() },
     });
-    const out = await service.cancelOwn('o1', USER);
+    const out = await service.cancelOwn('o1', USER.sub);
     expect(out.status).toBe(OrderStatus.CANCELLED);
     expect(orderSave).toHaveBeenCalledTimes(1);
   });
@@ -731,9 +732,9 @@ describe('OrdersService.cancelOwn / extendOwn (cliente)', () => {
   it('cancela un pedido propio listo (ready) que no se recogió → cancelled (§3.9)', async () => {
     const { service } = buildService({
       profile: PROFILE,
-      order: { id: 'o1', status: OrderStatus.READY },
+      order: { id: 'o1', status: OrderStatus.READY, createdAt: new Date() },
     });
-    const out = await service.cancelOwn('o1', USER);
+    const out = await service.cancelOwn('o1', USER.sub);
     expect(out.status).toBe(OrderStatus.CANCELLED);
   });
 
@@ -742,7 +743,7 @@ describe('OrdersService.cancelOwn / extendOwn (cliente)', () => {
       profile: PROFILE,
       order: { id: 'o1', status: OrderStatus.PREPARING },
     });
-    await expect(service.cancelOwn('o1', USER)).rejects.toBeInstanceOf(
+    await expect(service.cancelOwn('o1', USER.sub)).rejects.toBeInstanceOf(
       BadRequestException,
     );
     expect(orderSave).not.toHaveBeenCalled();
@@ -750,7 +751,7 @@ describe('OrdersService.cancelOwn / extendOwn (cliente)', () => {
 
   it('sin perfil (o pedido ajeno) → NotFound (BR-014: no revela existencia)', async () => {
     const { service } = buildService({ profile: null });
-    await expect(service.cancelOwn('o1', USER)).rejects.toBeInstanceOf(
+    await expect(service.cancelOwn('o1', USER.sub)).rejects.toBeInstanceOf(
       NotFoundException,
     );
   });
@@ -758,9 +759,9 @@ describe('OrdersService.cancelOwn / extendOwn (cliente)', () => {
   it('extiende un pedido propio ready → ready_later', async () => {
     const { service } = buildService({
       profile: PROFILE,
-      order: { id: 'o1', status: OrderStatus.READY },
+      order: { id: 'o1', status: OrderStatus.READY, createdAt: new Date() },
     });
-    const out = await service.extendOwn('o1', USER);
+    const out = await service.extendOwn('o1', USER.sub);
     expect(out.status).toBe(OrderStatus.READY_LATER);
   });
 
@@ -769,7 +770,7 @@ describe('OrdersService.cancelOwn / extendOwn (cliente)', () => {
       profile: PROFILE,
       order: { id: 'o1', status: OrderStatus.PENDING },
     });
-    await expect(service.extendOwn('o1', USER)).rejects.toBeInstanceOf(
+    await expect(service.extendOwn('o1', USER.sub)).rejects.toBeInstanceOf(
       BadRequestException,
     );
   });

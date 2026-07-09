@@ -1,6 +1,7 @@
-import { OrderEntity } from '../../../infrastructure/database/entities/order.entity';
+import { OrderStatus } from '../domain/entities/Order';
+// ponytail: PaymentMethod/PaymentStatus aún se importan de infra (deuda de payments: ese
+// bounded context todavía no tiene sus enums en dominio). Fuera del alcance de esta rebanada.
 import {
-  OrderStatus,
   PaymentMethod,
   PaymentStatus,
 } from '../../../infrastructure/database/entities/enums';
@@ -45,49 +46,4 @@ export interface OrderResponse {
   /** Sucursal de recogida (§3.12); `null` si no se registró. */
   branchId: string | null;
   branchName: string | null;
-}
-
-/** Mapea la entidad persistida (con `items.product`, `payment`, `user`) al contrato de API. */
-export function toOrderResponse(o: OrderEntity): OrderResponse {
-  const fullName = [o.user?.firstName, o.user?.lastName]
-    .filter(Boolean)
-    .join(' ')
-    .trim();
-  // spec #4: hora sugerida de inicio = recogida − prep estimada (máx de las líneas).
-  const scheduledFor = o.scheduledFor
-    ? new Date(o.scheduledFor).toISOString()
-    : null;
-  const prepSeconds = (o.items ?? []).reduce(
-    (max, it) => Math.max(max, it.prepTimeSeconds ?? 0),
-    0,
-  );
-  const startBy = o.scheduledFor
-    ? new Date(
-        new Date(o.scheduledFor).getTime() - prepSeconds * 1000,
-      ).toISOString()
-    : null;
-  return {
-    id: o.id,
-    orderNumber: o.orderNumber,
-    status: o.status,
-    total: Number(o.totalAmount),
-    customer: fullName || 'Cliente',
-    email: o.user?.email ?? '',
-    items: (o.items ?? []).map((it) => ({
-      productId: it.product?.id ?? '',
-      name: it.product?.name ?? '',
-      quantity: it.quantity,
-      unitPrice: Number(it.unitPrice),
-      subtotal: Number(it.subtotal),
-    })),
-    payment: o.payment
-      ? { method: o.payment.method, status: o.payment.status }
-      : null,
-    createdAt: o.createdAt.toISOString(),
-    readyAt: o.readyAt ? o.readyAt.toISOString() : null,
-    scheduledFor,
-    startBy,
-    branchId: o.branchId ?? null,
-    branchName: o.branchName ?? null,
-  };
 }

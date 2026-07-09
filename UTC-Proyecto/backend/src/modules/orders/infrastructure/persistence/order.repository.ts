@@ -26,12 +26,12 @@ import type {
   TopProduct,
 } from '../../contracts/order-metrics';
 import type { CreateOrderDto } from '../../contracts/create-order.dto';
-import type { JwtUser } from '../../../../infrastructure/auth/jwt.strategy';
+import type { OrderResponse } from '../../contracts/order-response';
 import { PaymentGatewayService } from '../../../../application/payments/payment-gateway.service';
 import { CircuitOpenError } from '../../../../shared/resilience/circuit-breaker';
 import { DomainError } from '../../../../kernel/domain/DomainError';
 import { OrderStatus as DomainStatus } from '../../domain/entities/Order';
-import { OrderMapper } from './order.mapper';
+import { OrderMapper, toOrderResponse } from './order.mapper';
 
 /**
  * ponytail: Decisión pragmática — el lock pesimista + la transacción viven en el ADAPTER
@@ -97,9 +97,9 @@ export class TypeOrmOrderRepository implements IOrderRepository {
 
   async createWithItemsAndPayment(
     input: CreateOrderDto,
-    user: JwtUser,
-  ): Promise<OrderEntity> {
-    const profile = await this.ensureProfile(user);
+    ownerUserId: string,
+  ): Promise<OrderResponse> {
+    const profile = await this.ensureProfile(ownerUserId);
     const scheduledFor = this.validateSchedule(input.scheduledFor); // spec #4
     const avgPrepRows = await this.avgPrepByProduct(
       input.items.map((i) => i.productId),
@@ -185,7 +185,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       return order.id;
     });
 
-    return this.findOneOwned(orderId, profile.id);
+    return toOrderResponse(await this.loadOwned(orderId, profile.id));
   }
 
   // --- Escritura: el adapter envuelve lock + tx + stock; el agregado decide ----------------
@@ -198,7 +198,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
   async transitionStatus(
     id: string,
     status: OrderStatus,
-  ): Promise<OrderEntity> {
+  ): Promise<OrderResponse> {
     return this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(OrderEntity);
       const locked = await repo.findOne({
@@ -208,7 +208,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       if (!locked) throw new NotFoundException('Pedido no encontrado');
       const order = await repo.findOne({ where: { id }, relations: ORDER_RELATIONS });
       if (!order) throw new NotFoundException('Pedido no encontrado');
-      if (order.status === status) return order; // idempotente: mismo estado, no-op
+      if (order.status === status) return toOrderResponse(order); // idempotente: mismo estado, no-op
 
       const now = new Date(); // BR-005: hora del servidor, nunca del frontend
       const domain = OrderMapper.toDomain(order);
@@ -221,7 +221,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       if (status === OrderStatus.READY) {
         await this.recordPrepTimes(manager, order, now); // BR-007
       }
-      return order;
+      return toOrderResponse(order);
     });
   }
 
@@ -229,8 +229,8 @@ export class TypeOrmOrderRepository implements IOrderRepository {
    * Cancelación del CLIENTE (§3.8/§3.9). Propiedad por JWT (BR-014). Re-carga la fila FRESCA
    * bajo lock y deja que el agregado decida sobre ese estado (cierra el TOCTOU).
    */
-  async cancelOwn(id: string, user: JwtUser): Promise<OrderEntity> {
-    await this.findOwnedByUser(id, user); // BR-014: propiedad por JWT (o NotFound)
+  async cancelOwn(id: string, ownerUserId: string): Promise<OrderResponse> {
+    await this.findOwnedByUser(id, ownerUserId); // BR-014: propiedad por JWT (o NotFound)
     return this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(OrderEntity);
       const locked = await repo.findOne({
@@ -247,7 +247,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       OrderMapper.applyToEntity(domain, order);
       await this.applyStock(manager, order, effect); // D-037: excedente si ya estaba preparado
       await repo.save(order);
-      return order;
+      return toOrderResponse(order);
     });
   }
 
@@ -255,8 +255,8 @@ export class TypeOrmOrderRepository implements IOrderRepository {
    * Extender un pedido PROPIO listo (§3.10: ready → ready_later). Propiedad por JWT (BR-014).
    * El agregado valida sobre la fila FRESCA bajo lock (no revive un terminal concurrente).
    */
-  async extendOwn(id: string, user: JwtUser): Promise<OrderEntity> {
-    await this.findOwnedByUser(id, user); // BR-014: propiedad por JWT (o NotFound)
+  async extendOwn(id: string, ownerUserId: string): Promise<OrderResponse> {
+    await this.findOwnedByUser(id, ownerUserId); // BR-014: propiedad por JWT (o NotFound)
     return this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(OrderEntity);
       const locked = await repo.findOne({
@@ -271,7 +271,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       if (!order) throw new NotFoundException('Pedido no encontrado');
       OrderMapper.applyToEntity(domain, order);
       await repo.save(order);
-      return order;
+      return toOrderResponse(order);
     });
   }
 
@@ -324,27 +324,39 @@ export class TypeOrmOrderRepository implements IOrderRepository {
 
   // --- Lectura -----------------------------------------------------------------------------
 
-  async findMine(user: JwtUser): Promise<OrderEntity[]> {
+  async findMine(ownerUserId: string): Promise<OrderResponse[]> {
     const profile = await this.profiles.findOne({
-      where: { keycloakId: user.sub },
+      where: { keycloakId: ownerUserId },
     });
     if (!profile) return [];
-    return this.orders.find({
+    const rows = await this.orders.find({
       where: { user: { id: profile.id } },
       relations: ORDER_RELATIONS,
       order: { createdAt: 'DESC' },
     });
+    return rows.map(toOrderResponse);
   }
 
-  findAll(branchId?: string): Promise<OrderEntity[]> {
-    return this.orders.find({
+  async findAll(branchId?: string): Promise<OrderResponse[]> {
+    const rows = await this.orders.find({
       where: branchId ? { branchId } : {},
       relations: ORDER_RELATIONS,
       order: { createdAt: 'DESC' },
     });
+    return rows.map(toOrderResponse);
   }
 
-  async findOneOwned(id: string, profileId: string): Promise<OrderEntity> {
+  async findOneOwned(id: string, ownerUserId: string): Promise<OrderResponse> {
+    const profile = await this.profiles.findOne({
+      where: { keycloakId: ownerUserId },
+    });
+    // Sin perfil no puede haber pedido propio: NotFound (no revela existencia, BR-014).
+    if (!profile) throw new NotFoundException('Pedido no encontrado');
+    return toOrderResponse(await this.loadOwned(id, profile.id));
+  }
+
+  /** Carga la fila propia por PK de perfil (uso interno; el efecto y el mapeo van aparte). */
+  private async loadOwned(id: string, profileId: string): Promise<OrderEntity> {
     const order = await this.orders.findOne({
       where: { id, user: { id: profileId } },
       relations: ORDER_RELATIONS,
@@ -550,28 +562,36 @@ export class TypeOrmOrderRepository implements IOrderRepository {
     }
   }
 
-  /** Carga un pedido propio resolviendo el perfil desde el JWT (BR-014). */
-  private async findOwnedByUser(id: string, user: JwtUser): Promise<OrderEntity> {
+  /** Carga un pedido propio resolviendo el perfil desde el keycloak sub (BR-014). */
+  private async findOwnedByUser(
+    id: string,
+    ownerUserId: string,
+  ): Promise<OrderEntity> {
     const profile = await this.profiles.findOne({
-      where: { keycloakId: user.sub },
+      where: { keycloakId: ownerUserId },
     });
     // No filtrar por perfil inexistente revelaría pedidos ajenos: tratamos como no encontrado.
     if (!profile) throw new NotFoundException('Pedido no encontrado');
-    return this.findOneOwned(id, profile.id);
+    return this.loadOwned(id, profile.id);
   }
 
-  /** Asegura el `user_profile` del JWT (lo crea desde el token si no existe). */
-  private async ensureProfile(user: JwtUser): Promise<UserProfileEntity> {
+  /**
+   * Asegura el `user_profile` del keycloak sub (lo crea si no existe). El registro (auth.service)
+   * ya siembra el perfil con el correo real; esta rama es un fallback y, al recibir solo el sub,
+   * sintetiza el correo `<sub>@edu.utc.mx` (ponytail: JwtUser vive en presentation, el puerto solo
+   * habla el sub — el correo del token no llega aquí; upgrade path si algún día importa el correo real).
+   */
+  private async ensureProfile(ownerUserId: string): Promise<UserProfileEntity> {
     const existing = await this.profiles.findOne({
-      where: { keycloakId: user.sub },
+      where: { keycloakId: ownerUserId },
     });
     if (existing) return existing;
-    const email = user.email ?? `${user.sub}@edu.utc.mx`;
+    const email = `${ownerUserId}@edu.utc.mx`;
     const { firstName, lastName } = deriveName(email);
     try {
       return await this.profiles.save(
         this.profiles.create({
-          keycloakId: user.sub,
+          keycloakId: ownerUserId,
           email,
           firstName,
           lastName,
@@ -581,7 +601,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
     } catch (err) {
       // Carrera (dos pedidos casi simultáneos del mismo usuario nuevo): re-leer.
       const again = await this.profiles.findOne({
-        where: { keycloakId: user.sub },
+        where: { keycloakId: ownerUserId },
       });
       if (again) return again;
       throw err;

@@ -1,26 +1,23 @@
-// ponytail: puerto transicional -- aun tipa contra infra (fuga domain->infra): OrderEntity
-// (retorno), OrderStatus (enum de infra) y JwtUser (auth). Limpieza a un puerto Order-typed
-// (dominio puro) = rebanada posterior; deuda diferida D-040. NO tocar hasta esa rebanada:
-// los 85 tests asertan sobre OrderEntity.
-import { OrderEntity } from '../../../../infrastructure/database/entities/order.entity';
-import { OrderStatus } from '../../../../infrastructure/database/entities/enums';
-import type { CongestionResponse } from '../../contracts/order-response';
+// Puerto de persistencia de pedidos. Habla SOLO en tipos de dominio/contratos: devuelve
+// OrderResponse (el DTO de la API; el mapeo OrderEntity->DTO vive en el adapter) y recibe
+// el `ownerUserId` (keycloak sub) en vez de JwtUser (auth vive en presentation). CERO infra.
+import { OrderStatus } from '../entities/Order';
+import type { CongestionResponse, OrderResponse } from '../../contracts/order-response';
 import type { OrderMetrics } from '../../contracts/order-metrics';
 import type { CreateOrderDto } from '../../contracts/create-order.dto';
-import type { JwtUser } from '../../../../infrastructure/auth/jwt.strategy';
 
 export interface IOrderRepository {
   createWithItemsAndPayment(
     input: CreateOrderDto,
-    user: JwtUser,
-  ): Promise<OrderEntity>;
-  transitionStatus(id: string, status: OrderStatus): Promise<OrderEntity>;
-  cancelOwn(id: string, user: JwtUser): Promise<OrderEntity>;
-  extendOwn(id: string, user: JwtUser): Promise<OrderEntity>;
+    ownerUserId: string,
+  ): Promise<OrderResponse>;
+  transitionStatus(id: string, status: OrderStatus): Promise<OrderResponse>;
+  cancelOwn(id: string, ownerUserId: string): Promise<OrderResponse>;
+  extendOwn(id: string, ownerUserId: string): Promise<OrderResponse>;
   expireOverdue(): Promise<number>;
-  findMine(user: JwtUser): Promise<OrderEntity[]>;
-  findAll(branchId?: string): Promise<OrderEntity[]>;
-  findOneOwned(id: string, profileId: string): Promise<OrderEntity>;
+  findMine(ownerUserId: string): Promise<OrderResponse[]>;
+  findAll(branchId?: string): Promise<OrderResponse[]>;
+  findOneOwned(id: string, ownerUserId: string): Promise<OrderResponse>;
   congestion(): Promise<CongestionResponse>;
   metrics(): Promise<OrderMetrics>;
   avgPrepByProduct(

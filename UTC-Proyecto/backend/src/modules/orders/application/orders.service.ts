@@ -1,13 +1,14 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { IOrderRepository } from '../domain/ports/order.repository.port';
 import { ORDER_REPOSITORY } from '../domain/ports/order.repository.port';
-import { OrderEntity } from '../../../infrastructure/database/entities/order.entity';
 import { AuditLogService } from '../../../shared/logging/audit-log.service';
-import type { CongestionResponse } from '../contracts/order-response';
+import type {
+  CongestionResponse,
+  OrderResponse,
+} from '../contracts/order-response';
 import type { OrderMetrics } from '../contracts/order-metrics';
-import { OrderStatus } from '../../../infrastructure/database/entities/enums';
+import { OrderStatus } from '../domain/entities/Order';
 import { CreateOrderDto } from '../contracts/create-order.dto';
-import type { JwtUser } from '../../../infrastructure/auth/jwt.strategy';
 
 /**
  * Orquestación de lógica de negocio de pedidos. Persistencia delegada a IOrderRepository.
@@ -22,32 +23,35 @@ export class OrdersService {
     private readonly auditLog: AuditLogService,
   ) {}
 
-  async create(dto: CreateOrderDto, user: JwtUser): Promise<OrderEntity> {
-    return this.orders.createWithItemsAndPayment(dto, user);
+  async create(
+    dto: CreateOrderDto,
+    ownerUserId: string,
+  ): Promise<OrderResponse> {
+    return this.orders.createWithItemsAndPayment(dto, ownerUserId);
   }
 
-  async findMine(user: JwtUser): Promise<OrderEntity[]> {
-    return this.orders.findMine(user);
+  async findMine(ownerUserId: string): Promise<OrderResponse[]> {
+    return this.orders.findMine(ownerUserId);
   }
 
-  async findAll(branchId?: string): Promise<OrderEntity[]> {
+  async findAll(branchId?: string): Promise<OrderResponse[]> {
     return this.orders.findAll(branchId);
   }
 
-  async findOneOwned(id: string, profileId: string): Promise<OrderEntity> {
-    return this.orders.findOneOwned(id, profileId);
+  async findOneOwned(id: string, ownerUserId: string): Promise<OrderResponse> {
+    return this.orders.findOneOwned(id, ownerUserId);
   }
 
-  async updateStatus(id: string, status: OrderStatus): Promise<OrderEntity> {
+  async updateStatus(id: string, status: OrderStatus): Promise<OrderResponse> {
     return this.orders.transitionStatus(id, status);
   }
 
-  async cancelOwn(id: string, user: JwtUser): Promise<OrderEntity> {
-    return this.orders.cancelOwn(id, user);
+  async cancelOwn(id: string, ownerUserId: string): Promise<OrderResponse> {
+    return this.orders.cancelOwn(id, ownerUserId);
   }
 
-  async extendOwn(id: string, user: JwtUser): Promise<OrderEntity> {
-    return this.orders.extendOwn(id, user);
+  async extendOwn(id: string, ownerUserId: string): Promise<OrderResponse> {
+    return this.orders.extendOwn(id, ownerUserId);
   }
 
   async expireOverdue(): Promise<number> {

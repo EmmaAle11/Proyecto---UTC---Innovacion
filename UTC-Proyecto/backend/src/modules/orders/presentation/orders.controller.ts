@@ -18,7 +18,6 @@ import type { OrderMetrics } from '../contracts/order-metrics';
 import {
   OrderResponse,
   CongestionResponse,
-  toOrderResponse,
 } from '../contracts/order-response';
 import { Roles } from '../../../presentation/auth/decorators/roles.decorator';
 import type { JwtUser } from '../../../infrastructure/auth/jwt.strategy';
@@ -42,9 +41,7 @@ export class OrdersController {
     @Req() req: Request & { user?: JwtUser },
     @Body() dto: CreateOrderDto,
   ): Promise<OrderResponse> {
-    return toOrderResponse(
-      await this.orders.create(dto, this.requireUser(req)),
-    );
+    return this.orders.create(dto, this.requireUser(req).sub);
   }
 
   /** GET /orders → mis pedidos (solo los del JWT). */
@@ -52,8 +49,7 @@ export class OrdersController {
   async findMine(
     @Req() req: Request & { user?: JwtUser },
   ): Promise<OrderResponse[]> {
-    const rows = await this.orders.findMine(this.requireUser(req));
-    return rows.map(toOrderResponse);
+    return this.orders.findMine(this.requireUser(req).sub);
   }
 
   /** GET /orders/all → pedidos para el admin. Con `?branchId=` filtra por cooperativa (§3.12). */
@@ -62,8 +58,7 @@ export class OrdersController {
   async findAll(
     @Query('branchId') branchId?: string,
   ): Promise<OrderResponse[]> {
-    const rows = await this.orders.findAll(branchId);
-    return rows.map(toOrderResponse);
+    return this.orders.findAll(branchId);
   }
 
   /**
@@ -99,7 +94,7 @@ export class OrdersController {
       dto.status,
       user.email ?? 'unknown',
     );
-    return toOrderResponse(updatedOrder);
+    return updatedOrder;
   }
 
   /** PATCH /orders/:id/cancel → el cliente cancela SU pedido (§3.8, solo si `pending`). */
@@ -108,9 +103,7 @@ export class OrdersController {
     @Req() req: Request & { user?: JwtUser },
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<OrderResponse> {
-    return toOrderResponse(
-      await this.orders.cancelOwn(id, this.requireUser(req)),
-    );
+    return this.orders.cancelOwn(id, this.requireUser(req).sub);
   }
 
   /** PATCH /orders/:id/extend → el cliente difiere SU pedido (§3.10, `ready → ready_later`). */
@@ -119,9 +112,7 @@ export class OrdersController {
     @Req() req: Request & { user?: JwtUser },
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<OrderResponse> {
-    return toOrderResponse(
-      await this.orders.extendOwn(id, this.requireUser(req)),
-    );
+    return this.orders.extendOwn(id, this.requireUser(req).sub);
   }
 
   private requireUser(req: Request & { user?: JwtUser }): JwtUser {

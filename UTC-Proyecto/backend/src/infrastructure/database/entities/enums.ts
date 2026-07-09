@@ -1,18 +1,13 @@
 // Enumerados del dominio (ver docs/arquitectura/architecture-propuesta.md §5.0).
 
+// OrderStatus es concepto de DOMINIO: la fuente única vive en modules/orders. Infra la
+// re-exporta para TypeORM (@Column enum) y para no romper los imports existentes; los
+// valores string son idénticos, así que la columna enum de Postgres no cambia.
+export { OrderStatus } from '../../../modules/orders/domain/entities/Order';
+
 export enum UserRole {
   ADMIN = 'admin',
   USER = 'user',
-}
-
-export enum OrderStatus {
-  PENDING = 'pending',
-  PREPARING = 'preparing',
-  READY = 'ready',
-  PICKED_UP = 'picked_up',
-  NOT_PICKED_UP = 'not_picked_up',
-  CANCELLED = 'cancelled',
-  READY_LATER = 'ready_later',
 }
 
 export enum ProductStatus {

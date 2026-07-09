@@ -439,21 +439,17 @@ export class Order extends AggregateRoot<string> {
 }
 ```
 
-### V.6 — módulo: el PUERTO `order.repository.port.ts` (habla `Order`, NO `OrderEntity`)
+### V.6 — módulo: el PUERTO (habla en contratos, NUNCA `OrderEntity`)
+> **Nota (2026-07-09):** el ejemplo abajo es la idea *del spike*. El puerto **entregado**
+> es `IOrderRepository` (`modules/orders/domain/ports/order.repository.port.ts`): sus
+> métodos devuelven **`OrderResponse`** (DTO de `contracts/`) y reciben **`ownerUserId: string`**
+> — cero `OrderEntity`, cero `JwtUser`. El principio es el mismo: **el dominio no importa infra.**
 ```ts
-import { Order } from '../entities/Order';
-
-/**
- * PUERTO. Habla en tipos de DOMINIO (Order), nunca en OrderEntity (TypeORM).
- * Ésta es la diferencia con el domain/order/order.repository.ts VIEJO, que
- * importaba OrderEntity y por eso violaba dependency-rules §2.
- */
+// La idea: el puerto habla en tipos de dominio/contratos, no en OrderEntity (TypeORM).
 export interface OrderRepositoryPort {
-  findOwned(orderId: string, ownerUserId: string): Promise<Order | null>;
-  save(order: Order): Promise<void>;
+  cancelOwn(id: string, ownerUserId: string): Promise<OrderResponse>;
+  // ...el adapter mapea OrderEntity → OrderResponse en el borde.
 }
-
-export const ORDER_REPOSITORY_PORT = Symbol('OrderRepositoryPort');
 ```
 
 ### V.7 — módulo: el MAPPER `order.mapper.ts` (único punto que conoce ambos mundos)
@@ -780,42 +776,37 @@ lo dices UNA vez con argumento (regla 45), no la reabres solo.
 - **D-037 — Inventario "dark kitchen" (stock).** El ciclo del pedido mueve el stock. El `0` NO bloquea vender (se cocina al momento); el candado es `isAvailable`. Aceptar aparta stock; no-recogido / cancelar-listo lo devuelve (reofertable). Transiciones serializadas con **lock pesimista** + re-validación fresca; `expireOverdue` con `UPDATE…RETURNING` atómico; anti-deadlock por orden global de `productId`. **Esta lógica hoy vive en el repo TypeORM y debe migrar al agregado `Order`.**
 - **D-038 — Arquitectura objetivo congelada.** Hexagonal + DDD + Vertical Slice + kernel minimalista (sin ports) + puertos en el dominio de cada módulo + CQRS ligero + contracts en el módulo. YAGNI de estructura (regla 46). Gobierno: reglas 44/45/46 + los 3 mapas.
 - **D-039 — Estrategia de error ÚNICA: excepciones de dominio.** `DomainError extends Error`. **`Result`/`Either` ELIMINADOS del kernel.** VOs validan en constructor y lanzan `DomainError`; Nest mapea a HTTP. (Razón: no mezclar dos estilos de error con las excepciones que Nest ya usa; sin producción aún, se fija UNO definitivo sin costo.)
-- **D-040 — Migración INCREMENTAL + spike piloto.** `modules/orders/` coexiste con el layout viejo. **NO big-bang.** El spike (kernel + Order + mapper + CancelOrder + test) ya probó el molde: `tsc` 0, 2/2 verde. Estimación de migrar `orders` completo ≈ Semana 1 (16h).
+- **D-040 — Migración INCREMENTAL (COMPLETADA para orders, 2026-07-09).** Se hizo por rebanadas sin big-bang: spike piloto → agregado con reglas → adapter delega decisiones (restaura D-037) → mover el slice completo a `modules/orders/` → cerrar la fuga hexagonal (puerto `Order`-typed, `OrderStatus` al dominio). Cada paso: `tsc` 0 + tests verdes + verificación adversarial. El layout viejo de orders (`application/orders`, `presentation/orders`, `domain/order`) fue **retirado**. Falta solo `Order.place()` (creación en dominio).
 
 **kernel definitivo:** `Entity, AggregateRoot, ValueObject (cuando aparezca la 1ª VO),
 DomainEvent, DomainError, UseCase`. Nada más. Ports NO van aquí.
 
 ---
 
-# PARTE XII — ESTADO ACTUAL HONESTO (no asumas de más)
+# PARTE XII — ESTADO ACTUAL HONESTO (actualizado 2026-07-09)
 
-- ✅ **Commiteado y funcional:** auth+MFA, catálogo (GET/POST/PATCH products con @Roles), pedidos con estados + stock (D-037), panel admin (dashboard/cola/menú/detalle/reoferta/cuenta por rol), sincronización cliente↔admin, personalización (semáforo/sucursal/horario), push local, refresco de sesión (D-036), geolocalización + ruteo por cooperativa, pagos simulados. **65 tests** en el backend.
-- ⚠️ **DEUDA — el `domain/` VIEJO tiene FUGA.** `backend/src/domain/order/order.repository.ts` (y sus hermanos product/settings/user-profile) **importan `OrderEntity` (TypeORM)**, `enums` de infra, DTOs de `application/` y `JwtUser`. Eso **viola `dependency-rules` §2** (domain→infra prohibido). Es una **abstracción con fugas**: interfaz colocada en `domain/` pero hablando tipos de infraestructura. **NO es DDD todavía** — es Clean anémico. El trabajo es **cerrar esa brecha** con el molde nuevo (PARTE V), no apilar sobre ella.
-- ⚠️ **DEUDA `tsc` preexistente:** `application/orders/orders.service.spec.ts` tiene ~3 errores (`DataSource` pasado donde va `IOrderRepository`), del refactor a medias. Se arregla al cablear el módulo nuevo, no antes.
-- ✅ **Molde probado (spike D-040):** `kernel/` + `modules/orders/` compilan limpio, 2/2 tests verdes. Es el patrón a replicar.
-- 🔎 **Diferencia clave que debes internalizar:** la lógica de negocio de orders (transiciones + stock D-037) hoy está **en el repo TypeORM** (`infrastructure/database/repositories/typeorm-order.repository.ts`, ~499 líneas) y el service es un wrapper delgado (~71 líneas). Migrar = **mover esa lógica al agregado `Order`**, dejando el repo solo para persistencia.
+- ✅ **Commiteado y funcional:** auth+MFA, catálogo (GET/POST/PATCH products con @Roles), pedidos con estados + stock (D-037), panel admin (dashboard/cola/menú/detalle/reoferta/cuenta por rol), sincronización cliente↔admin, personalización (semáforo/sucursal/horario), push local, refresco de sesión (D-036), geolocalización + ruteo por cooperativa, pagos simulados. **85 tests verdes** en el backend, `tsc` 0.
+- ✅ **`orders` = vertical slice COMPLETO y hexagonal-puro.** Todo vive en `modules/orders/` (contracts, domain, application, infrastructure, presentation, tests). El agregado `Order` es dueño de las reglas de transición + efecto de stock (D-037). **`modules/orders/domain/` importa CERO de `infrastructure/`** — la prueba "borra infra → domain compila" pasa. El puerto habla en `OrderResponse` (contrato) + `ownerUserId: string`, **no** `OrderEntity` ni `JwtUser`. `OrderStatus` es dueño del dominio (infra lo re-exporta). La regresión D-037 de `d2c6c1b` (locks/TOCTOU/release perdidos) fue **restaurada** desde `cff2d04` y verificada adversarialmente.
+- ✅ **`products` = invariantes DRY.** Las 2 guardas (maxStock/reofferPrice) viven una vez en `modules/products/domain/product.policy.ts` (antes duplicadas en create/update). No es agregado a propósito: es CRUD (regla 44/46).
+- ✅ **Mapa del backend:** `backend/src/modules/README.md` — índice de dónde vive cada contexto + traza de un request. Empieza ahí para rastrear.
+- ⏳ **Deuda REAL que queda (se termina como prioridad, no se arrastra):**
+  - **C — `Order.place()` factory:** la creación (snapshot de precio, total, disponibilidad) sigue en el adapter, no en el dominio. Falta moverla → completa DDD para la creación.
+  - **PaymentMethod/PaymentStatus** aún se importan de `infra/enums` en `contracts/order-response.ts` — deuda del bounded context `payments` (documentada).
+- ⬜ **NO se migran (CRUD/cross-cutting genuino, regla 44/45/46):** `settings`, `users`, `auth`, `payments`. Sin ciclo de vida de dominio → el molde sería ceremonia. Están en el mapa para ser encontrables.
 
 ---
 
-# PARTE XIII — QUÉ SIGUE (plan de migración)
+# PARTE XIII — QUÉ SIGUE
 
-**Módulo piloto = `orders`** (el más rico → si aguanta, aguanta todo).
+El backend NO arrastra deuda funcional: la regresión D-037 está resuelta y `orders` es
+hexagonal-puro. Lo que queda es **completitud DDD** (prioridad, no cosmético):
 
-1. **Migrar `orders` completo** al molde de la PARTE V:
-   - Mover TODA la lógica de negocio (transiciones + stock D-037 + concurrencia) del repo TypeORM al **agregado `Order`** (métodos `accept()`, `deliver()`, `expire()`, `cancelByOwner()`, `extend()`, con sus invariantes y eventos).
-   - El **puerto** habla `Order`, no `OrderEntity`.
-   - El **mapper** traduce en `infrastructure/persistence/` (incluida la traducción de `OrderStatus` dominio ⇄ infra).
-   - Casos de uso **planos** en `application/`.
-   - El **controller Nest** cablea el adapter TypeORM por el **símbolo del puerto** (`ORDER_REPOSITORY_PORT`) vía provider `{ provide, useClass }`.
-   - **Gate:** `tsc` 0 + **los 65 tests verdes** + `dependency-rules` respetadas (borra infra mentalmente → domain compila).
-2. **Retirar** el `domain/order/*.repository.ts` viejo y su impl cuando el nuevo lo reemplace (coexisten durante la migración; no antes).
-3. **Replicar a los 5 restantes** — pero **más chatos** (regla 46): `products`/`settings` son casi CRUD → sin agregado rico, `application/` plano, infra solo `persistence/`. NO clones la estructura completa de orders si el módulo no la necesita.
-4. Recién entonces: **OWASP L2** embebido (V6/V7/V9/V14) + **panel admin** (ver `MASTER_PLAN_8WEEKS_HEXAGONAL.md`).
+1. **C — `Order.place()` factory:** mover la creación al dominio (validación de disponibilidad + total como reglas del agregado); el adapter persiste + autoriza pago por puerto. **D — presentación** ya mapea a `OrderResponse` (hecho en A+B). Gate: `tsc` 0 + 85+ verdes + JSON idéntico.
+2. Cerrar la deuda de `payments` (mover `PaymentMethod/PaymentStatus` a su dominio) si se decide.
+3. Hacia adelante (valor real, no refactor): **OWASP L2** (V6/V7/V9/V14) + **panel admin** — ver `MASTER_PLAN_8WEEKS_HEXAGONAL.md`.
 
-**Friction ya medida (te la ahorro):** `OrderStatus` queda duplicado (enum de dominio
-en `Order.ts` vs el de `infrastructure/database/entities/enums.ts`). Como comparten
-valores string idénticos, el mapper puentea con `as unknown as`. Unificar (que infra
-importe el enum de dominio) es un ripple aparte — hazlo con cuidado por los muchos imports.
+> **Molde de referencia:** `modules/orders/` es el vertical slice completo. Cualquier
+> módulo nuevo con lógica de dominio lo copia (más chato si es casi CRUD, regla 46).
 
 ---
 
@@ -830,7 +821,7 @@ importe el enum de dominio) es un ripple aparte — hazlo con cuidado por los mu
 ❌ Añadir flows/ en el frontend además de processes/.
 ❌ Dejar lógica de negocio en el service o el repo TypeORM. Va al AGREGADO.
 ❌ Sacar contracts/ a backend/contracts/ sin SDK/OpenAPI público real.
-❌ El dominio importando TypeORM/Nest/HTTP (el error que tiene el domain/ viejo).
+❌ El dominio importando TypeORM/Nest/HTTP. Prueba: "borra infra → domain compila". El puerto habla en contratos (OrderResponse) + primitivos (ownerUserId), nunca OrderEntity/JwtUser.
 ❌ Commitear/pushear por tu cuenta. Lo hace el usuario (§23).
 ❌ Aceptar un patrón "porque lo usa una empresa grande" sin evaluar valor real (regla 45).
 ❌ Crear una carpeta sin responder las 4 preguntas (regla 44).
