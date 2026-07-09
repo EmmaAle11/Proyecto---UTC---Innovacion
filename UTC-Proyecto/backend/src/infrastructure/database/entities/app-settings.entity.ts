@@ -1,4 +1,11 @@
-import { Check, Column, Entity, PrimaryColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Check,
+  Column,
+  Entity,
+  PrimaryColumn,
+  UpdateDateColumn,
+  VersionColumn,
+} from 'typeorm';
 
 /**
  * Ajustes globales de la cooperativa (fila única, `id = 1`). Hoy: umbrales del
@@ -20,4 +27,8 @@ export class AppSettingsEntity {
 
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
+
+  /** Optimistic locking (cierra el lost-update de dos ediciones concurrentes del admin). */
+  @VersionColumn()
+  version: number;
 }

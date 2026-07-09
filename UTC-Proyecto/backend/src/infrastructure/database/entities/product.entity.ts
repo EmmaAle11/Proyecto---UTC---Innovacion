@@ -6,6 +6,7 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  VersionColumn,
 } from 'typeorm';
 import { ProductStatus } from './enums';
 import { OrderItemEntity } from './order-item.entity';
@@ -86,4 +87,9 @@ export class ProductEntity {
 
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
+
+  /** Optimistic locking: TypeORM incrementa `version` en cada save y rechaza el
+   *  update si cambió entre la lectura y la escritura (cierra el lost-update concurrente). */
+  @VersionColumn()
+  version: number;
 }

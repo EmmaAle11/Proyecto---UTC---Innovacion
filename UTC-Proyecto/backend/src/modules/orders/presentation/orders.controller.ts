@@ -21,7 +21,6 @@ import {
 } from '../contracts/order-response';
 import { Roles } from '../../../presentation/auth/decorators/roles.decorator';
 import type { JwtUser } from '../../../infrastructure/auth/jwt.strategy';
-import { AuditLogService } from '../../../shared/logging/audit-log.service';
 
 /**
  * Pedidos del cliente. Ambas rutas exigen JWT (guard global); sin `@Roles`, así que
@@ -30,10 +29,7 @@ import { AuditLogService } from '../../../shared/logging/audit-log.service';
  */
 @Controller('orders')
 export class OrdersController {
-  constructor(
-    private readonly orders: OrdersService,
-    private readonly auditLog: AuditLogService,
-  ) {}
+  constructor(private readonly orders: OrdersService) {}
 
   /** POST /orders → crea un pedido (201). Total y precios los calcula el backend. */
   @Post()
@@ -86,15 +82,9 @@ export class OrdersController {
     @Body() dto: UpdateOrderStatusDto,
   ): Promise<OrderResponse> {
     const user = this.requireUser(req);
-    const updatedOrder = await this.orders.updateStatus(id, dto.status);
-    // Auditoría: registra quién cambió el pedido a qué estado, cuándo.
-    this.auditLog.logOrderStateChange(
-      id,
-      updatedOrder.status,
-      dto.status,
-      user.email ?? 'unknown',
-    );
-    return updatedOrder;
+    // La auditoría (estado viejo→nuevo, capturado bajo lock dentro de la tx) la hace el
+    // adapter: aquí solo pasamos QUIÉN la ejecuta. Antes se hacía aquí y registraba from==to.
+    return this.orders.updateStatus(id, dto.status, user.email ?? 'unknown');
   }
 
   /** PATCH /orders/:id/cancel → el cliente cancela SU pedido (§3.8, solo si `pending`). */

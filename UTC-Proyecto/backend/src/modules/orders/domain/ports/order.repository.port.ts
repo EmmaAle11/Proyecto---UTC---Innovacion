@@ -11,7 +11,11 @@ export interface IOrderRepository {
     input: CreateOrderDto,
     ownerUserId: string,
   ): Promise<OrderResponse>;
-  transitionStatus(id: string, status: OrderStatus): Promise<OrderResponse>;
+  transitionStatus(
+    id: string,
+    status: OrderStatus,
+    actor: string,
+  ): Promise<OrderResponse>;
   cancelOwn(id: string, ownerUserId: string): Promise<OrderResponse>;
   extendOwn(id: string, ownerUserId: string): Promise<OrderResponse>;
   expireOverdue(): Promise<number>;

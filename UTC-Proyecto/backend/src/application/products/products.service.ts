@@ -1,9 +1,11 @@
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { OptimisticLockVersionMismatchError } from 'typeorm';
 import type { IProductRepository } from '../../domain/product/product.repository';
 import { PRODUCT_REPOSITORY } from '../../domain/product/product.repository';
 import { ProductEntity } from '../../infrastructure/database/entities/product.entity';
@@ -98,6 +100,17 @@ export class ProductsService {
       minStock: p.minStock,
       maxStock: p.maxStock,
     });
-    return this.products.save(p);
+    try {
+      return await this.products.save(p);
+    } catch (e) {
+      // Optimistic lock (@VersionColumn): otro update tocó el producto entre la
+      // lectura y el guardado → 409 en vez de un lost-update silencioso.
+      if (e instanceof OptimisticLockVersionMismatchError) {
+        throw new ConflictException(
+          'El producto fue modificado por otra operación. Recarga y reintenta.',
+        );
+      }
+      throw e;
+    }
   }
 }

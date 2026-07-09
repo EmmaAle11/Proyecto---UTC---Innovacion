@@ -25,6 +25,7 @@ function aProduct(): ProductEntity {
     preparationTimes: [],
     createdAt: new Date(),
     updatedAt: new Date(),
+    version: 1,
   };
 }
 

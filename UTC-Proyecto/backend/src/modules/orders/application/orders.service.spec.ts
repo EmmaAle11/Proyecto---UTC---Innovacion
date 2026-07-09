@@ -182,16 +182,19 @@ function buildService(opts: {
   // La lógica transaccional (D-037, transiciones, congestion) vive en el repo TypeORM;
   // el servicio solo delega. Construimos el repo real con el DataSource falso para
   // ejercitar esa lógica, y el servicio lo recibe como su IOrderRepository.
+  const auditLog = {
+    logOrderStateChange: jest.fn(),
+  } as unknown as AuditLogService;
   const repo = new TypeOrmOrderRepository(
     dataSource,
     repos.OrderEntity as never,
     repos.ProductEntity as never,
     repos.UserProfileEntity as never,
     paymentGateway,
+    auditLog,
   );
-  const auditLog = { login: jest.fn(), orderStatusChange: jest.fn() } as unknown as AuditLogService;
   return {
-    service: new OrdersService(repo, auditLog),
+    service: new OrdersService(repo),
     orderSave,
     itemSave,
     paymentSave,
@@ -444,7 +447,7 @@ describe('OrdersService.updateStatus', () => {
     const { service, orderSave } = buildService({
       order: orderWith(OrderStatus.PENDING),
     });
-    await service.updateStatus('o1', OrderStatus.PREPARING);
+    await service.updateStatus('o1', OrderStatus.PREPARING, 'admin@test');
     const saved = orderSave.mock.calls[0][0] as {
       status: OrderStatus;
       acceptedAt: Date;
@@ -457,7 +460,7 @@ describe('OrdersService.updateStatus', () => {
     const { service, orderSave } = buildService({
       order: orderWith(OrderStatus.PREPARING),
     });
-    await service.updateStatus('o1', OrderStatus.READY);
+    await service.updateStatus('o1', OrderStatus.READY, 'admin@test');
     const saved = orderSave.mock.calls[0][0] as {
       readyAt: Date;
       pickupDeadline: Date;
@@ -473,7 +476,7 @@ describe('OrdersService.updateStatus', () => {
       order: orderWith(OrderStatus.PICKED_UP),
     });
     await expect(
-      service.updateStatus('o1', OrderStatus.PREPARING),
+      service.updateStatus('o1', OrderStatus.PREPARING, 'admin@test'),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(orderSave).not.toHaveBeenCalled();
   });
@@ -482,7 +485,7 @@ describe('OrdersService.updateStatus', () => {
     const { service, orderSave } = buildService({
       order: orderWith(OrderStatus.READY),
     });
-    await service.updateStatus('o1', OrderStatus.READY);
+    await service.updateStatus('o1', OrderStatus.READY, 'admin@test');
     expect(orderSave).not.toHaveBeenCalled();
   });
 
@@ -502,7 +505,7 @@ describe('OrdersService.updateStatus', () => {
       ],
     };
     const { service, prepSave } = buildService({ order });
-    await service.updateStatus('o1', OrderStatus.READY);
+    await service.updateStatus('o1', OrderStatus.READY, 'admin@test');
     expect(prepSave).toHaveBeenCalledTimes(1);
     const rows = prepSave.mock.calls[0][0] as Array<{
       durationSeconds: number;
@@ -531,7 +534,7 @@ describe('OrdersService inventario (stock dark kitchen, D-037)', () => {
         { id: 'i2', product: { id: 'p2' }, quantity: 1 },
       ]),
     });
-    await service.updateStatus('o1', OrderStatus.PREPARING);
+    await service.updateStatus('o1', OrderStatus.PREPARING, 'admin@test');
     expect(stockOps).toHaveLength(2);
     expect(stockOps.every((o) => o.expr.includes('GREATEST(0'))).toBe(true);
     expect(stockOps).toContainEqual(expect.objectContaining({ id: 'p1', qty: 2 }));
@@ -544,7 +547,7 @@ describe('OrdersService inventario (stock dark kitchen, D-037)', () => {
         { id: 'i1', product: { id: 'p1' }, quantity: 3 },
       ]),
     });
-    await service.updateStatus('o1', OrderStatus.PICKED_UP);
+    await service.updateStatus('o1', OrderStatus.PICKED_UP, 'admin@test');
     expect(stockOps).toHaveLength(0);
   });
 
@@ -554,7 +557,7 @@ describe('OrdersService inventario (stock dark kitchen, D-037)', () => {
         { id: 'i1', product: { id: 'p1' }, quantity: 2 },
       ]),
     });
-    await service.updateStatus('o1', OrderStatus.NOT_PICKED_UP);
+    await service.updateStatus('o1', OrderStatus.NOT_PICKED_UP, 'admin@test');
     expect(stockOps).toEqual([expect.objectContaining({ id: 'p1', qty: 2 })]);
     expect(stockOps[0].expr).toContain('+');
     expect(stockOps[0].expr).not.toContain('GREATEST');
@@ -643,8 +646,9 @@ describe('OrdersService inventario (stock dark kitchen, D-037)', () => {
       repos.ProductEntity as never,
       repos.UserProfileEntity as never,
       { authorize: jest.fn() } as unknown as PaymentGatewayService,
+      { logOrderStateChange: jest.fn() } as unknown as AuditLogService,
     );
-    const service = new OrdersService(repo, {} as unknown as AuditLogService);
+    const service = new OrdersService(repo);
     await expect(service.cancelOwn('o1', USER.sub)).rejects.toBeInstanceOf(
       BadRequestException,
     );
@@ -676,8 +680,9 @@ describe('OrdersService inventario (stock dark kitchen, D-037)', () => {
       repos.ProductEntity as never,
       repos.UserProfileEntity as never,
       { authorize: jest.fn() } as unknown as PaymentGatewayService,
+      { logOrderStateChange: jest.fn() } as unknown as AuditLogService,
     );
-    const service = new OrdersService(repo, {} as unknown as AuditLogService);
+    const service = new OrdersService(repo);
     await expect(service.extendOwn('o1', USER.sub)).rejects.toBeInstanceOf(
       BadRequestException,
     );

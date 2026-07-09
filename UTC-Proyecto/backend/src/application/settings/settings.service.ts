@@ -1,4 +1,10 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+} from '@nestjs/common';
+import { OptimisticLockVersionMismatchError } from 'typeorm';
 import type { ISettingsRepository } from '../../domain/settings/settings.repository';
 import { SETTINGS_REPOSITORY } from '../../domain/settings/settings.repository';
 import { AppSettingsEntity } from '../../infrastructure/database/entities/app-settings.entity';
@@ -30,6 +36,16 @@ export class SettingsService {
     const settings = await this.get();
     settings.congestionYellow = dto.yellow;
     settings.congestionRed = dto.red;
-    return this.repo.save(settings);
+    try {
+      return await this.repo.save(settings);
+    } catch (e) {
+      // Optimistic lock: dos ediciones concurrentes del admin → 409, no lost-update.
+      if (e instanceof OptimisticLockVersionMismatchError) {
+        throw new ConflictException(
+          'Los ajustes fueron modificados por otra operación. Recarga y reintenta.',
+        );
+      }
+      throw e;
+    }
   }
 }

@@ -1,7 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { IOrderRepository } from '../domain/ports/order.repository.port';
 import { ORDER_REPOSITORY } from '../domain/ports/order.repository.port';
-import { AuditLogService } from '../../../shared/logging/audit-log.service';
 import type {
   CongestionResponse,
   OrderResponse,
@@ -20,7 +19,6 @@ export class OrdersService {
   constructor(
     @Inject(ORDER_REPOSITORY)
     private readonly orders: IOrderRepository,
-    private readonly auditLog: AuditLogService,
   ) {}
 
   async create(
@@ -42,8 +40,12 @@ export class OrdersService {
     return this.orders.findOneOwned(id, ownerUserId);
   }
 
-  async updateStatus(id: string, status: OrderStatus): Promise<OrderResponse> {
-    return this.orders.transitionStatus(id, status);
+  async updateStatus(
+    id: string,
+    status: OrderStatus,
+    actor: string,
+  ): Promise<OrderResponse> {
+    return this.orders.transitionStatus(id, status, actor);
   }
 
   async cancelOwn(id: string, ownerUserId: string): Promise<OrderResponse> {

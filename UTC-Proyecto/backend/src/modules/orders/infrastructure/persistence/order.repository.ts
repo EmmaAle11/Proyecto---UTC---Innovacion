@@ -31,6 +31,7 @@ import { PaymentGatewayService } from '../../../../application/payments/payment-
 import { CircuitOpenError } from '../../../../shared/resilience/circuit-breaker';
 import { DomainError } from '../../../../kernel/domain/DomainError';
 import { Order } from '../../domain/entities/Order';
+import { AuditLogService } from '../../../../shared/logging/audit-log.service';
 import { OrderMapper, toOrderResponse } from './order.mapper';
 
 /**
@@ -89,6 +90,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
     @InjectRepository(UserProfileEntity)
     private readonly profiles: Repository<UserProfileEntity>,
     private readonly paymentGateway: PaymentGatewayService,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   // --- Creación (snapshot de precio + pago + circuit breaker), atómica ---------------------
@@ -186,8 +188,10 @@ export class TypeOrmOrderRepository implements IOrderRepository {
   async transitionStatus(
     id: string,
     status: OrderStatus,
+    actor: string,
   ): Promise<OrderResponse> {
-    return this.dataSource.transaction(async (manager) => {
+    let from: OrderStatus | null = null;
+    const res = await this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(OrderEntity);
       const locked = await repo.findOne({
         where: { id },
@@ -198,6 +202,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       if (!order) throw new NotFoundException('Pedido no encontrado');
       if (order.status === status) return toOrderResponse(order); // idempotente: mismo estado, no-op
 
+      from = order.status; // BR-004: estado VIEJO capturado bajo lock (antes lo perdía el controller)
       const now = new Date(); // BR-005: hora del servidor, nunca del frontend
       const domain = OrderMapper.toDomain(order);
       const effect = this.decide(() =>
@@ -211,6 +216,10 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       }
       return toOrderResponse(order);
     });
+    if (from !== null) {
+      this.auditLog.logOrderStateChange(id, from, status, actor);
+    }
+    return res;
   }
 
   /**
@@ -219,7 +228,8 @@ export class TypeOrmOrderRepository implements IOrderRepository {
    */
   async cancelOwn(id: string, ownerUserId: string): Promise<OrderResponse> {
     await this.findOwnedByUser(id, ownerUserId); // BR-014: propiedad por JWT (o NotFound)
-    return this.dataSource.transaction(async (manager) => {
+    let from: OrderStatus | null = null;
+    const res = await this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(OrderEntity);
       const locked = await repo.findOne({
         where: { id },
@@ -230,6 +240,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       const order = await repo.findOne({ where: { id }, relations: ORDER_RELATIONS });
       if (!order) throw new NotFoundException('Pedido no encontrado');
 
+      from = order.status;
       const domain = OrderMapper.toDomain(order);
       const effect = this.decide(() => domain.cancelByOwner());
       OrderMapper.applyToEntity(domain, order);
@@ -237,6 +248,10 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       await repo.save(order);
       return toOrderResponse(order);
     });
+    if (from !== null) {
+      this.auditLog.logOrderStateChange(id, from, OrderStatus.CANCELLED, ownerUserId);
+    }
+    return res;
   }
 
   /**
@@ -245,7 +260,8 @@ export class TypeOrmOrderRepository implements IOrderRepository {
    */
   async extendOwn(id: string, ownerUserId: string): Promise<OrderResponse> {
     await this.findOwnedByUser(id, ownerUserId); // BR-014: propiedad por JWT (o NotFound)
-    return this.dataSource.transaction(async (manager) => {
+    let from: OrderStatus | null = null;
+    const res = await this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(OrderEntity);
       const locked = await repo.findOne({
         where: { id },
@@ -253,6 +269,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       });
       if (!locked) throw new NotFoundException('Pedido no encontrado');
       // Valida el estado FRESCO ya bloqueado ANTES de cargar relaciones (extender no toca stock).
+      from = locked.status;
       const domain = OrderMapper.toDomain(locked);
       this.decide(() => domain.extendByOwner());
       const order = await repo.findOne({ where: { id }, relations: ORDER_RELATIONS });
@@ -261,6 +278,10 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       await repo.save(order);
       return toOrderResponse(order);
     });
+    if (from !== null) {
+      this.auditLog.logOrderStateChange(id, from, OrderStatus.READY_LATER, ownerUserId);
+    }
+    return res;
   }
 
   /**
@@ -270,7 +291,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
    */
   async expireOverdue(): Promise<number> {
     const now = new Date(); // BR-005: hora del servidor
-    return this.dataSource.transaction(async (manager) => {
+    const expiredIds = await this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(OrderEntity);
       const flipped = await repo
         .createQueryBuilder()
@@ -306,8 +327,18 @@ export class TypeOrmOrderRepository implements IOrderRepository {
             .execute();
         }
       }
-      return ids.length;
+      return ids;
     });
+    // Auditoría del vencimiento (barredor del sistema): ready -> not_picked_up.
+    for (const id of expiredIds) {
+      this.auditLog.logOrderStateChange(
+        id,
+        OrderStatus.READY,
+        OrderStatus.NOT_PICKED_UP,
+        'system',
+      );
+    }
+    return expiredIds.length;
   }
 
   // --- Lectura -----------------------------------------------------------------------------
