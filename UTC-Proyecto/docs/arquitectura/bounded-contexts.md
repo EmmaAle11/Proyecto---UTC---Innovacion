@@ -15,7 +15,7 @@ Decisión: **2026-07-07**. Complementa reglas 43, 44, 46.
 |----------|----------------------|--------|
 | **auth** | Identidad, JWT, roles, MFA (Keycloak adapter, AZURE-ready) | ✅ existe |
 | **users** | Perfil del estudiante, sucursal preferida (`user-profile/`) | ✅ existe |
-| **products** | Catálogo, categorías, disponibilidad, precio | ✅ existe |
+| **products** | Catálogo, categorías, disponibilidad, precio | ✅ slice (pragmático, D-046) |
 | **orders** | Pedido, estados, transiciones, pago **simulado** | ✅ existe |
 | **settings** | Umbrales semáforo, sucursal, horario de cooperativa | ✅ existe |
 | **notifications** | Outbox de avisos (BR-012) desde Domain Events de pedido; `GET /mine` | ✅ slice real (D-045) |

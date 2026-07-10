@@ -1,11 +1,10 @@
 /**
  * Carga de catálogo compartida por el store del cliente y el del admin.
  *
- * Política única (BR-015): de-dup si ya está cargando; en éxito reemplaza
- * `products`; ante fallo cae al mock **solo en desarrollo** (`__DEV__`) para no
- * dejar la demo vacía; en **producción** deja el catálogo vacío y marca `error`
- * (no se mezclan datos mock con el camino real). Genérico: no importa nada de
- * `entities`/`features` (respeta FSD: `shared` no sube de capa).
+ * Política única (BR-015): de-dup si ya está cargando; en éxito reemplaza `products`; ante
+ * fallo deja el catálogo VACÍO y marca `error` (sin datos falsos — el backend es la única
+ * fuente de verdad, también en desarrollo). Genérico: no importa nada de `entities`/`features`
+ * (respeta FSD: `shared` no sube de capa).
  */
 export interface LoadableCatalogState<T> {
   products: T[];
@@ -18,7 +17,6 @@ export function createCatalogLoader<T, S extends LoadableCatalogState<T>>(
   set: (partial: Partial<S>) => void,
   get: () => S,
   fetcher: (token?: string) => Promise<T[]>,
-  mock: T[],
   tag: string,
 ): (token?: string) => Promise<void> {
   return async (token) => {
@@ -29,11 +27,7 @@ export function createCatalogLoader<T, S extends LoadableCatalogState<T>>(
       set({ products: rows, loaded: true } as Partial<S>);
     } catch (e) {
       console.warn(`[${tag}] error al cargar:`, e instanceof Error ? e.message : e);
-      if (__DEV__) {
-        set({ products: mock, loaded: true } as Partial<S>); // red de seguridad (demo)
-      } else {
-        set({ products: [] as T[], loaded: true, error: true } as Partial<S>); // prod: sin mock
-      }
+      set({ products: [] as T[], loaded: true, error: true } as Partial<S>);
     } finally {
       set({ loading: false } as Partial<S>);
     }

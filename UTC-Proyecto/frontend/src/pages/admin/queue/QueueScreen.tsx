@@ -11,7 +11,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useOrdersStore } from '../../../features/orders/model/orders.store';
 import { useSessionStore } from '../../../features/auth/model/session.store';
 import { useBranchStore } from '../../../features/branch/model/branch.store';
-import { ORDER_STATUS_META, QUEUE_STATUSES, type AdminOrder } from '../../../entities/order/admin-mock';
+import { ORDER_STATUS_META, QUEUE_STATUSES, type AdminOrder } from '../../../entities/order/admin-types';
 import { scheduleView } from '../../../entities/order/schedule';
 import type { OrderStatus } from '../../../entities/order/model/types';
 import type { AdminStackParamList } from '../../../app/navigation/types';

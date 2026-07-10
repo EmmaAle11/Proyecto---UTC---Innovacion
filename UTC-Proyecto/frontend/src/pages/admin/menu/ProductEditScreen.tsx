@@ -10,7 +10,7 @@ import { PrimaryButton } from '../../../shared/ui/PrimaryButton';
 import { colors, text, surface, border, shadow, fonts } from '../../../shared/theme';
 import { useAdminCatalogStore } from '../../../features/admin/model/catalog.store';
 import { useSessionStore } from '../../../features/auth/model/session.store';
-import { PRODUCT_STATUS_META, PRODUCT_STATUS_ORDER } from '../../../entities/product/admin-mock';
+import { PRODUCT_STATUS_META, PRODUCT_STATUS_ORDER } from '../../../entities/product/admin-types';
 import type { ProductWritePayload } from '../../../entities/product/admin-api';
 import type { ProductStatus } from '../../../entities/product/model/types';
 

@@ -1,6 +1,6 @@
 import { getJson, postJson, patchJson } from '../../shared/api/client';
 import type { ApiProduct } from './api';
-import type { AdminProduct } from './admin-mock';
+import type { AdminProduct } from './admin-types';
 import type { ProductStatus } from './model/types';
 import { iconForProduct } from './icons';
 

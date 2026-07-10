@@ -1,5 +1,5 @@
 import { getJson, postJson, patchJson } from '../../shared/api/client';
-import type { AdminOrder } from './admin-mock';
+import type { AdminOrder } from './admin-types';
 import type {
   OrderStatus,
   PaymentMethod,

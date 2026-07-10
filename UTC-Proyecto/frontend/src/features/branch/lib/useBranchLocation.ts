@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as Location from 'expo-location';
-import { BRANCHES } from '../../../entities/branch/mock';
+import { BRANCHES } from '../../../entities/branch/branches';
 import type { Branch } from '../../../entities/branch/model/types';
 import { haversineKm } from '../../../shared/lib/geo';
 import { useBranchStore } from '../model/branch.store';

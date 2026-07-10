@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { ProductsService } from './products.service';
-import { ProductEntity } from '../../infrastructure/database/entities/product.entity';
-import { ProductStatus } from '../../domain/enums';
+import { ProductEntity } from '../../../infrastructure/database/entities/product.entity';
+import { ProductStatus } from '../../../domain/enums';
 import { PRODUCT_REPOSITORY } from './product.repository.port';
 
 /** Producto de prueba con TODOS los campos del esquema (con una reoferta puesta). */

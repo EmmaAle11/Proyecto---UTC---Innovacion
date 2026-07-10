@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ADMIN_ORDERS, QUEUE_STATUSES, type AdminOrder } from '../../../entities/order/admin-mock';
+import { QUEUE_STATUSES, type AdminOrder } from '../../../entities/order/admin-types';
 import type { OrderStatus } from '../../../entities/order/model/types';
 import {
   createOrder,
@@ -57,7 +57,7 @@ interface OrdersState {
 }
 
 export const useOrdersStore = create<OrdersState>((set, get) => ({
-  orders: ADMIN_ORDERS,
+  orders: [],
   activeOrderId: null,
   loading: false,
   loaded: false,

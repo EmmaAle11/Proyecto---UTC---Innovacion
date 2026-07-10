@@ -1,8 +1,5 @@
 import { create } from 'zustand';
-import {
-  ADMIN_PRODUCTS,
-  type AdminProduct,
-} from '../../../entities/product/admin-mock';
+import type { AdminProduct } from '../../../entities/product/admin-types';
 import type { ProductStatus } from '../../../entities/product/model/types';
 import {
   fetchAdminProducts,
@@ -16,7 +13,7 @@ import {
 } from '../../../shared/lib/catalog-loader';
 
 interface AdminCatalogState extends LoadableCatalogState<AdminProduct> {
-  /** Carga el catálogo desde `GET /products`; en dev cae al mock, en prod marca `error` (BR-015). */
+  /** Carga el catálogo desde `GET /products`; ante fallo marca `error`, sin datos falsos (BR-015). */
   load: (token?: string) => Promise<void>;
   /** Alta (`POST /products`). */
   create: (payload: ProductWritePayload, token?: string) => Promise<void>;
@@ -51,7 +48,6 @@ export const useAdminCatalogStore = create<AdminCatalogState>((set, get) => ({
     set,
     get,
     fetchAdminProducts,
-    ADMIN_PRODUCTS,
     'admin/catalog',
   ),
 

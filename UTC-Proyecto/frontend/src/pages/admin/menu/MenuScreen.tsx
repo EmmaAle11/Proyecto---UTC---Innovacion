@@ -12,7 +12,7 @@ import { Media } from '../../../shared/ui/Media';
 import { colors, text, surface, border, shadow, fonts } from '../../../shared/theme';
 import { useAdminCatalogStore } from '../../../features/admin/model/catalog.store';
 import { useSessionStore } from '../../../features/auth/model/session.store';
-import { PRODUCT_STATUS_META, type AdminProduct } from '../../../entities/product/admin-mock';
+import { PRODUCT_STATUS_META, type AdminProduct } from '../../../entities/product/admin-types';
 import { productImage } from '../../../entities/product/images';
 import { productIcon } from '../../../entities/product/icons';
 

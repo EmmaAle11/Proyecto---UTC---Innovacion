@@ -3,7 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { ProductsController } from './products.controller';
-import { ProductsService } from '../../application/products/products.service';
+import { ProductsService } from '../application/products.service';
 
 /**
  * Test HTTP del controller con el `ProductsService` mockeado (sin BD/Keycloak).

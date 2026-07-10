@@ -3,7 +3,7 @@ import { AppState } from 'react-native';
 import { useOrdersStore } from '../../orders/model/orders.store';
 import { useSettingsStore } from '../../admin/model/settings.store';
 import { scheduleView } from '../../../entities/order/schedule';
-import { QUEUE_STATUSES, type AdminOrder } from '../../../entities/order/admin-mock';
+import { QUEUE_STATUSES, type AdminOrder } from '../../../entities/order/admin-types';
 import { emitNotification } from '../../../shared/notifications/notify';
 
 const POLL_MS = 15000;

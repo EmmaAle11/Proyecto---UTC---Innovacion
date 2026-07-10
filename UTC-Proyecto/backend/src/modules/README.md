@@ -13,10 +13,11 @@ Arquitectura: **Hexagonal + DDD + Vertical Slice** (backend) — decisiones D-03
 
 | Contexto | Estado | Dónde | Lógica de dominio |
 |----------|--------|-------|-------------------|
-| **orders** | ✅ vertical slice completo | `modules/orders/` | Agregado `Order` (máquina de estados BR-004, stock D-037), adapter con lock/tx |
-| **products** | 🟡 dominio migrado | dominio en `modules/products/domain/`, resto en `application/products/` + `infrastructure/` | Policy `product.policy.ts` (invariantes stock/reoferta) |
+| **orders** | ✅ vertical slice completo (DDD táctico) | `modules/orders/` | Agregado `Order` + Value Objects (`Money`/`Quantity`/ids) + Domain Events (BR-012), adapter con lock/tx |
+| **notifications** | ✅ vertical slice (fino) | `modules/notifications/` | Outbox de avisos desde Domain Events de orders; sin aggregate (append-only), D-045 |
+| **products** | ✅ vertical slice (pragmático) | `modules/products/` | Policy `product.policy.ts`; CRUD entity-as-model (sin aggregate, regla 46), D-046 |
 | **settings** | ⬜ CRUD (layered) | `application/settings/` | Ninguna propia (1 guarda `red>yellow` en el service) |
-| **users** | ⬜ sin módulo propio | perfil dentro de `orders` (`ensureProfile`) + `domain/user-profile/` | Ninguna propia |
+| **users** | ⬜ sin módulo propio | perfil dentro de `orders` (`ensureProfile`) + `application/auth/user-profile.repository.port.ts` | Ninguna propia |
 | **auth** | ⬜ cross-cutting (layered) | `application/auth/` + `presentation/auth/` + `infrastructure/auth/` | JWT/roles/MFA vía Keycloak |
 | **payments** | ⬜ servicio (layered) | `application/payments/` | Pasarela simulada + circuit breaker (usada por orders) |
 

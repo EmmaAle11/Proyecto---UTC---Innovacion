@@ -1,4 +1,4 @@
-import { ProductEntity } from '../../infrastructure/database/entities/product.entity';
+import { ProductEntity } from '../../../infrastructure/database/entities/product.entity';
 
 export interface IProductRepository {
   findAll(): Promise<ProductEntity[]>;

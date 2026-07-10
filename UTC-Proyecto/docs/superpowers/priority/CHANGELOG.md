@@ -6,6 +6,22 @@ Registro canónico de cambios significativos del proyecto, documentados con fech
 
 ## 2026-07-10
 
+### `(pendiente de commit)` — `products` consolidado a slice + limpieza de mocks basura (13:40)
+
+**Cambio:** Cerrar el split-brain de `products` (backend) y eliminar datos mock que sobraban (frontend).
+
+**Descripción:**
+- **Backend (D-046):** `application/products/` + `presentation/products/` + `typeorm-product.repository` → movidos a `modules/products/{application,contracts,infrastructure,presentation,tests}`. Products queda como slice vertical, estilo **pragmático** (entity-as-model, sin aggregate/VOs — regla 46). Una ubicación por contexto.
+- **Frontend:** tipos+constantes de display → `entities/{product,order}/admin-types.ts`; **ELIMINADOS** los datos falsos que eran muleta del túnel: `PRODUCTS`+`CATEGORIES`, `ADMIN_PRODUCTS` (fallback __DEV__), `ADMIN_ORDERS` (seed → `[]`). `createCatalogLoader` sin fallback mock (backend = única fuente). `branch/mock.ts` → `branch/branches.ts` (config canónica, no mock).
+
+**Explicación técnica:** el split-brain era deuda de la migración incremental (D-040); consolidarlo da consistencia estructural sin forzar DDD táctico donde no paga. Los mocks se crearon como red de seguridad cuando el túnel de Cloudflare fallaba; con el backend accesible son basura → se borran (el usuario: "no conservamos mock basura").
+
+**Decisión:** D-046.
+
+**Evidencia:** backend `tsc` 0 + 117 tests + build 0 + app arranca (`ProductsController {/products}`, 0 errores DI); frontend `tsc` 0; 0 referencias muertas. Hash pendiente (§23).
+
+---
+
 ### `(pendiente de commit)` — Value Objects + bounded context notifications (Domain Events + Outbox) (12:30)
 
 **Cambio:** Última iteración de profundidad DDD sobre `orders` + nuevo slice `notifications`.

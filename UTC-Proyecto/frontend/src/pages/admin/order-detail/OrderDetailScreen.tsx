@@ -12,7 +12,7 @@ import {
   PAY_METHOD_LABEL,
   PAY_STATUS_LABEL,
   type AdminOrder,
-} from '../../../entities/order/admin-mock';
+} from '../../../entities/order/admin-types';
 import type { OrderStatus } from '../../../entities/order/model/types';
 import type { AdminStackParamList } from '../../../app/navigation/types';
 

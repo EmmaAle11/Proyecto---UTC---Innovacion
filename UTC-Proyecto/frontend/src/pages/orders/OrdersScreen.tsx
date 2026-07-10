@@ -11,7 +11,7 @@ import { Display, Title, Body, Label, Mono } from '../../shared/ui/Type';
 import { colors, text, border, surface, shadow, fonts } from '../../shared/theme';
 import { useOrdersStore, trackerStep, TERMINAL_STATUSES } from '../../features/orders/model/orders.store';
 import { useSessionStore } from '../../features/auth/model/session.store';
-import { ORDER_STATUS_META, type AdminOrder } from '../../entities/order/admin-mock';
+import { ORDER_STATUS_META, type AdminOrder } from '../../entities/order/admin-types';
 
 /**
  * Pestaña Pedidos del cliente: lee SUS pedidos del store compartido (los mismos

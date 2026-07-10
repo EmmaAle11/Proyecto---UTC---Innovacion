@@ -6,7 +6,7 @@ import { PassportModule } from '@nestjs/passport';
 import { DatabaseModule } from './infrastructure/database/database.module';
 import { HealthController } from './presentation/health/health.controller';
 import { AuthModule } from './presentation/auth/auth.module';
-import { ProductsModule } from './presentation/products/products.module';
+import { ProductsModule } from './modules/products/presentation/products.module';
 import { OrdersModule } from './modules/orders/presentation/orders.module';
 import { NotificationsModule } from './modules/notifications/presentation/notifications.module';
 import { SettingsModule } from './presentation/settings/settings.module';

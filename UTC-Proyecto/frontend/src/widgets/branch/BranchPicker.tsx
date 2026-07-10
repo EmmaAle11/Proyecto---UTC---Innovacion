@@ -1,6 +1,6 @@
 import { Modal, View, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { MapPin, X, Check, Navigation } from 'lucide-react-native';
-import { BRANCHES } from '../../entities/branch/mock';
+import { BRANCHES } from '../../entities/branch/branches';
 import { useBranchStore } from '../../features/branch/model/branch.store';
 import { Heading, Title, Body, Label } from '../../shared/ui/Type';
 import { colors, text, border, surface, shadow } from '../../shared/theme';

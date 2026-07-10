@@ -1,4 +1,4 @@
-import type { AdminOrder } from './admin-mock';
+import type { AdminOrder } from './admin-types';
 
 /** Vista de programación de un pedido (spec #4), derivada de scheduledFor/startBy. */
 export interface ScheduleView {

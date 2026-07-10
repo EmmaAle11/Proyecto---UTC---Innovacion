@@ -7,14 +7,14 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { ProductsService } from '../../application/products/products.service';
-import { CreateProductDto } from '../../application/products/dto/create-product.dto';
-import { UpdateProductDto } from '../../application/products/dto/update-product.dto';
+import { ProductsService } from '../application/products.service';
+import { CreateProductDto } from '../contracts/create-product.dto';
+import { UpdateProductDto } from '../contracts/update-product.dto';
 import {
   ProductResponse,
   toProductResponse,
-} from '../../application/products/dto/product-response';
-import { Roles } from '../auth/decorators/roles.decorator';
+} from '../contracts/product-response';
+import { Roles } from '../../../presentation/auth/decorators/roles.decorator';
 
 /**
  * Catálogo. `GET` está protegido por el guard JWT global (cualquier usuario

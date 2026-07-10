@@ -1,6 +1,6 @@
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
-import { CreateProductDto } from './create-product.dto';
+import { CreateProductDto } from '../../contracts/create-product.dto';
 
 /** Producto válido mínimo; cada test sobrescribe solo lo que prueba. */
 function base(): Record<string, unknown> {

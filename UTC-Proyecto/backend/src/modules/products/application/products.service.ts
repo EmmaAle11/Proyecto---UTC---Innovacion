@@ -8,14 +8,14 @@ import {
 import { OptimisticLockVersionMismatchError } from 'typeorm';
 import type { IProductRepository } from './product.repository.port';
 import { PRODUCT_REPOSITORY } from './product.repository.port';
-import { ProductEntity } from '../../infrastructure/database/entities/product.entity';
-import { DomainError } from '../../kernel/domain/DomainError';
+import { ProductEntity } from '../../../infrastructure/database/entities/product.entity';
+import { DomainError } from '../../../kernel/domain/DomainError';
 import {
   assertProductInvariants,
   ProductInvariantFields,
-} from '../../modules/products/domain/product.policy';
-import { CreateProductDto } from './dto/create-product.dto';
-import { UpdateProductDto } from './dto/update-product.dto';
+} from '../domain/product.policy';
+import { CreateProductDto } from '../contracts/create-product.dto';
+import { UpdateProductDto } from '../contracts/update-product.dto';
 
 /**
  * Catálogo (BR-006/BR-007/BR-011). Lectura del menú + alta/edición del admin.
