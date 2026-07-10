@@ -1,10 +1,10 @@
 # Architecture Manual — UTC Pick Sazón
 
-**Versión:** 0.1 (Estructura + Fase 0-1)  
-**Última actualización:** 2026-07-07  
+**Versión:** 1.0 (migración Hexagonal + DDD + Vertical Slice **COMPLETADA**)  
+**Última actualización:** 2026-07-10  
 **Objetivo:** Manual de referencia para arquitecto de software, agentes de IA, y revisores de código.  
 **Scope:** Backend NestJS + Frontend React Native (Expo) + PostgreSQL + Keycloak.  
-**Próximas actualizaciones:** Conforme avanza la migración INCREMENTAL a Hexagonal + DDD + Vertical Slice (D-038/D-039/D-040). Fuente única de verdad: `docs/roadmap/PROMPT_CONTEXTO_ARQUITECTURA.md`.
+**Estado:** migración incremental a Vertical Slice **cerrada** (D-038…D-046). Backend con slices `orders` (DDD táctico completo), `notifications` (outbox + eventos) y `products` (pragmático), + capas clásicas para `auth`/`settings`/`payments`. Verdad viva (gana si contradice): ADRs en `docs/arquitectura/decisiones.md` + `docs/roadmap/PROMPT_CONTEXTO_ARQUITECTURA.md`.
 
 ---
 
@@ -51,7 +51,7 @@
 ### 1.3 Principios de Evolución
 
 - **Arquitectura objetivo congelada** (D-038): Hexagonal + DDD + Vertical Slice + kernel minimalista. No se re-discute; se ejecuta. Si crees que está mal, se dice UNA vez con argumento (regla 45), no se reabre.
-- **Migración INCREMENTAL** (D-040): el molde nuevo (`kernel/` + `modules/orders/`) coexiste con el layout viejo (`domain/application/infrastructure/presentation`); nunca big-bang. El repo siempre compila y los tests siguen verdes.
+- **Migración INCREMENTAL — CERRADA** (D-040→D-046): se ejecutó módulo a módulo (nunca big-bang; el repo siempre compiló y los tests verdes). Hoy `orders`/`notifications`/`products` son slices; `auth`/`settings`/`payments` se quedaron en capas clásicas **a propósito** (regla 46 — CRUD/cross-cutting que no amerita el molde). El `domain/` viejo con fuga a TypeORM se retiró (D-043): `src/domain/` es hoy solo vocabulario puro (`enums.ts`).
 - **Reglas 42-46:** ubicar el código antes de escribir + reutilizar (42), análisis de 6 preguntas ante cambios que cruzan módulos (43), no crear carpetas sin justificar (44), no aceptar patrones por autoridad (45), umbrales YAGNI de estructura (46).
 - **Metrics-driven:** si un archivo crece, refactor en esa semana (no dejar tech debt).
 
@@ -71,8 +71,8 @@
 
 | Pieza | Regla congelada |
 |-------|-----------------|
-| **kernel minimalista** | Solo abstracciones de dominio PURAS: `Entity`, `AggregateRoot`, `ValueObject` (⌁ nace con la 1ª VO), `DomainEvent`, `DomainError`, `UseCase`. **SIN ports** — los ports NO viven en el kernel. |
-| **Puertos** | En `modules/<x>/domain/ports/`. Hablan tipos de **dominio** (`Order`), nunca `OrderEntity` (TypeORM). |
+| **kernel minimalista** | Solo abstracciones de dominio PURAS: `Entity`, `AggregateRoot`, `ValueObject`, `DomainEvent`, `DomainError`. **SIN ports.** (`UseCase` se retiró — dead code: el caso de uso es el `service` del slice, no una interfaz genérica.) |
+| **Puertos** | En el slice DDD (`orders`) viven en `modules/<x>/domain/ports/` y hablan tipos de **dominio**/contratos (`Order`/`OrderResponse`), nunca `OrderEntity`. En los módulos **pragmáticos/clásicos** (`products`/`settings`/`auth`) el puerto vive en `application/` y habla la **entidad TypeORM** como modelo compartido (excepción entity-as-model, D-043/D-046). |
 | **CQRS ligero** | `commands/` y `queries/` son solo carpetas (nacen a ~20 casos). **SIN `CommandBus`/`QueryBus`/`Mediator`** — se llama al caso de uso directo. |
 | **contracts** | DTOs públicos **dentro del módulo** (`modules/<x>/contracts/`). Se promueven a `backend/contracts/` SOLO si se genera SDK/OpenAPI público real. |
 | **Estrategia de error** | ÚNICA: excepciones de dominio (`DomainError extends Error`, D-039). Los VOs validan en constructor y lanzan `DomainError`; Nest mapea cada subtipo a su HTTP. **`Result`/`Either` ELIMINADOS** del kernel (no se mezclan dos estilos con las excepciones que Nest ya usa). |
@@ -80,7 +80,7 @@
 La regla mental que lo une todo: **si borro toda la carpeta `infrastructure/` de un módulo, su `domain/` debe seguir compilando.** Todo apunta al dominio; el dominio no apunta a nadie.
 
 **Alternativas rechazadas:**
-- **Capas horizontales globales** (`application/`, `domain/`, `infrastructure/`, `presentation/` como raíces): dispersan un caso de negocio en 4 carpetas. Para 1 dev es peor que Vertical Slice. Es el layout VIEJO — se retira módulo a módulo (D-040).
+- **Capas horizontales globales como DEFAULT** (`application/`, `domain/`, `infrastructure/`, `presentation/` para todo): dispersan un caso de negocio en 4 carpetas → rechazadas como default. Se **conservan a propósito** solo para `auth`/`settings`/`payments` (CRUD/cross-cutting que no amerita el molde, regla 46); lo que tiene dominio rico (`orders`) o es bounded context propio (`notifications`, `products`) es Vertical Slice.
 - **CQRS completo con Mediator/bus:** overkill; se usa CQRS ligero (solo carpetas).
 - **`Result`/`Either`:** descartados (D-039) — una sola estrategia de error.
 - **Microservicios:** no justificado (una cooperativa por instancia basta).
@@ -150,74 +150,70 @@ La regla mental que lo une todo: **si borro toda la carpeta `infrastructure/` de
 
 ### 3.1 Layout de Carpetas (Vertical Slice — objetivo)
 
-Así se ve un módulo **completamente crecido**. NO se crea así de golpe: las sub-carpetas marcadas `⌁` **nacen por umbral** (regla 46, ver §9 y PARTE X del PROMPT_CONTEXTO). Hoy se arranca mínimo.
+Estructura **real hoy** (2026-07-10). Las sub-carpetas marcadas `⌁` aún **no existen**; nacen por umbral (regla 46) cuando el volumen las pida.
 
 ```
 backend/src/
 │
-├── kernel/                                  # abstracciones de dominio PURAS (una sola vez)
-│   └── domain/
-│       ├── Entity.ts                         # identidad por id
-│       ├── AggregateRoot.ts                  # raíz + acumula domain events
-│       ├── ValueObject.ts                    # ⌁ nace con la 1ª VO (Money/Email)
-│       ├── DomainEvent.ts                    # "algo pasó" (nombre en pasado)
-│       ├── DomainError.ts                    # ÚNICA estrategia de error (D-039)
-│       └── UseCase.ts                        # interfaz execute(input): output
-│                                             #  (SIN ports aquí — los ports van al módulo)
+├── kernel/domain/                          # abstracciones de dominio PURAS (una sola vez)
+│   ├── Entity.ts                            # identidad por id
+│   ├── AggregateRoot.ts                     # raíz + acumula domain events (record/pullEvents)
+│   ├── ValueObject.ts                       # base de los Value Objects
+│   ├── DomainEvent.ts                       # "algo pasó" (nombre en pasado)
+│   └── DomainError.ts                       # ÚNICA estrategia de error (D-039). SIN UseCase, SIN ports.
 │
-├── modules/                                 # VERTICAL SLICE: un módulo = un bounded context
+├── modules/                                # VERTICAL SLICE: un módulo = un bounded context
 │   │
-│   ├── orders/                              # ← módulo autónomo (PILOTO, spike D-040)
-│   │   ├── contracts/                        # DTOs públicos del módulo (request/response/dto)
-│   │   ├── domain/                           # NÚCLEO puro (sin Nest, sin TypeORM)
-│   │   │   ├── entities/
-│   │   │   │   ├── Order.ts                   # AGREGADO raíz: mueve estados + reglas
-│   │   │   │   └── OrderItem.ts               # entidad hija / value object
-│   │   │   ├── value-objects/                 # ⌁ Money, OrderNumber, BranchId
-│   │   │   ├── services/                      # ⌁ OrderDomainService (lógica que cruza agregados)
-│   │   │   ├── events/
-│   │   │   │   ├── OrderCancelled.ts
-│   │   │   │   └── OrderReady.ts
-│   │   │   └── ports/                         # PUERTOS (interfaces) — hablan tipos de DOMINIO
-│   │   │       ├── order.repository.port.ts
-│   │   │       └── payment.gateway.port.ts
-│   │   ├── application/                       # ORQUESTACIÓN — casos de uso PLANOS
-│   │   │   ├── create-order.use-case.ts       #   (⌁ commands/ + queries/ solo a ~20 casos)
-│   │   │   ├── cancel-order.use-case.ts
-│   │   │   └── get-order.use-case.ts
-│   │   ├── infrastructure/                    # ADAPTERS (implementan los puertos)
-│   │   │   ├── persistence/
-│   │   │   │   ├── order.repository.ts         # impl TypeORM del puerto
-│   │   │   │   └── order.mapper.ts             # Order (dominio) ⇄ OrderEntity (TypeORM)
-│   │   │   ├── external/                       # ⌁ stripe/keycloak/azure adapters
-│   │   │   ├── messaging/                      # ⌁ nace con RabbitMQ/AZURE Queue real
-│   │   │   └── cache/                          # ⌁ nace con Redis real
-│   │   ├── presentation/                      # HTTP (NestJS) — PLANO al inicio
-│   │   │   ├── orders.controller.ts            #   (⌁ controllers/ guards/ pipes/ filters/
-│   │   │   ├── orders.module.ts                #    solo cuando haya VARIOS de un tipo)
-│   │   │   └── order.guard.ts
-│   │   └── tests/
-│   │       ├── unit/                           # test del agregado, VOs, casos de uso
-│   │       ├── integration/                    # e2e del módulo contra BD real
-│   │       └── contract/                       # ⌁ cuando exista contrato público
+│   ├── orders/                             # slice DDD táctico COMPLETO
+│   │   ├── contracts/                       # DTOs del módulo (create-order, order-response, metrics, update-status)
+│   │   ├── domain/                          # NÚCLEO puro (sin Nest, sin TypeORM)
+│   │   │   ├── entities/Order.ts            # AGREGADO raíz: transiciones + StockEffect + place() factory
+│   │   │   ├── value-objects/               # money.ts · quantity.ts · ids.ts (OrderId/ProductId branded)
+│   │   │   ├── events/order-events.ts       # OrderAccepted · OrderReadied · OrderCancelled · OrderNotPickedUp
+│   │   │   └── ports/order.repository.port.ts   # PUERTO — habla Order/OrderResponse, nunca OrderEntity
+│   │   ├── application/                      # orders.service.ts (casos de uso) · order-expiry.scheduler.ts
+│   │   ├── infrastructure/persistence/      # order.repository.ts (adapter TypeORM, lock/tx/stock) · order.mapper.ts
+│   │   ├── presentation/                    # orders.controller.ts · orders.module.ts
+│   │   └── tests/unit/                       # order.spec · order-place.spec · value-objects.spec
 │   │
-│   ├── products/                             # mismo molde, MÁS CHATO (casi CRUD)
-│   ├── users/                                # (user-profile)
-│   ├── settings/                             # umbrales semáforo/sucursal/horario
-│   ├── auth/                                 # Keycloak adapter, JWT, roles, MFA
-│   └── notifications/                        # push local; escucha eventos de orders
+│   ├── notifications/                      # slice FINO (2º bounded context, D-045)
+│   │   ├── domain/                          # notification-type.ts · notification-content.ts (sin agregado)
+│   │   ├── application/notifications.service.ts    # lectura del outbox (GET /mine)
+│   │   ├── contracts/notification-response.ts
+│   │   ├── infrastructure/order-events.handler.ts  # escucha eventos de orders → escribe outbox (en la tx)
+│   │   └── presentation/                    # notifications.controller.ts · notifications.module.ts
+│   │
+│   └── products/                           # slice PRAGMÁTICO (entity-as-model, D-046)
+│       ├── domain/product.policy.ts         # invariantes de disponibilidad/reoferta (no agregado rico)
+│       ├── application/                      # products.service.ts · product.repository.port.ts (puerto entity-as-model)
+│       ├── contracts/                        # create/update-product.dto · product-response · product.constants
+│       ├── infrastructure/persistence/typeorm-product.repository.ts
+│       └── presentation/                    # products.controller.ts · products.module.ts
 │
-└── shared/                                  # CASI INEXISTENTE (regla 44/46)
-                                             #  lo de un módulo va al módulo; lo base va al kernel
+├── application/                            # CAPAS CLÁSICAS (deliberado, regla 46): CRUD/cross-cutting
+│   ├── auth/                                # auth.service.ts + user-profile.repository.port.ts (+ dto/)
+│   ├── settings/                            # settings.service.ts + settings.repository.port.ts (+ dto/)
+│   └── payments/                            # payment-gateway.service.ts (pasarela simulada + circuit breaker)
+│
+├── domain/enums.ts                         # vocabulario PURO de los contextos clásicos (infra lo re-exporta)
+│
+├── infrastructure/                         # entities TypeORM · migrations · repositories (settings/user-profile)
+│   ├── auth/jwt.strategy.ts · keycloak/keycloak-admin.service.ts
+│   └── database/{entities,migrations,repositories,data-source,database.module}
+│
+├── presentation/                           # controllers/módulos clásicos: auth/ · settings/ · health/
+│
+└── shared/                                 # cross-cutting real (mínimo, regla 44/46)
+    ├── events/                              # domain-event-dispatcher.ts · events.module.ts (@Global)
+    ├── logging/                             # audit-log.service.ts · logging.module.ts (@Global)
+    └── resilience/                          # circuit-breaker.ts
 ```
 
-> `⌁` = **NO existe hoy**; nace por umbral, nunca antes.
+> `⌁` = nace por umbral, nunca antes. Sub-carpetas aún inexistentes: `orders/domain/services/` (Domain Service — no ha hecho falta), `tests/integration/`+`contract/`, `infrastructure/{external,messaging,cache}/`.
 
-#### Nota honesta — migración INCREMENTAL (D-040)
+#### Nota — migración CERRADA (D-040→D-046)
 
-El árbol de arriba es el **objetivo**. Hoy **coexiste** con el layout VIEJO de capas horizontales globales (`src/domain/`, `src/application/`, `src/infrastructure/`, `src/presentation/`, `src/shared/`), que se retira **módulo a módulo**, no de un golpe. El molde nuevo ya existe y compila: `src/kernel/domain/` + `src/modules/orders/` (spike D-040, `tsc` 0, 2/2 tests verdes).
-
-> ⚠️ **El `domain/` viejo tiene FUGA.** `src/domain/order/order.repository.ts` (y sus hermanos product/settings/user-profile) **importan `OrderEntity` (TypeORM)**, `enums` de infra y DTOs de `application/`. Eso viola `dependency-rules.md §2` (dominio→infra prohibido): es una abstracción con fugas, NO es DDD todavía — es Clean anémico. **Se retira al migrar cada módulo al molde nuevo** (el puerto habla `Order`, no `OrderEntity`); no se apila trabajo sobre él. La lógica de negocio de `orders` (transiciones + stock D-037) hoy vive en `infrastructure/database/repositories/typeorm-order.repository.ts` y debe **migrar al agregado `Order`**.
+La migración incremental **terminó**. El `domain/` viejo con fuga a TypeORM se **retiró** (D-043): sus puertos de repositorio se movieron a `application/<ctx>/*.repository.port.ts` y `src/domain/` quedó solo con `enums.ts` (vocabulario puro). La lógica de negocio de `orders` (transiciones + stock D-037) **ya vive en el agregado `Order`**; el adapter TypeORM solo persiste (lock/tx/SQL de stock). Backend `tsc` 0 + **117 tests** + app arranca. NO queda layout "viejo" pendiente de retirar: lo que sigue en capas clásicas (`auth`/`settings`/`payments`) es **decisión** (regla 46), no deuda.
 
 ### 3.2 Capas y Dependencias (fuente: `dependency-rules.md`)
 
@@ -259,7 +255,7 @@ Infrastructure ─────────────────────�
 ✗ imports circulares entre módulos (BLOQUEADO)
 ```
 
-Romper un ciclo: **el que SABE publica un evento; el que REACCIONA se suscribe** (`orders` emite `OrderReady`; `notifications` lo escucha). El emisor no conoce al receptor.
+Romper un ciclo: **el que SABE publica un evento; el que REACCIONA se suscribe** (`orders` emite `OrderReadied`; `notifications` lo escucha vía el dispatcher). El emisor no conoce al receptor.
 
 ---
 
@@ -267,127 +263,45 @@ Romper un ciclo: **el que SABE publica un evento; el que REACCIONA se suscribe**
 
 ### 4.1 Layout de Carpetas (FSD)
 
+Estructura **real hoy** (FSD v2, sin `processes/`/`flows/` — regla 46). Expo SDK 56.
+
 ```
-frontend/ (React Native + Expo SDK 56)
-├── src/
-│   ├── app/
-│   │   ├── App.tsx              # Root + routing setup
-│   │   ├── Navigation.tsx
-│   │   └── store.ts             # Zustand root store
-│   │
-│   ├── processes/               # Procesos de negocio (FSD modern)
-│   │   ├── checkout/            # Flujo: carrito → pago → confirmación
-│   │   │   ├── model/
-│   │   │   ├── ui/
-│   │   │   └── lib/
-│   │   ├── order-tracking/      # Flujo: pedido → seguimiento → recogida
-│   │   └── ...
-│   │
-│   ├── pages/                   # Pantallas (Full screens)
-│   │   ├── Welcome.tsx
-│   │   ├── Home.tsx
-│   │   ├── ProductDetail.tsx
-│   │   ├── Cart.tsx
-│   │   ├── Checkout.tsx
-│   │   ├── OrderTracking.tsx
-│   │   ├── Orders.tsx
-│   │   ├── AdminDashboard.tsx
-│   │   └── ...
-│   │
-│   ├── widgets/                 # Componentes complejos (+ de 1 responsabilidad)
-│   │   ├── catalog/
-│   │   │   ├── ProductGrid.tsx
-│   │   │   ├── ProductCard.tsx
-│   │   │   └── ...
-│   │   ├── admin/
-│   │   │   ├── AdminSidebar.tsx
-│   │   │   ├── QueueTable.tsx
-│   │   │   └── ...
-│   │   ├── cart/
-│   │   │   ├── CartSummary.tsx
-│   │   │   ├── CartItem.tsx
-│   │   │   └── ...
-│   │   └── ...
-│   │
-│   ├── features/                # Lógica de features (ej: cart management)
-│   │   ├── cart/
-│   │   │   ├── api/             # Llamadas HTTP
-│   │   │   │   ├── cart.api.ts
-│   │   │   │   └── ...
-│   │   │   ├── model/           # Zustand store + types
-│   │   │   │   ├── cart.store.ts
-│   │   │   │   └── ...
-│   │   │   ├── ui/              # Componentes simples (cart button, etc.)
-│   │   │   │   ├── CartButton.tsx
-│   │   │   │   └── ...
-│   │   │   ├── lib/             # Helpers, utilidades
-│   │   │   └── config/
-│   │   ├── auth/
-│   │   │   ├── api/
-│   │   │   ├── model/
-│   │   │   │   ├── session.store.ts
-│   │   │   │   └── ...
-│   │   │   ├── ui/
-│   │   │   └── ...
-│   │   ├── branch/              # Selección de sucursal
-│   │   ├── wallet/              # Métodos de pago
-│   │   └── ...
-│   │
-│   ├── entities/                # Tipos compartidos (no lógica)
-│   │   ├── product/
-│   │   │   ├── api.ts           # GET /products
-│   │   │   ├── model.ts         # Product type
-│   │   │   ├── mock.ts          # Mock data (dev)
-│   │   │   └── ui.ts            # UI constants (colores, tamaños)
-│   │   ├── order/
-│   │   │   ├── api.ts
-│   │   │   ├── model.ts
-│   │   │   └── ...
-│   │   ├── branch/
-│   │   ├── user/
-│   │   └── ...
-│   │
-│   ├── shared/                  # Compartido (reutilizable)
-│   │   ├── api/
-│   │   │   ├── client.ts        # HTTP client (axios + token refresh)
-│   │   │   └── ...
-│   │   ├── auth/
-│   │   │   ├── useAuth.ts       # Custom hook
-│   │   │   ├── ProtectedRoute.tsx
-│   │   │   └── ...
-│   │   ├── config/
-│   │   │   ├── api.config.ts
-│   │   │   └── app.config.ts
-│   │   ├── constants/
-│   │   ├── hooks/
-│   │   │   ├── useLocation.ts
-│   │   │   ├── useNotification.ts
-│   │   │   └── ...
-│   │   ├── lib/
-│   │   ├── notifications/       # Push + local notifications
-│   │   ├── theme/               # Design tokens (colores, tipografía)
-│   │   │   ├── Type.tsx         # Primitiva de texto
-│   │   │   ├── colors.ts
-│   │   │   └── ...
-│   │   ├── types/
-│   │   ├── ui/                  # Componentes atómicos
-│   │   │   ├── Button.tsx
-│   │   │   ├── Input.tsx
-│   │   │   ├── Modal.tsx
-│   │   │   └── ...
-│   │   ├── utils/
-│   │   │   ├── format.ts
-│   │   │   ├── validate.ts
-│   │   │   └── ...
-│   │   └── validation/
-│   │
-│   └── app.tsx                  # App root
+frontend/src/
+├── app/navigation/            # RootNavigator · MainStack/MainTabs · AdminStack/AdminTabs · FloatingTabBar · types
+│                              #  (App.tsx real está en la raíz frontend/, no en src/app/)
 │
-├── app.json
-├── package.json
-├── tsconfig.json
-└── ...
+├── entities/                  # modelos de negocio (tipos + api + datos canónicos)
+│   ├── product/               # model/types · api.ts (GET /products) · admin-api.ts · admin-types.ts · icons.tsx · images.ts
+│   ├── order/                 # model/types · api.ts · admin-types.ts · schedule.ts
+│   └── branch/                # model/types · branches.ts (lista canónica, sin backend — D-041)
+│
+├── features/                  # acciones del usuario (stores Zustand + api/lib/ui colocados)
+│   ├── admin/model/           # catalog.store · settings.store
+│   ├── auth/                  # api/auth.api · model/session.store
+│   ├── branch/                # lib/useBranchLocation · model/branch.store
+│   ├── cart/model/            # cart.store
+│   ├── catalog/model/         # catalog.store (cliente; usa createCatalogLoader → backend única fuente)
+│   ├── notifications/model/   # messages · useOrderNotifications (polling+diff local) · useScheduledAlerts
+│   ├── orders/model/          # orders.store
+│   ├── profile/model/         # settings.store
+│   └── wallet/                # model/wallet.store · ui/CardForm
+│
+├── pages/                     # pantallas
+│   ├── admin/                 # account/{AdminAccount,Personalizacion} · dashboard · menu/{Menu,ProductEdit,Reoffer} · order-detail · queue
+│   ├── auth/{LoginUsuario,LoginAdmin} · cart · home · orders · product · profile · tracking · wallet · welcome
+│
+├── widgets/                   # bloques compuestos: auth/AuthScaffold · branch/BranchPicker
+│
+└── shared/                    # reutilizable, no sube de capa
+    ├── api/client.ts          # HTTP client (fetch + refresh de token)
+    ├── lib/                   # card.ts · catalog-loader.ts · geo.ts
+    ├── notifications/notify.ts
+    ├── theme/                 # index.ts · tokens.ts
+    ├── ui/                    # Badge · Chip · PrimaryButton · QtyStepper · Type · CoffeeLoader · OrderTracker · Media · Logo* · BrandField
+    └── a11y/a11y.store.ts
 ```
+
+> Los datos mock (`PRODUCTS`/`ADMIN_ORDERS`) se **eliminaron** (D-046): el runtime usa la API real; no hay red de mock. Los `*-types.ts` de `entities/` son vocabulario real (tipos + constantes de display), no datos falsos.
 
 ### 4.2 Invariantes Frontend
 
@@ -430,20 +344,17 @@ NestJS Backend (Application Layer)
    - Carga UserProfile desde BD (authService)
    - Carga Products desde BD
    
-   [EN PROGRESO: Delega a Order.create(...)]
+   Delega a Order.place(...)  (factory de dominio)
    
-   → Order aggregate valida:
-     - Todos los ítems existen
-     - Precios son positivos
-     - Total > 0
-     - Usuario existe
-     - Sucursal válida
+   → Order.place valida y calcula (dominio puro):
+     - Todos los ítems existen y están disponibles
+     - Congela el precio (reoffer si aplica) → subtotales + total (Money VO)
+     - Valida la hora programada (≥30 min, mismo día America/Mexico_City)
    
-   → Persistencia:
-     - OrderEntity + OrderItemEntity guardadas en BD
-     - Stock se reserva (GREATEST(0, stock - qty))
-     - Events emitidos (OrderCreated)
-     - AuditLog generado
+   → Persistencia (tx corta; el pago ya se autorizó ANTES de abrir la tx):
+     - OrderEntity + OrderItemEntity + Payment guardados (status PENDING)
+     - Stock NO se toca al crear — se RESERVA al aceptar (PENDING→PREPARING, D-037)
+     - Sin domain event en creación (BR-012 avisa en accept/ready/cancel/not-picked-up)
 
 6. Response: 201 Created
    Body: { orderId: "abc-123", orderNumber: "U-00001", ... }
@@ -491,7 +402,7 @@ NestJS Backend
      - pickupDeadline = now + 20 min (D-005)
      - Prep times registrados (últimas 20 muestras, D-037)
      - Stock NO cambia (ya fue reservado al aceptar)
-     - Event OrderReady emitido
+     - Event OrderReadied emitido (record → pullEvents → outbox en la tx)
      - AuditLog generado
 
 4. Response: 200 OK
@@ -997,13 +908,13 @@ Vertical Slice: cada módulo agrupa sus capas; el `kernel` da las abstracciones 
 ```mermaid
 graph TB
     subgraph Kernel["kernel/domain (abstracciones puras, SIN ports)"]
-        K["Entity · AggregateRoot · DomainEvent<br/>DomainError · UseCase · ValueObject(⌁)"]
+        K["Entity · AggregateRoot · ValueObject<br/>DomainEvent · DomainError"]
     end
 
     subgraph OrdersMod["modules/orders (Vertical Slice)"]
         direction TB
         OPres["presentation/<br/>orders.controller · orders.module"]
-        OApp["application/<br/>cancel-order.use-case (PLANO)"]
+        OApp["application/<br/>orders.service (casos de uso) · scheduler"]
         subgraph ODom["domain/ (núcleo puro)"]
             OA["Order (agregado rico)<br/>+ OrderItem, events"]
             OPort["ports/<br/>OrderRepositoryPort · PaymentGatewayPort<br/>(hablan tipos de dominio)"]
@@ -1011,8 +922,8 @@ graph TB
         OInfra["infrastructure/persistence/<br/>order.repository (TypeORM) · order.mapper"]
     end
 
-    subgraph OtherMods["modules/products · users · settings · auth · notifications"]
-        OM["mismo molde, más chatos (casi CRUD)"]
+    subgraph OtherMods["modules/notifications · products (slices) + auth·settings·payments (clásico)"]
+        OM["notifications=outbox de eventos · products=slice pragmático · resto=capas clásicas"]
     end
 
     subgraph Ext["Infra externa"]
@@ -1027,7 +938,7 @@ graph TB
     OInfra -->|mapper Order⇄Entity| DB
     OA --> K
     OPort --> K
-    OrdersMod -->|▷ evento OrderReady| OtherMods
+    OrdersMod -->|▷ OrderAccepted/Readied/… Domain Event| OtherMods
     OtherMods --> KC
 
     style Kernel fill:#e1f5ff
@@ -1053,7 +964,7 @@ sequenceDiagram
     User->>Client: Toca "Confirmar pedido"
     Client->>BE: POST /orders/create<br/>{ items, payMethod, branchId }
     BE->>OService: createOrder(dto, user)
-    OService->>Agg: Order.create({...})
+    OService->>Agg: Order.place({...})
     Agg->>Agg: Valida (usuario, ítems, total)
     OService->>Repo: save(order)
     Repo->>DB: INSERT order + order_items
@@ -1133,7 +1044,7 @@ graph LR
 ### Mapas de gobierno (verdad viva — este manual es el índice, ellos ganan si contradicen)
 
 - `docs/roadmap/PROMPT_CONTEXTO_ARQUITECTURA.md` — contexto maestro de arquitectura (el molde completo).
-- `docs/arquitectura/decisiones.md` — ADRs (D-037…D-040 congelados).
+- `docs/arquitectura/decisiones.md` — ADRs (D-037…**D-046**; migración a slices cerrada).
 - `docs/arquitectura/bounded-contexts.md` — Bounded Context Map + Context Map (quién habla con quién).
 - `docs/arquitectura/dependency-rules.md` — reglas de dependencia por capa y por módulo (el más consultado).
 - `docs/arquitectura/decision-matrix.md` — cuándo crear Aggregate/VO/Service/Módulo/Event/Adapter.
@@ -1141,6 +1052,6 @@ graph LR
 
 ---
 
-**Mantenimiento:** Actualizar este documento conforme avanza la migración incremental Hexagonal + DDD + Vertical Slice (D-038/D-039/D-040).  
+**Mantenimiento:** migración a Vertical Slice CERRADA (D-038…D-046). Actualizar este manual ante cambios de arquitectura o al abrir nuevos frentes (p. ej. panel admin, OWASP L2).  
 **Propiedad:** Arquitecto del sistema + Lead Developer.  
 **Revisiones:** Cada 2 semanas con el equipo completo.
