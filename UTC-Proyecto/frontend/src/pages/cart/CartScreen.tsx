@@ -23,6 +23,7 @@ import { Display, Title, Body, Label, Mono } from '../../shared/ui/Type';
 import { colors, text, border, surface, shadow, fonts } from '../../shared/theme';
 import { productImage } from '../../entities/product/images';
 import { productIcon } from '../../entities/product/icons';
+import { priceToPay } from '../../entities/product/model/types';
 import { useCartStore, selectTotal } from '../../features/cart/model/cart.store';
 import { useOrdersStore, type Order } from '../../features/orders/model/orders.store';
 import { useSessionStore } from '../../features/auth/model/session.store';
@@ -320,7 +321,7 @@ export function CartScreen({ navigation }: Props) {
                       <Body color={text.muted} style={{ fontSize: 11, marginTop: 2 }} numberOfLines={1}>{it.product.category}</Body>
                     </View>
                     <Stepper value={it.qty} min={0} max={10} onChange={(v) => setQty(it.product.id, v)} />
-                    <Mono style={{ fontFamily: fonts.monoBold, fontSize: 13.5, minWidth: 46, textAlign: 'right' }} color={text.heading}>{`$${it.product.price}`}</Mono>
+                    <Mono style={{ fontFamily: fonts.monoBold, fontSize: 13.5, minWidth: 46, textAlign: 'right' }} color={text.heading}>{`$${priceToPay(it.product)}`}</Mono>
                   </View>
                 );
               })}

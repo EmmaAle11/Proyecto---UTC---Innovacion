@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, ScrollView, Pressable, TextInput } from 'react-native';
+import { View, ScrollView, Pressable, TextInput, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Store, Gauge, MapPin, Navigation } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -53,8 +53,18 @@ export function PersonalizacionScreen({ navigation }: Props) {
 
   // Persiste el ajuste en el backend (así el semáforo del ALUMNO también cambia).
   const saveThresholds = (yellow: number, red: number) => {
-    s.set({ semaforoYellow: yellow, semaforoRed: red });
-    void updateCongestionThresholds(yellow, red, token).catch(() => {});
+    const prevYellow = s.semaforoYellow;
+    const prevRed = s.semaforoRed;
+    s.set({ semaforoYellow: yellow, semaforoRed: red }); // optimista
+    void updateCongestionThresholds(yellow, red, token).catch((e: unknown) => {
+      // Si el back rechaza (409 optimistic-lock, validación, red), revertir y avisar:
+      // no dejar el store local divergente de lo persistido.
+      s.set({ semaforoYellow: prevYellow, semaforoRed: prevRed });
+      Alert.alert(
+        'No se pudo guardar',
+        e instanceof Error ? e.message : 'Revisa tu conexión e intenta de nuevo.',
+      );
+    });
   };
 
   return (

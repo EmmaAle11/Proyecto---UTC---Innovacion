@@ -2,6 +2,7 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, In, type EntityManager } from 'typeorm';
@@ -81,6 +82,8 @@ function deriveName(email: string): { firstName: string; lastName: string } {
  */
 @Injectable()
 export class TypeOrmOrderRepository implements IOrderRepository {
+  private readonly logger = new Logger(TypeOrmOrderRepository.name);
+
   constructor(
     private readonly dataSource: DataSource,
     @InjectRepository(OrderEntity)
@@ -213,7 +216,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       return toOrderResponse(order);
     });
     if (from !== null) {
-      this.auditLog.logOrderStateChange(id, from, status, actor);
+      this.auditLog.logOrderStateChange(id, from, status, actor, 'admin');
     }
     return res;
   }
@@ -245,7 +248,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       return toOrderResponse(order);
     });
     if (from !== null) {
-      this.auditLog.logOrderStateChange(id, from, OrderStatus.CANCELLED, ownerUserId);
+      this.auditLog.logOrderStateChange(id, from, OrderStatus.CANCELLED, ownerUserId, 'client');
     }
     return res;
   }
@@ -275,7 +278,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       return toOrderResponse(order);
     });
     if (from !== null) {
-      this.auditLog.logOrderStateChange(id, from, OrderStatus.READY_LATER, ownerUserId);
+      this.auditLog.logOrderStateChange(id, from, OrderStatus.READY_LATER, ownerUserId, 'client');
     }
     return res;
   }
@@ -317,7 +320,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
           await productRepo
             .createQueryBuilder()
             .update()
-            .set({ stock: () => '"stock" + :qty' })
+            .set({ stock: () => '"stock" + :qty', version: () => '"version" + 1' })
             .where('id = :id', { id: pid })
             .setParameter('qty', byProduct.get(pid))
             .execute();
@@ -331,6 +334,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
         id,
         OrderStatus.READY,
         OrderStatus.NOT_PICKED_UP,
+        'system',
         'system',
       );
     }
@@ -436,7 +440,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
    * J5 (§2/§3.7, BR-007): promedio REAL de preparación por producto (últimas MAX_PREP_SAMPLES
    * muestras; con menos de MIN_PREP_SAMPLES un producto NO aparece → el caller usa el base).
    */
-  async avgPrepByProduct(
+  private async avgPrepByProduct(
     productIds: string[],
   ): Promise<Array<{ product_id: string; avg_seconds: number }>> {
     if (productIds.length === 0) return [];
@@ -507,7 +511,13 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       await repo
         .createQueryBuilder()
         .update()
-        .set({ stock: () => expr })
+        // Bump de `version`: el flujo de stock (QueryBuilder) NO pasa por save(), así que
+        // sin esto el @VersionColumn del admin no vería la reserva → lost-update. Al subir
+        // version, un edit concurrente del admin (optimistic lock) recibe 409 en vez de pisar.
+        // Tradeoff aceptado: como `version` es única por fila, un edit de admin que NO toca
+        // stock (nombre, categoría, reoferta) también puede recibir 409 en plena hora pico;
+        // falla-seguro (sin pérdida de datos, el front muestra Alert y el admin reintenta).
+        .set({ stock: () => expr, version: () => '"version" + 1' })
         .where('id = :id', { id: productId })
         .setParameter('qty', it.quantity)
         .execute();
@@ -543,6 +553,13 @@ export class TypeOrmOrderRepository implements IOrderRepository {
     try {
       return await this.paymentGateway.authorize(amount);
     } catch (e) {
+      // Un error que NO es el circuito abierto es inesperado (bug/gateway caído): se loguea
+      // antes de re-mapearlo al 400 genérico, para no perder la causa raíz.
+      if (!(e instanceof CircuitOpenError)) {
+        this.logger.error(
+          `Fallo inesperado autorizando pago de ${amount}: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
       throw new BadRequestException(
         e instanceof CircuitOpenError
           ? e.message

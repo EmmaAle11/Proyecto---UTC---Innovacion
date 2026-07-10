@@ -4,7 +4,6 @@ import {
   OrderStatus,
   OrderSnapshot,
 } from '../../domain/entities/Order';
-import { OrderCancelled } from '../../domain/events/OrderCancelled';
 
 const NOW = new Date('2026-07-08T12:00:00.000Z');
 
@@ -24,13 +23,10 @@ function make(status: OrderStatus, over: Partial<OrderSnapshot> = {}): Order {
 }
 
 describe('Order.cancelByOwner (§3.8/§3.9)', () => {
-  it('cancela un PENDING → cancelled, sin liberar stock, registra OrderCancelled', () => {
+  it('cancela un PENDING → cancelled, sin liberar stock', () => {
     const o = make(OrderStatus.PENDING);
     expect(o.cancelByOwner()).toBe('none');
     expect(o.status).toBe(OrderStatus.CANCELLED);
-    const ev = o.pullEvents();
-    expect(ev).toHaveLength(1);
-    expect(ev[0]).toBeInstanceOf(OrderCancelled);
   });
 
   it('cancela un READY → cancelled y LIBERA stock (excedente reofertable, D-037)', () => {
@@ -47,7 +43,6 @@ describe('Order.cancelByOwner (§3.8/§3.9)', () => {
     const o = make(OrderStatus.PREPARING);
     expect(() => o.cancelByOwner()).toThrow(DomainError);
     expect(o.status).toBe(OrderStatus.PREPARING);
-    expect(o.pullEvents()).toHaveLength(0);
   });
 
   it('RECHAZA cancelar un terminal (picked_up)', () => {

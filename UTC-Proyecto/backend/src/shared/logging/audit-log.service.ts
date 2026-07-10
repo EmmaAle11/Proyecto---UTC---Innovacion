@@ -34,7 +34,8 @@ export class AuditLogService {
     orderId: string,
     fromStatus: string,
     toStatus: string,
-    adminEmail: string,
+    actor: string,
+    actorType: 'admin' | 'client' | 'system',
   ) {
     this.logger.log(
       JSON.stringify({
@@ -42,7 +43,8 @@ export class AuditLogService {
         orderId,
         from: fromStatus,
         to: toStatus,
-        admin: adminEmail,
+        actor, // email (admin), sub del JWT (client) o 'system' (barredor)
+        actorType,
         timestamp: new Date().toISOString(),
       }),
     );

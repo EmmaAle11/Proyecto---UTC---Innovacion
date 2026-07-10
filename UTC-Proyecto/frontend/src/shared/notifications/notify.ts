@@ -59,22 +59,6 @@ export function notificationsSupported(): boolean {
 
 export type NotifPermission = 'granted' | 'denied' | 'undetermined';
 
-/** Estado del permiso SIN pedirlo (para pintar el botón "Activar avisos"). */
-export async function notificationPermission(): Promise<NotifPermission> {
-  if (Platform.OS === 'web') {
-    if (!notificationsSupported()) return 'denied';
-    const p = window.Notification.permission; // 'default' | 'granted' | 'denied'
-    return p === 'default' ? 'undetermined' : p;
-  }
-  if (!nativeNotifs) return 'denied';
-  const { status } = await getNotifications().getPermissionsAsync();
-  return status === 'granted'
-    ? 'granted'
-    : status === 'denied'
-      ? 'denied'
-      : 'undetermined';
-}
-
 /**
  * Pide permiso de notificaciones. En web DEBE invocarse desde un gesto del usuario
  * (botón). En Android crea el canal antes de pedir. Devuelve true si quedó concedido.

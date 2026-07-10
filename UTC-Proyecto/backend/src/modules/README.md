@@ -35,7 +35,6 @@ modules/orders/
 ├── contracts/          # DTOs públicos (request/response) — lo que entra/sale por HTTP
 ├── domain/             # NÚCLEO puro (sin Nest, sin TypeORM)
 │   ├── entities/       #   Order.ts — el agregado: DECIDE las reglas
-│   ├── events/         #   OrderCancelled — "algo pasó"
 │   └── ports/          #   contrato del repositorio (interfaz)
 ├── application/        # casos de uso / servicio — ORQUESTA (carga, decide, guarda)
 ├── infrastructure/

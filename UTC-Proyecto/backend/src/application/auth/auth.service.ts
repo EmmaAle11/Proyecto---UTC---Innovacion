@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { IUserProfileRepository } from '../../domain/user-profile/user-profile.repository';
 import { USER_PROFILE_REPOSITORY } from '../../domain/user-profile/user-profile.repository';
 import {
@@ -15,6 +15,8 @@ import { UserRole } from '../../infrastructure/database/entities/enums';
 /** Orquesta el registro y login del cliente contra Keycloak + perfil local (ver D-014). */
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly keycloak: KeycloakAdminService,
     @Inject(USER_PROFILE_REPOSITORY)
@@ -52,9 +54,13 @@ export class AuthService {
     try {
       const tokens = await this.keycloak.login(dto.email, dto.password);
       return { message: 'Cuenta creada', ...tokens };
-    } catch {
+    } catch (err) {
       // La cuenta ya quedó creada y consistente; si el auto-login falla (red/throttle),
-      // el cliente inicia sesión con /auth/login. No es un fallo del registro.
+      // el cliente inicia sesión con /auth/login. No es un fallo del registro, pero se
+      // registra: un cliente mal configurado fallaría el auto-login en CADA registro.
+      this.logger.warn(
+        `Auto-login post-registro falló para ${dto.email}: ${err instanceof Error ? err.message : String(err)}`,
+      );
       return { message: 'Cuenta creada. Inicia sesión.' };
     }
   }

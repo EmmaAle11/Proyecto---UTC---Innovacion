@@ -67,11 +67,4 @@ export class OrdersService {
   async metrics(): Promise<OrderMetrics> {
     return this.orders.metrics();
   }
-
-  async avgPrepByProduct(
-    productIds: string[],
-  ): Promise<Map<string, number>> {
-    const rows = await this.orders.avgPrepByProduct(productIds);
-    return new Map(rows.map((r) => [r.product_id, r.avg_seconds]));
-  }
 }

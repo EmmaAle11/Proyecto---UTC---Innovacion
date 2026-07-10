@@ -32,6 +32,7 @@ function toProduct(a: ApiProduct): Product {
     name: a.name,
     category: a.category,
     price: a.price,
+    reofferPrice: a.reofferPrice,
     basePrepTimeSeconds: a.basePrepTimeSeconds,
     status: a.status,
     isAvailable: a.isAvailable,

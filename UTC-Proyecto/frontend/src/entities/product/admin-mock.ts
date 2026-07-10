@@ -54,5 +54,3 @@ export const ADMIN_PRODUCTS: AdminProduct[] = [
   { id: '9', name: 'Gelatina de mosaico', description: 'Gelatina de leche con cubos de colores, fresquita.', price: 15, category: 'Postres', basePrepTimeSeconds: 30, stock: 18, minStock: 6, maxStock: 30, status: 'sin_tiempo_espera', isAvailable: true, reofferPrice: null, icon: 'cake-slice' },
   { id: '10', name: 'Agua de horchata', description: 'Horchata de arroz con canela, dulce y cremosa.', price: 18, category: 'Bebidas', basePrepTimeSeconds: 30, stock: 12, minStock: 6, maxStock: 40, status: 'sin_tiempo_espera', isAvailable: true, reofferPrice: null, icon: 'cup-soda' },
 ];
-
-export const ADMIN_CATEGORIES = ['Antojitos', 'Snacks', 'Bebidas', 'Postres', 'Combos'];

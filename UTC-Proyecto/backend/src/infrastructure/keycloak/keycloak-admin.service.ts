@@ -64,7 +64,10 @@ export class KeycloakAdminService {
   private async safeFetch(url: string, init?: RequestInit): Promise<Response> {
     try {
       return await fetch(url, init);
-    } catch {
+    } catch (err) {
+      this.logger.warn(
+        `fetch a Keycloak falló (${url}): ${err instanceof Error ? err.message : String(err)}`,
+      );
       throw new ServiceUnavailableException(
         'No se pudo conectar con el servicio de autenticación',
       );
@@ -311,7 +314,11 @@ export class KeycloakAdminService {
         Buffer.from(payload, 'base64url').toString('utf8'),
       ) as { realm_access?: { roles?: string[] } };
       return json.realm_access?.roles ?? [];
-    } catch {
+    } catch (err) {
+      // Token recién emitido por NUESTRO Keycloak; si no parsea es una anomalía real.
+      this.logger.error(
+        `No se pudo decodificar el access_token para leer roles: ${err instanceof Error ? err.message : String(err)}`,
+      );
       return [];
     }
   }

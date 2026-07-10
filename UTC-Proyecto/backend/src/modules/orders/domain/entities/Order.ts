@@ -1,6 +1,5 @@
 import { AggregateRoot } from '../../../../kernel/domain/AggregateRoot';
 import { DomainError } from '../../../../kernel/domain/DomainError';
-import { OrderCancelled } from '../events/OrderCancelled';
 
 /**
  * Estados del pedido — concepto de DOMINIO (el infra `enums.ts` comparte los mismos
@@ -264,7 +263,6 @@ export class Order extends AggregateRoot<string> {
       this._status === OrderStatus.READY ||
       this._status === OrderStatus.READY_LATER;
     this._status = OrderStatus.CANCELLED;
-    this.record(new OrderCancelled(this.id));
     return wasPrepared ? 'release' : 'none';
   }
 

@@ -10,6 +10,7 @@ import { Display, Heading, Title, Body, Label, Mono } from '../../shared/ui/Type
 import { colors, text, border, surface, shadow, fonts } from '../../shared/theme';
 import { productIcon } from '../../entities/product/icons';
 import { productImage } from '../../entities/product/images';
+import { priceToPay } from '../../entities/product/model/types';
 import { useSessionStore } from '../../features/auth/model/session.store';
 import { useCatalogStore } from '../../features/catalog/model/catalog.store';
 import { useCartStore, selectCount, selectTotal } from '../../features/cart/model/cart.store';
@@ -141,7 +142,7 @@ export function HomeScreen() {
                   <Title style={{ fontSize: 13.5, marginTop: 8, marginBottom: 3 }} numberOfLines={1}>{p.name}</Title>
                   <Body color={colors.lima[600]} style={{ fontSize: 11, fontFamily: fonts.bodySemi, marginBottom: 7 }}>{p.readySinceMin != null ? `Listo hace ${p.readySinceMin} min` : 'Sin tiempo de espera'}</Body>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Mono style={{ fontFamily: fonts.monoBold, fontSize: 15 }} color={text.heading}>{`$${p.price}`}</Mono>
+                    <Mono style={{ fontFamily: fonts.monoBold, fontSize: 15 }} color={text.heading}>{`$${priceToPay(p)}`}</Mono>
                     <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}>
                       <Plus size={18} color="#fff" />
                     </View>
@@ -189,7 +190,7 @@ export function HomeScreen() {
                     )}
                     <Body color={text.muted} style={{ fontSize: 12 }}>{` · ${p.category}`}</Body>
                   </View>
-                  <Mono style={{ fontFamily: fonts.monoBold, fontSize: 17 }} color={text.heading}>{`$${p.price}`}</Mono>
+                  <Mono style={{ fontFamily: fonts.monoBold, fontSize: 17 }} color={text.heading}>{`$${priceToPay(p)}`}</Mono>
                 </View>
                 <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}>
                   <Plus size={21} color="#fff" />

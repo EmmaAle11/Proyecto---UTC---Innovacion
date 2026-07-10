@@ -24,9 +24,6 @@ export interface IOrderRepository {
   findOneOwned(id: string, ownerUserId: string): Promise<OrderResponse>;
   congestion(): Promise<CongestionResponse>;
   metrics(): Promise<OrderMetrics>;
-  avgPrepByProduct(
-    productIds: string[],
-  ): Promise<Array<{ product_id: string; avg_seconds: number }>>;
 }
 
 export const ORDER_REPOSITORY = Symbol('IOrderRepository');

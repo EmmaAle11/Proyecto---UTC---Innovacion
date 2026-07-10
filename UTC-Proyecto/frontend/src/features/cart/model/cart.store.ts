@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Product } from '../../../entities/product/model/types';
+import { priceToPay, type Product } from '../../../entities/product/model/types';
 
 export interface CartItem {
   product: Product;
@@ -34,4 +34,7 @@ export const useCartStore = create<CartState>((set) => ({
 
 /** Selectores derivados (úsalos en las pantallas). */
 export const selectCount = (items: CartItem[]): number => items.reduce((n, it) => n + it.qty, 0);
-export const selectTotal = (items: CartItem[]): number => items.reduce((sum, it) => sum + it.product.price * it.qty, 0);
+// Cobra el precio de reoferta si está puesto (§3.11), igual que el backend, para que el
+// total mostrado coincida con lo cobrado (el backend recalcula y es la fuente de verdad).
+export const selectTotal = (items: CartItem[]): number =>
+  items.reduce((sum, it) => sum + priceToPay(it.product) * it.qty, 0);

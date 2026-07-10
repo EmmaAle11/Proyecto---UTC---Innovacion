@@ -29,6 +29,16 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule, { httpsOptions });
 
+  // Detrás de un proxy/túnel (cloudflared, ver runbook) confía en X-Forwarded-For para que
+  // el throttler y los logs vean la IP REAL del cliente. Configurable y por defecto APAGADO:
+  // habilitarlo SIN proxy dejaría a un cliente spoofear su IP para evadir el rate-limit.
+  // TRUST_PROXY = nº de saltos (entero ≥ 0). Solo se habilita con un entero válido; cualquier
+  // otro valor (o ausente) se ignora — no se pasa una cadena arbitraria a Express.
+  const hops = Number(process.env.TRUST_PROXY);
+  if (Number.isInteger(hops) && hops >= 0) {
+    app.getHttpAdapter().getInstance().set('trust proxy', hops);
+  }
+
   // Input validation (regla #5 — whitelist mode).
   app.useGlobalPipes(
     new ValidationPipe({

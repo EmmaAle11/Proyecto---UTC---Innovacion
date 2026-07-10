@@ -12,6 +12,7 @@ import { Display, Title, Body, Label } from '../../shared/ui/Type';
 import { colors, text, border, surface, shadow } from '../../shared/theme';
 import { productImage } from '../../entities/product/images';
 import { productIcon } from '../../entities/product/icons';
+import { priceToPay } from '../../entities/product/model/types';
 import { useCartStore } from '../../features/cart/model/cart.store';
 import { useCatalogStore } from '../../features/catalog/model/catalog.store';
 import { useSessionStore } from '../../features/auth/model/session.store';
@@ -102,7 +103,7 @@ export function ProductScreen({ route, navigation }: Props) {
         <PrimaryButton
           color={colors.naranja[500]}
           onPress={onAdd}
-          label={`Agregar${qty > 1 ? ` ×${qty}` : ''} · $${product.price * qty}`}
+          label={`Agregar${qty > 1 ? ` ×${qty}` : ''} · $${priceToPay(product) * qty}`}
         />
       </View>
     </View>

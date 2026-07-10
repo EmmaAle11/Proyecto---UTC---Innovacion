@@ -12,7 +12,10 @@ export interface Product {
   id: string;
   name: string;
   category: string;
-  price: number; // MXN
+  price: number; // MXN (precio de catálogo)
+  /** Reoferta "Pon tu precio" (§3.11); si está puesta, es lo que el backend COBRA.
+   *  Opcional: el catálogo real siempre la envía (number|null); los mocks la omiten. */
+  reofferPrice?: number | null;
   basePrepTimeSeconds: number;
   status: ProductStatus;
   isAvailable: boolean;
@@ -22,3 +25,11 @@ export interface Product {
   popular?: boolean;
   icon: ProductIconName;
 }
+
+/**
+ * Precio que el cliente PAGA = reoferta si está puesta, si no el de catálogo. Debe
+ * coincidir con lo que cobra el backend (`Order.place`: reofferPrice ?? price) para que
+ * el total del carrito no diverja de lo cobrado.
+ */
+export const priceToPay = (p: Pick<Product, 'price' | 'reofferPrice'>): number =>
+  p.reofferPrice ?? p.price;

@@ -1,31 +1,13 @@
 /**
  * Validación de tarjeta (C2). Pagos SIMULADOS: NO se guarda el número completo,
- * solo los últimos 4 (buena práctica). Aquí viven las reglas reales del formulario:
- * Luhn, marca por BIN, expiración y CVV. Sin dependencias.
+ * solo los últimos 4 (buena práctica). Aquí viven las reglas del formulario: marca por
+ * BIN, expiración y CVV. (No se valida checksum de tarjeta; cobro simulado, D-033.) Sin dependencias.
  */
 export type CardBrand = 'visa' | 'mastercard' | 'amex' | 'desconocida';
 
 /** Solo dígitos del texto. */
 function digits(v: string): string {
   return v.replace(/\D/g, '');
-}
-
-/** Algoritmo de Luhn: valida el dígito verificador del número de tarjeta. */
-export function luhnValid(number: string): boolean {
-  const d = digits(number);
-  if (d.length < 13 || d.length > 19) return false;
-  let sum = 0;
-  let double = false;
-  for (let i = d.length - 1; i >= 0; i--) {
-    let n = d.charCodeAt(i) - 48;
-    if (double) {
-      n *= 2;
-      if (n > 9) n -= 9;
-    }
-    sum += n;
-    double = !double;
-  }
-  return sum % 10 === 0;
 }
 
 /** Marca por prefijo (BIN). */

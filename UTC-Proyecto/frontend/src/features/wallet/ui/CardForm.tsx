@@ -25,7 +25,7 @@ const BRAND_LABEL: Record<CardBrand, string> = {
   desconocida: 'Tarjeta',
 };
 
-/** Métodos que llevan NÚMERO de tarjeta (formulario completo con Luhn/expiración/CVV). */
+/** Métodos que llevan NÚMERO de tarjeta (formulario completo con expiración/CVV). */
 const CARD_NUMBER_KINDS: CardKind[] = ['tdc', 'tdd'];
 const kindLabel = (k: CardKind) => CARD_KINDS.find((c) => c.kind === k)?.label ?? 'Método';
 
@@ -41,7 +41,7 @@ export interface NewCard {
 /**
  * Formulario ÚNICO de "Agregar tarjeta/método" (C2), usado igual en el checkout y en
  * Mi cartera. Con `kind` fijo (checkout) oculta el selector de tipo; sin él (cartera)
- * lo muestra. Para TDC/TDD pide el número real y valida Luhn/expiración/CVV (guarda
+ * lo muestra. Para TDC/TDD pide el número real y valida expiración/CVV (guarda
  * solo `last4`); para Mercado Pago/PayPal pide correo/titular + referencia. Pago simulado.
  */
 export function CardForm({
@@ -81,7 +81,7 @@ export function CardForm({
     setError('');
     if (!holder.trim()) return setError(isCard ? 'Escribe el nombre del titular.' : 'Escribe el titular o correo.');
     if (isCard) {
-      // Demo (D-006): no exigimos el checksum de Luhn (el cobro es simulado); solo
+      // Demo (D-006): el cobro es simulado y no se valida checksum de tarjeta; solo
       // pedimos que "parezca" un número de tarjeta (13–19 dígitos).
       const digits = number.replace(/\D/g, '');
       if (digits.length < 13 || digits.length > 19) {
