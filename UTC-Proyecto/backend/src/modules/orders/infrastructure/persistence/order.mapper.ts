@@ -1,5 +1,7 @@
 import { OrderEntity } from '../../../../infrastructure/database/entities/order.entity';
 import { Order } from '../../domain/entities/Order';
+import { OrderId, ProductId } from '../../domain/value-objects/ids';
+import { Quantity } from '../../domain/value-objects/quantity';
 import type { OrderResponse } from '../../contracts/order-response';
 
 /** Mapea la entidad persistida (con `items.product`, `payment`, `user`) al contrato de API.
@@ -57,13 +59,20 @@ export function toOrderResponse(o: OrderEntity): OrderResponse {
 export class OrderMapper {
   static toDomain(entity: OrderEntity): Order {
     return Order.rehydrate({
-      id: entity.id,
+      id: OrderId.of(entity.id),
       orderNumber: entity.orderNumber,
+      // Receptor de las notificaciones (BR-014). Vacío si la relación `user` no se cargó
+      // (p. ej. el load-under-lock de extendOwn, que no emite eventos → no lo necesita).
+      ownerUserId: entity.user?.keycloakId ?? '',
       status: entity.status,
-      items: (entity.items ?? []).map((it) => ({
-        productId: it.product?.id ?? '',
-        quantity: it.quantity,
-      })),
+      // Solo líneas con producto cargado (relación items.product); las demás no aportan al
+      // dominio y sus VOs no deben construirse a ciegas.
+      items: (entity.items ?? [])
+        .filter((it) => it.product?.id)
+        .map((it) => ({
+          productId: ProductId.of(it.product!.id),
+          quantity: Quantity.of(it.quantity),
+        })),
       acceptedAt: entity.acceptedAt,
       readyAt: entity.readyAt,
       pickupDeadline: entity.pickupDeadline,

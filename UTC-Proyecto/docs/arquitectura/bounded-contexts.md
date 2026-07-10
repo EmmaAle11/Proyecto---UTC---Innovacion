@@ -18,7 +18,7 @@ Decisión: **2026-07-07**. Complementa reglas 43, 44, 46.
 | **products** | Catálogo, categorías, disponibilidad, precio | ✅ existe |
 | **orders** | Pedido, estados, transiciones, pago **simulado** | ✅ existe |
 | **settings** | Umbrales semáforo, sucursal, horario de cooperativa | ✅ existe |
-| **notifications** | Push local (Opción A) ante eventos de pedido | ✅ existe |
+| **notifications** | Outbox de avisos (BR-012) desde Domain Events de pedido; `GET /mine` | ✅ slice real (D-045) |
 
 > `payments` NO es módulo propio hoy: el pago está **simulado dentro de orders**.
 > Se extrae a `modules/payments/` solo si entra Stripe/AZURE real (regla 43).
@@ -35,7 +35,8 @@ auth        → (cross-cutting, valida JWT de TODOS vía guards; no es dependenc
 orders  ──→ products      (lee precio / disponibilidad al crear pedido)
 orders  ──→ users         (lee quién pide; o vía JWT sub)
 orders  ──→ settings      (lee umbrales de semáforo / horario)
-orders  ──▷ notifications  (EMITE eventos; notifications se suscribe — vía Event Bus)
+orders  ──▷ notifications  (EMITE Domain Events; notifications se auto-suscribe vía
+                            DomainEventDispatcher — shared/events, despacho en la tx. D-045)
 
 products    → nadie
 users       → nadie

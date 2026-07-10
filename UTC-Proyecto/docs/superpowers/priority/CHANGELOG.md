@@ -4,6 +4,25 @@ Registro canónico de cambios significativos del proyecto, documentados con fech
 
 ---
 
+## 2026-07-10
+
+### `(pendiente de commit)` — Value Objects + bounded context notifications (Domain Events + Outbox) (12:30)
+
+**Cambio:** Última iteración de profundidad DDD sobre `orders` + nuevo slice `notifications`.
+
+**Descripción:**
+- **#2 Value Objects (D-044):** kernel gana `ValueObject<T>`; `orders/domain/value-objects/` con `Money` (centavos enteros, sin float drift), `Quantity` (entero ≥1), `OrderId`/`ProductId` (branded). `Order.place()` calcula con VOs; el mapper convierte en el borde. Contracts (DTO) siguen en primitivos.
+- **#1 notifications (D-045):** vuelven los Domain Events al kernel (`AggregateRoot.record/pullEvents` + `DomainEvent`); `Order` emite `OrderAccepted/Readied/Cancelled/NotPickedUp` (BR-012). `DomainEventDispatcher` global (`shared/events`, handlers auto-registrados, despacho en la tx). Slice `notifications`: tabla **outbox** (migración `1782940000000`, UNIQUE de-dup + FK CASCADE), handler que materializa el evento en la tx del pedido, `GET /notifications/mine` (JWT, scoped por sub). `expireOverdue` también emite.
+- **Fix P0 preexistente:** `AuthService` inyectaba `AuditLogService` (desde `3a14e14`) sin proveerlo en `AuthModule` → la app no arrancaba. Se creó `LoggingModule` @Global; se quitaron providers duplicados.
+
+**Explicación técnica:** cierra la primitive obsession del agregado y elimina la duplicación de BR-012 (antes re-derivada en el cliente por polling+diff): el agregado es ahora la fuente única del evento y el outbox la verdad del servidor. Outbox transaccional = atomicidad (no hay aviso sin cambio ni cambio sin aviso) + de-dup por UNIQUE.
+
+**Decisión:** D-044 (Value Objects), D-045 (notifications + Domain Events + Outbox + LoggingModule).
+
+**Evidencia:** `tsc` 0 + build 0 + **app arranca** (`Nest application successfully started`, ruta `GET /notifications/mine` mapeada, 0 errores DI) + migración aplicada en Postgres real + smoke test outbox (de-dup `INSERT 0 1`→`INSERT 0 0`; FK rechaza pedido inexistente) + 115 tests verdes. Hash pendiente (commit manual del usuario, §23).
+
+---
+
 ## 2026-07-03
 
 ### `fa25e3f` — Algoritmo de ejecución (14:00)

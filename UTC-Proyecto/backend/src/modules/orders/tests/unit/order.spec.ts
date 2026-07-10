@@ -4,15 +4,25 @@ import {
   OrderStatus,
   OrderSnapshot,
 } from '../../domain/entities/Order';
+import { OrderId, ProductId } from '../../domain/value-objects/ids';
+import { Quantity } from '../../domain/value-objects/quantity';
+import {
+  OrderAccepted,
+  OrderReadied,
+  OrderCancelled,
+  OrderNotPickedUp,
+} from '../../domain/events/order-events';
 
 const NOW = new Date('2026-07-08T12:00:00.000Z');
+const OWNER = 'owner-sub-1';
 
 function make(status: OrderStatus, over: Partial<OrderSnapshot> = {}): Order {
   return Order.rehydrate({
-    id: 'o1',
+    id: OrderId.of('o1'),
     orderNumber: 42,
+    ownerUserId: OWNER,
     status,
-    items: [{ productId: 'p1', quantity: 2 }],
+    items: [{ productId: ProductId.of('p1'), quantity: Quantity.of(2) }],
     acceptedAt: null,
     readyAt: null,
     pickupDeadline: null,
@@ -25,28 +35,28 @@ function make(status: OrderStatus, over: Partial<OrderSnapshot> = {}): Order {
 describe('Order.cancelByOwner (§3.8/§3.9)', () => {
   it('cancela un PENDING → cancelled, sin liberar stock', () => {
     const o = make(OrderStatus.PENDING);
-    expect(o.cancelByOwner()).toBe('none');
+    expect(o.cancelByOwner(NOW)).toBe('none');
     expect(o.status).toBe(OrderStatus.CANCELLED);
   });
 
   it('cancela un READY → cancelled y LIBERA stock (excedente reofertable, D-037)', () => {
     const o = make(OrderStatus.READY);
-    expect(o.cancelByOwner()).toBe('release');
+    expect(o.cancelByOwner(NOW)).toBe('release');
     expect(o.status).toBe(OrderStatus.CANCELLED);
   });
 
   it('cancela un READY_LATER → release', () => {
-    expect(make(OrderStatus.READY_LATER).cancelByOwner()).toBe('release');
+    expect(make(OrderStatus.READY_LATER).cancelByOwner(NOW)).toBe('release');
   });
 
   it('RECHAZA cancelar en PREPARING (no cancelable) y no muta', () => {
     const o = make(OrderStatus.PREPARING);
-    expect(() => o.cancelByOwner()).toThrow(DomainError);
+    expect(() => o.cancelByOwner(NOW)).toThrow(DomainError);
     expect(o.status).toBe(OrderStatus.PREPARING);
   });
 
   it('RECHAZA cancelar un terminal (picked_up)', () => {
-    expect(() => make(OrderStatus.PICKED_UP).cancelByOwner()).toThrow(
+    expect(() => make(OrderStatus.PICKED_UP).cancelByOwner(NOW)).toThrow(
       DomainError,
     );
   });
@@ -117,5 +127,55 @@ describe('Order.applyAdminTransition (BR-004)', () => {
       DomainError,
     );
     expect(o.status).toBe(OrderStatus.PENDING);
+  });
+});
+
+describe('Order Domain Events (BR-012)', () => {
+  it('PENDING → PREPARING emite OrderAccepted (con receptor y hora)', () => {
+    const o = make(OrderStatus.PENDING);
+    o.applyAdminTransition(OrderStatus.PREPARING, NOW);
+    const events = o.pullEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toBeInstanceOf(OrderAccepted);
+    expect(events[0].occurredAt).toEqual(NOW);
+    const accepted = events[0] as OrderAccepted;
+    expect(accepted.recipientUserId).toBe(OWNER);
+    expect(accepted.orderNumber).toBe(42);
+    expect(accepted.eventType).toBe('order.accepted');
+  });
+
+  it('PREPARING → READY emite OrderReadied', () => {
+    const o = make(OrderStatus.PREPARING);
+    o.applyAdminTransition(OrderStatus.READY, NOW);
+    expect(o.pullEvents()[0]).toBeInstanceOf(OrderReadied);
+  });
+
+  it('READY → NOT_PICKED_UP emite OrderNotPickedUp', () => {
+    const o = make(OrderStatus.READY);
+    o.applyAdminTransition(OrderStatus.NOT_PICKED_UP, NOW);
+    expect(o.pullEvents()[0]).toBeInstanceOf(OrderNotPickedUp);
+  });
+
+  it('cancelByOwner emite OrderCancelled', () => {
+    const o = make(OrderStatus.PENDING);
+    o.cancelByOwner(NOW);
+    expect(o.pullEvents()[0]).toBeInstanceOf(OrderCancelled);
+  });
+
+  it('READY → PICKED_UP y READY → READY_LATER NO emiten (BR-012)', () => {
+    const pickedUp = make(OrderStatus.READY);
+    pickedUp.applyAdminTransition(OrderStatus.PICKED_UP, NOW);
+    expect(pickedUp.pullEvents()).toHaveLength(0);
+
+    const later = make(OrderStatus.READY);
+    later.applyAdminTransition(OrderStatus.READY_LATER, NOW);
+    expect(later.pullEvents()).toHaveLength(0);
+  });
+
+  it('pullEvents es idempotente: la 2ª llamada da []', () => {
+    const o = make(OrderStatus.PENDING);
+    o.applyAdminTransition(OrderStatus.PREPARING, NOW);
+    o.pullEvents();
+    expect(o.pullEvents()).toHaveLength(0);
   });
 });

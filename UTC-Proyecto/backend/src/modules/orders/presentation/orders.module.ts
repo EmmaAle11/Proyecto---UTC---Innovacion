@@ -10,7 +10,6 @@ import { AppSettingsEntity } from '../../../infrastructure/database/entities/app
 import { OrdersService } from '../application/orders.service';
 import { OrderExpiryScheduler } from '../application/order-expiry.scheduler';
 import { PaymentGatewayService } from '../../../application/payments/payment-gateway.service';
-import { AuditLogService } from '../../../shared/logging/audit-log.service';
 import { OrdersController } from './orders.controller';
 import { ORDER_REPOSITORY } from '../domain/ports/order.repository.port';
 import { TypeOrmOrderRepository } from '../infrastructure/persistence/order.repository';
@@ -32,7 +31,6 @@ import { TypeOrmOrderRepository } from '../infrastructure/persistence/order.repo
     OrdersService,
     OrderExpiryScheduler,
     PaymentGatewayService,
-    AuditLogService,
     { provide: ORDER_REPOSITORY, useClass: TypeOrmOrderRepository },
   ],
 })

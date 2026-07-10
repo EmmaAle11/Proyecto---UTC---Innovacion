@@ -43,17 +43,20 @@ describe('Order.place (BR-015 / spec #4)', () => {
       }),
     );
     expect(plan.status).toBe(OrderStatus.PENDING);
-    expect(plan.lines[0]).toMatchObject({ unitPrice: 38, subtotal: 76 });
-    expect(plan.lines[1]).toMatchObject({ unitPrice: 65, subtotal: 65 });
-    expect(plan.total).toBe(141); // 38*2 + 65*1
+    expect(plan.lines[0].unitPrice.amount).toBe(38);
+    expect(plan.lines[0].subtotal.amount).toBe(76);
+    expect(plan.lines[1].unitPrice.amount).toBe(65);
+    expect(plan.lines[1].subtotal.amount).toBe(65);
+    expect(plan.total.amount).toBe(141); // 38*2 + 65*1
   });
 
   it('§3.11: cobra el precio de REOFERTA cuando está puesto (no el de catálogo)', () => {
     const plan = Order.place(
       input({ products: [snap({ price: 38, reofferPrice: 20 })] }),
     );
-    expect(plan.lines[0]).toMatchObject({ unitPrice: 20, subtotal: 40 }); // 20 * 2
-    expect(plan.total).toBe(40);
+    expect(plan.lines[0].unitPrice.amount).toBe(20); // 20 * 2
+    expect(plan.lines[0].subtotal.amount).toBe(40);
+    expect(plan.total.amount).toBe(40);
   });
 
   it('rechaza producto inexistente', () => {
@@ -97,5 +100,25 @@ describe('Order.place (BR-015 / spec #4)', () => {
     const en45min = new Date(NOW.getTime() + 45 * 60 * 1000).toISOString();
     const plan = Order.place(input({ scheduledForRaw: en45min }));
     expect(plan.scheduledFor).toEqual(new Date(en45min));
+  });
+
+  // P4 (D-044/D-045 audit): el "mismo día" se evalúa en America/Mexico_City, NO en la TZ del
+  // proceso. Estas fechas cruzan la medianoche UTC pero son el MISMO día mexicano (y viceversa),
+  // así que el resultado es correcto en cualquier host (Intl con timeZone explícito).
+  it('horario: acepta recogida por la tarde-noche aunque cruce la medianoche UTC (mismo día MX)', () => {
+    const nowMxEvening = new Date('2026-07-09T23:40:00Z'); // 17:40 en MX (UTC-6), 9 jul
+    const target = '2026-07-10T00:20:00Z'; // 18:20 en MX, mismo día MX (9 jul), +40 min
+    const plan = Order.place(
+      input({ now: nowMxEvening, scheduledForRaw: target }),
+    );
+    expect(plan.scheduledFor).toEqual(new Date(target));
+  });
+
+  it('horario: rechaza recogida que ya es el día MX siguiente (aunque falten horas)', () => {
+    const nowMxEvening = new Date('2026-07-09T23:40:00Z'); // 17:40 MX, 9 jul
+    const target = '2026-07-10T06:30:00Z'; // 00:30 MX, 10 jul → otro día MX
+    expect(() =>
+      Order.place(input({ now: nowMxEvening, scheduledForRaw: target })),
+    ).toThrow(DomainError);
   });
 });

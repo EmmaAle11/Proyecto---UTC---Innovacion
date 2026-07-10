@@ -1,5 +1,14 @@
 import { AggregateRoot } from '../../../../kernel/domain/AggregateRoot';
 import { DomainError } from '../../../../kernel/domain/DomainError';
+import { Money } from '../value-objects/money';
+import { Quantity } from '../value-objects/quantity';
+import { OrderId, ProductId } from '../value-objects/ids';
+import {
+  OrderAccepted,
+  OrderReadied,
+  OrderCancelled,
+  OrderNotPickedUp,
+} from '../events/order-events';
 
 /**
  * Estados del pedido — concepto de DOMINIO (el infra `enums.ts` comparte los mismos
@@ -20,15 +29,17 @@ export enum OrderStatus {
  *  efecto (intención); el adapter ejecuta el SQL sobre las filas de Product. */
 export type StockEffect = 'reserve' | 'release' | 'none';
 
-/** Línea del pedido — lo mínimo que las reglas de stock necesitan (productId + cantidad). */
+/** Línea del pedido con sus VOs de dominio (productId tipado + cantidad validada). */
 export interface OrderLine {
-  readonly productId: string;
-  readonly quantity: number;
+  readonly productId: ProductId;
+  readonly quantity: Quantity;
 }
 
 export interface OrderSnapshot {
-  id: string;
+  id: OrderId;
   orderNumber: number;
+  /** Keycloak sub del DUEÑO — receptor de las notificaciones (BR-014/BR-012). */
+  ownerUserId: string;
   status: OrderStatus;
   items: OrderLine[];
   acceptedAt: Date | null;
@@ -68,6 +79,16 @@ const CLIENT_CANCELLABLE: OrderStatus[] = [
 /** Anticipación mínima para programar una recogida (30 min, hora del servidor; spec #4). */
 const MIN_SCHEDULE_AHEAD_MS = 30 * 60 * 1000;
 
+/** Zona horaria del negocio (la cooperativa). El "día" se evalúa aquí, NO en la TZ del proceso
+ *  (un contenedor en UTC evaluaría mal el corte de medianoche). Coherente con el `AT TIME ZONE
+ *  'America/Mexico_City'` de las métricas en el adapter. */
+const COOP_TZ = 'America/Mexico_City';
+
+/** Día calendario (YYYY-MM-DD) de una fecha EN la zona de la cooperativa. */
+function coopDay(d: Date): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: COOP_TZ }).format(d);
+}
+
 /** Snapshot del producto que el adapter trae de la BD para que el dominio decida (BR-015). */
 export interface ProductSnapshot {
   readonly id: string;
@@ -79,21 +100,27 @@ export interface ProductSnapshot {
   readonly basePrepTimeSeconds: number;
 }
 
+/** Línea CRUDA de entrada (viene del DTO ya validado por class-validator). */
+export interface RawOrderLine {
+  readonly productId: string;
+  readonly quantity: number;
+}
+
 /** Entrada de creación: el adapter provee productos + promedios; el dominio valida y calcula. */
 export interface PlaceOrderInput {
-  readonly items: readonly OrderLine[];
+  readonly items: readonly RawOrderLine[];
   readonly products: readonly ProductSnapshot[];
   readonly avgPrepByProductId: Readonly<Record<string, number>>;
   readonly scheduledForRaw?: string | null;
   readonly now: Date;
 }
 
-/** Línea ya valorada (precio congelado + subtotal + tiempo de prep). El adapter la persiste. */
+/** Línea ya valorada (VOs de dominio: precio congelado + subtotal + cantidad). El adapter la persiste. */
 export interface PlacedLine {
-  readonly productId: string;
-  readonly quantity: number;
-  readonly unitPrice: number;
-  readonly subtotal: number;
+  readonly productId: ProductId;
+  readonly quantity: Quantity;
+  readonly unitPrice: Money;
+  readonly subtotal: Money;
   readonly prepTimeSeconds: number;
 }
 
@@ -101,7 +128,7 @@ export interface PlacedLine {
 export interface OrderPlan {
   readonly status: OrderStatus;
   readonly scheduledFor: Date | null;
-  readonly total: number;
+  readonly total: Money;
   readonly lines: readonly PlacedLine[];
 }
 
@@ -109,11 +136,15 @@ export interface OrderPlan {
  * Agregado Order. Dueño de las REGLAS de transición y de su efecto sobre el stock
  * (la INTENCIÓN). El CÓMO (lock pesimista, transacción, SQL de stock) vive en el adapter.
  * `now` se inyecta (hora del servidor, BR-005) para mantener el dominio determinista.
+ *
+ * Además EMITE Domain Events (BR-012) en sus transiciones notificables; el adapter los extrae
+ * con `pullEvents()` tras persistir y los despacha en la misma tx (bounded context notifications).
  */
-export class Order extends AggregateRoot<string> {
+export class Order extends AggregateRoot<OrderId> {
   private constructor(
-    id: string,
+    id: OrderId,
     public readonly orderNumber: number,
+    private readonly _ownerUserId: string,
     private _status: OrderStatus,
     public readonly items: readonly OrderLine[],
     private _acceptedAt: Date | null,
@@ -127,13 +158,13 @@ export class Order extends AggregateRoot<string> {
 
   /**
    * Factory de creación (BR-015/BR-006/spec #4). Valida disponibilidad, congela el precio
-   * del catálogo, calcula subtotales + total, y valida la hora programada — TODO regla de
-   * dominio. Devuelve un plan sin id (la BD asigna id/orderNumber; el pago lo autoriza el
-   * adapter). Lanza DomainError; la presentación lo mapea a 400 (D-039).
+   * del catálogo, calcula subtotales + total con VOs Money/Quantity (centavos exactos, sin
+   * float drift), y valida la hora programada — TODO regla de dominio. Devuelve un plan sin
+   * id (la BD asigna id/orderNumber; el pago lo autoriza el adapter). Lanza DomainError.
    */
   static place(input: PlaceOrderInput): OrderPlan {
     const byId = new Map(input.products.map((p) => [p.id, p]));
-    let total = 0;
+    let total = Money.zero();
     const lines = input.items.map((it) => {
       const product = byId.get(it.productId);
       if (!product) {
@@ -142,14 +173,15 @@ export class Order extends AggregateRoot<string> {
       if (!product.isAvailable) {
         throw new DomainError(`Producto no disponible: ${product.name}`);
       }
+      const quantity = Quantity.of(it.quantity);
       // §3.11 "Pon tu precio": si el producto está reofertado (reofferPrice puesto) se cobra
       // ese precio menor; si no, el de catálogo. Precio congelado al momento de compra (BR-015).
-      const unitPrice = product.reofferPrice ?? product.price;
-      const subtotal = Math.round(unitPrice * it.quantity * 100) / 100;
-      total += subtotal;
+      const unitPrice = Money.of(product.reofferPrice ?? product.price);
+      const subtotal = unitPrice.times(quantity);
+      total = total.add(subtotal);
       return {
-        productId: product.id,
-        quantity: it.quantity,
+        productId: ProductId.of(product.id),
+        quantity,
         unitPrice,
         subtotal,
         // J5: promedio real si hay muestras suficientes; si no, el tiempo base del producto.
@@ -160,7 +192,7 @@ export class Order extends AggregateRoot<string> {
     return {
       status: OrderStatus.PENDING,
       scheduledFor: Order.validateSchedule(input.scheduledForRaw, input.now),
-      total: Math.round(total * 100) / 100,
+      total,
       lines,
     };
   }
@@ -180,11 +212,9 @@ export class Order extends AggregateRoot<string> {
         'La recogida debe programarse con al menos 30 minutos de anticipación',
       );
     }
-    if (
-      target.getFullYear() !== now.getFullYear() ||
-      target.getMonth() !== now.getMonth() ||
-      target.getDate() !== now.getDate()
-    ) {
+    // "Mismo día" en la zona de la cooperativa, no en la TZ del proceso (P4: un contenedor
+    // en UTC cruzaría mal la medianoche mexicana y aceptaría/rechazaría el día equivocado).
+    if (coopDay(target) !== coopDay(now)) {
       throw new DomainError('Solo puedes programar la recogida para hoy');
     }
     return target;
@@ -195,6 +225,7 @@ export class Order extends AggregateRoot<string> {
     return new Order(
       s.id,
       s.orderNumber,
+      s.ownerUserId,
       s.status,
       s.items,
       s.acceptedAt,
@@ -222,8 +253,9 @@ export class Order extends AggregateRoot<string> {
   }
 
   /**
-   * Transición del ADMIN (BR-004): valida contra ALLOWED_TRANSITIONS, fija timestamps y
-   * devuelve el efecto de stock. Idempotente: mismo estado → no-op ('none').
+   * Transición del ADMIN (BR-004): valida contra ALLOWED_TRANSITIONS, fija timestamps,
+   * EMITE el evento notificable (BR-012) y devuelve el efecto de stock. Idempotente:
+   * mismo estado → no-op ('none', sin evento).
    */
   applyAdminTransition(target: OrderStatus, now: Date): StockEffect {
     if (this._status === target) return 'none'; // idempotente
@@ -234,6 +266,7 @@ export class Order extends AggregateRoot<string> {
       );
     }
     this._status = target;
+    this.recordEventFor(target, now);
     switch (target) {
       case OrderStatus.PREPARING:
         this._acceptedAt = now;
@@ -252,8 +285,8 @@ export class Order extends AggregateRoot<string> {
     }
   }
 
-  /** Cancelación del CLIENTE (§3.8/§3.9). Libera stock solo si ya estaba preparado. */
-  cancelByOwner(): StockEffect {
+  /** Cancelación del CLIENTE (§3.8/§3.9). Libera stock solo si ya estaba preparado; emite evento. */
+  cancelByOwner(now: Date): StockEffect {
     if (!CLIENT_CANCELLABLE.includes(this._status)) {
       throw new DomainError(
         'Solo puedes cancelar un pedido pendiente o uno listo que aún no recogiste',
@@ -263,10 +296,13 @@ export class Order extends AggregateRoot<string> {
       this._status === OrderStatus.READY ||
       this._status === OrderStatus.READY_LATER;
     this._status = OrderStatus.CANCELLED;
+    this.record(
+      new OrderCancelled(this.id, this.orderNumber, this._ownerUserId, now),
+    );
     return wasPrepared ? 'release' : 'none';
   }
 
-  /** Extender un pedido listo para recogerlo después (§3.10: ready → ready_later). */
+  /** Extender un pedido listo para recogerlo después (§3.10: ready → ready_later). Sin notificación (BR-012). */
   extendByOwner(): StockEffect {
     if (this._status !== OrderStatus.READY) {
       throw new DomainError(
@@ -275,5 +311,41 @@ export class Order extends AggregateRoot<string> {
     }
     this._status = OrderStatus.READY_LATER;
     return 'none';
+  }
+
+  /**
+   * Mapea el estado destino al Domain Event notificable (BR-012). picked_up / ready_later
+   * NO notifican → sin evento. Se llama YA con el estado nuevo aplicado.
+   */
+  private recordEventFor(target: OrderStatus, now: Date): void {
+    switch (target) {
+      case OrderStatus.PREPARING:
+        this.record(
+          new OrderAccepted(this.id, this.orderNumber, this._ownerUserId, now),
+        );
+        break;
+      case OrderStatus.READY:
+        this.record(
+          new OrderReadied(this.id, this.orderNumber, this._ownerUserId, now),
+        );
+        break;
+      case OrderStatus.NOT_PICKED_UP:
+        this.record(
+          new OrderNotPickedUp(
+            this.id,
+            this.orderNumber,
+            this._ownerUserId,
+            now,
+          ),
+        );
+        break;
+      case OrderStatus.CANCELLED:
+        this.record(
+          new OrderCancelled(this.id, this.orderNumber, this._ownerUserId, now),
+        );
+        break;
+      default:
+        break; // picked_up / ready_later → sin notificación
+    }
   }
 }

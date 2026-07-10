@@ -32,7 +32,10 @@ import { PaymentGatewayService } from '../../../../application/payments/payment-
 import { CircuitOpenError } from '../../../../shared/resilience/circuit-breaker';
 import { DomainError } from '../../../../kernel/domain/DomainError';
 import { Order } from '../../domain/entities/Order';
+import { OrderId } from '../../domain/value-objects/ids';
+import { OrderNotPickedUp } from '../../domain/events/order-events';
 import { AuditLogService } from '../../../../shared/logging/audit-log.service';
+import { DomainEventDispatcher } from '../../../../shared/events/domain-event-dispatcher';
 import { OrderMapper, toOrderResponse } from './order.mapper';
 
 /**
@@ -94,6 +97,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
     private readonly profiles: Repository<UserProfileEntity>,
     private readonly paymentGateway: PaymentGatewayService,
     private readonly auditLog: AuditLogService,
+    private readonly events: DomainEventDispatcher,
   ) {}
 
   // --- Creación (snapshot de precio + pago + circuit breaker), atómica ---------------------
@@ -133,7 +137,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
     const payStatus =
       input.payMethod === PaymentMethod.EFECTIVO
         ? PaymentStatus.PENDING
-        : await this.authorizeCardPayment(plan.total);
+        : await this.authorizeCardPayment(plan.total.amount);
 
     // Tx CORTA: solo persistir (sin I/O externo dentro). El pago ya está autorizado.
     const orderId = await this.dataSource.transaction(async (manager) => {
@@ -141,7 +145,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
         manager.getRepository(OrderEntity).create({
           user: profile,
           status: plan.status,
-          totalAmount: plan.total.toFixed(2),
+          totalAmount: plan.total.toString(),
           scheduledFor: plan.scheduledFor,
           branchId: input.branchId ?? null,
           branchName: input.branchName ?? null,
@@ -154,9 +158,9 @@ export class TypeOrmOrderRepository implements IOrderRepository {
             order,
             // El dominio ya validó que cada producto existe → byId.get es seguro.
             product: byId.get(l.productId)!,
-            quantity: l.quantity,
-            unitPrice: l.unitPrice.toFixed(2),
-            subtotal: l.subtotal.toFixed(2),
+            quantity: l.quantity.value,
+            unitPrice: l.unitPrice.toString(),
+            subtotal: l.subtotal.toString(),
             prepTimeSeconds: l.prepTimeSeconds,
           }),
         ),
@@ -167,7 +171,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
           order,
           method: input.payMethod,
           status: payStatus,
-          amount: plan.total.toFixed(2),
+          amount: plan.total.toString(),
         }),
       );
 
@@ -213,6 +217,8 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       if (status === OrderStatus.READY) {
         await this.recordPrepTimes(manager, order, now); // BR-007
       }
+      // BR-012: materializa el/los evento(s) del agregado en el outbox, en ESTA tx (atómico).
+      await this.events.dispatch(domain.pullEvents(), manager);
       return toOrderResponse(order);
     });
     if (from !== null) {
@@ -240,11 +246,14 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       if (!order) throw new NotFoundException('Pedido no encontrado');
 
       from = order.status;
+      const now = new Date(); // BR-005: hora del servidor (sella el evento de cancelación)
       const domain = OrderMapper.toDomain(order);
-      const effect = this.decide(() => domain.cancelByOwner());
+      const effect = this.decide(() => domain.cancelByOwner(now));
       OrderMapper.applyToEntity(domain, order);
       await this.applyStock(manager, order, effect); // D-037: excedente si ya estaba preparado
       await repo.save(order);
+      // BR-012: evento de cancelación al outbox, en ESTA tx (atómico con el cambio de estado).
+      await this.events.dispatch(domain.pullEvents(), manager);
       return toOrderResponse(order);
     });
     if (from !== null) {
@@ -325,6 +334,18 @@ export class TypeOrmOrderRepository implements IOrderRepository {
             .setParameter('qty', byProduct.get(pid))
             .execute();
         }
+        // BR-012: este flip NO pasa por el agregado (es masivo por SQL), así que se construyen
+        // los eventos OrderNotPickedUp desde las filas vencidas y se despachan en ESTA tx.
+        const events = orders.map(
+          (o) =>
+            new OrderNotPickedUp(
+              OrderId.of(o.id),
+              o.orderNumber,
+              o.user?.keycloakId ?? '',
+              now,
+            ),
+        );
+        await this.events.dispatch(events, manager);
       }
       return ids;
     });

@@ -3,6 +3,8 @@ import type { DataSource } from 'typeorm';
 import { OrdersService } from './orders.service';
 import { TypeOrmOrderRepository } from '../infrastructure/persistence/order.repository';
 import { AuditLogService } from '../../../shared/logging/audit-log.service';
+import { DomainEventDispatcher } from '../../../shared/events/domain-event-dispatcher';
+import type { DomainEvent } from '../../../kernel/domain/DomainEvent';
 import { PaymentGatewayService } from '../../../application/payments/payment-gateway.service';
 import {
   OrderStatus,
@@ -185,6 +187,14 @@ function buildService(opts: {
   const auditLog = {
     logOrderStateChange: jest.fn(),
   } as unknown as AuditLogService;
+  // Dispatcher de Domain Events (BR-012): stub que CAPTURA los eventos despachados por el repo
+  // para poder afirmar sobre ellos; no ejecuta handlers (eso vive en el slice notifications).
+  const dispatchedEvents: DomainEvent[] = [];
+  const events = {
+    dispatch: jest.fn(async (evs: readonly DomainEvent[]) => {
+      dispatchedEvents.push(...evs);
+    }),
+  } as unknown as DomainEventDispatcher;
   const repo = new TypeOrmOrderRepository(
     dataSource,
     repos.OrderEntity as never,
@@ -192,6 +202,7 @@ function buildService(opts: {
     repos.UserProfileEntity as never,
     paymentGateway,
     auditLog,
+    events,
   );
   return {
     service: new OrdersService(repo),
@@ -201,6 +212,7 @@ function buildService(opts: {
     prepSave,
     congestionWhere,
     stockOps,
+    dispatchedEvents,
   };
 }
 
@@ -500,8 +512,8 @@ describe('OrdersService.updateStatus', () => {
       pickupDeadline: null,
       pickedUpAt: null,
       items: [
-        { id: 'it1', product: { id: 'p1' } },
-        { id: 'it2', product: { id: 'p2' } },
+        { id: 'it1', product: { id: 'p1' }, quantity: 1 },
+        { id: 'it2', product: { id: 'p2' }, quantity: 1 },
       ],
     };
     const { service, prepSave } = buildService({ order });
@@ -539,6 +551,17 @@ describe('OrdersService inventario (stock dark kitchen, D-037)', () => {
     expect(stockOps.every((o) => o.expr.includes('GREATEST(0'))).toBe(true);
     expect(stockOps).toContainEqual(expect.objectContaining({ id: 'p1', qty: 2 }));
     expect(stockOps).toContainEqual(expect.objectContaining({ id: 'p2', qty: 1 }));
+  });
+
+  it('BR-012: aceptar despacha el Domain Event OrderAccepted en la tx', async () => {
+    const { service, dispatchedEvents } = buildService({
+      order: withItems(OrderStatus.PENDING, [
+        { id: 'i1', product: { id: 'p1' }, quantity: 1 },
+      ]),
+    });
+    await service.updateStatus('o1', OrderStatus.PREPARING, 'admin@test');
+    expect(dispatchedEvents).toHaveLength(1);
+    expect(dispatchedEvents[0].eventType).toBe('order.accepted');
   });
 
   it('entregar (→picked_up) NO toca el stock (ya se apartó al aceptar)', async () => {
@@ -647,6 +670,7 @@ describe('OrdersService inventario (stock dark kitchen, D-037)', () => {
       repos.UserProfileEntity as never,
       { authorize: jest.fn() } as unknown as PaymentGatewayService,
       { logOrderStateChange: jest.fn() } as unknown as AuditLogService,
+      { dispatch: jest.fn() } as unknown as DomainEventDispatcher,
     );
     const service = new OrdersService(repo);
     await expect(service.cancelOwn('o1', USER.sub)).rejects.toBeInstanceOf(
@@ -681,6 +705,7 @@ describe('OrdersService inventario (stock dark kitchen, D-037)', () => {
       repos.UserProfileEntity as never,
       { authorize: jest.fn() } as unknown as PaymentGatewayService,
       { logOrderStateChange: jest.fn() } as unknown as AuditLogService,
+      { dispatch: jest.fn() } as unknown as DomainEventDispatcher,
     );
     const service = new OrdersService(repo);
     await expect(service.extendOwn('o1', USER.sub)).rejects.toBeInstanceOf(
