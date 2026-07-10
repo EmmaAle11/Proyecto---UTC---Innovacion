@@ -794,14 +794,15 @@ it('cliente A no puede ver orden de cliente B', async () => {
 **Riesgo:** PICKED_UP → PREPARING (revivir orden).
 
 **Mecanismo:**
-- `ALLOWED_TRANSITIONS[PICKED_UP] = []` (terminal).
-- `OrderPolicy.canTransitionTo()` valida.
+- `ALLOWED_TRANSITIONS[PICKED_UP] = []` (terminal, en el agregado `Order`).
+- `order.applyAdminTransition(target, now)` valida contra esa tabla y lanza `DomainError` si no.
 
-**Test obligatorio:**
+**Test obligatorio** (estilo `order.spec.ts` real — `make()` = `Order.rehydrate(...)`):
 ```typescript
-it('no permite transiciones inválidas', async () => {
-  const order = Order.create({ status: PICKED_UP, ... });
-  expect(() => order.canTransitionTo(PREPARING)).toThrow();
+it('no permite transiciones inválidas y no muta el estado', () => {
+  const order = make(OrderStatus.PICKED_UP); // rehidrata un pedido terminal
+  expect(() => order.applyAdminTransition(OrderStatus.PREPARING, NOW)).toThrow(DomainError);
+  expect(order.status).toBe(OrderStatus.PICKED_UP);
 });
 ```
 
