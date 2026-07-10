@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import type { IUserProfileRepository } from '../../domain/user-profile/user-profile.repository';
-import { USER_PROFILE_REPOSITORY } from '../../domain/user-profile/user-profile.repository';
+import type { IUserProfileRepository } from './user-profile.repository.port';
+import { USER_PROFILE_REPOSITORY } from './user-profile.repository.port';
 import {
   KeycloakAdminService,
   Tokens,
@@ -10,7 +10,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { RefreshDto } from './dto/refresh.dto';
-import { UserRole } from '../../infrastructure/database/entities/enums';
+import { UserRole } from '../../domain/enums';
 
 /** Orquesta el registro y login del cliente contra Keycloak + perfil local (ver D-014). */
 @Injectable()

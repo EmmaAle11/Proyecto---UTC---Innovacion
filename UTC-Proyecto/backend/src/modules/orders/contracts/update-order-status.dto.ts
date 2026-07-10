@@ -1,5 +1,5 @@
 import { IsEnum } from 'class-validator';
-import { OrderStatus } from '../../../infrastructure/database/entities/enums';
+import { OrderStatus } from '../domain/entities/Order';
 
 /** Cambio de estado de un pedido (admin). La transición válida la decide el servicio (BR-004). */
 export class UpdateOrderStatusDto {

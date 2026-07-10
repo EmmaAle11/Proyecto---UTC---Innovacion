@@ -12,7 +12,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { PaymentMethod } from '../../../infrastructure/database/entities/enums';
+import { PaymentMethod } from '../../../domain/enums';
 
 /** Una línea del pedido: SOLO producto + cantidad (el precio lo pone el backend, BR-015). */
 export class CreateOrderItemDto {

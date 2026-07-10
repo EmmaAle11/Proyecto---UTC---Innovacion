@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PaymentStatus } from '../../infrastructure/database/entities/enums';
+import { PaymentStatus } from '../../domain/enums';
 import { CircuitBreaker } from '../../shared/resilience/circuit-breaker';
 
 /**

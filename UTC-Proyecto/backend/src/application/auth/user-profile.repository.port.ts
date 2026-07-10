@@ -1,5 +1,7 @@
+// Puerto de persistencia de perfiles. Habla en la entidad TypeORM como modelo compartido
+// (tradeoff clásico anémico, D-041); su implementación vive en infrastructure/.
 import { UserProfileEntity } from '../../infrastructure/database/entities/user-profile.entity';
-import { UserRole } from '../../infrastructure/database/entities/enums';
+import { UserRole } from '../../domain/enums';
 
 export interface IUserProfileRepository {
   findByKeycloakId(keycloakId: string): Promise<UserProfileEntity | null>;

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserProfileEntity } from '../entities/user-profile.entity';
-import { IUserProfileRepository } from '../../../domain/user-profile/user-profile.repository';
+import { IUserProfileRepository } from '../../../application/auth/user-profile.repository.port';
 import { UserRole } from '../entities/enums';
 
 @Injectable()

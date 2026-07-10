@@ -5,8 +5,8 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { OptimisticLockVersionMismatchError } from 'typeorm';
-import type { ISettingsRepository } from '../../domain/settings/settings.repository';
-import { SETTINGS_REPOSITORY } from '../../domain/settings/settings.repository';
+import type { ISettingsRepository } from './settings.repository.port';
+import { SETTINGS_REPOSITORY } from './settings.repository.port';
 import { AppSettingsEntity } from '../../infrastructure/database/entities/app-settings.entity';
 import { UpdateCongestionDto } from './dto/update-congestion.dto';
 

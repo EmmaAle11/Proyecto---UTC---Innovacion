@@ -10,7 +10,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
-import { ProductStatus } from '../../../infrastructure/database/entities/enums';
+import { ProductStatus } from '../../../domain/enums';
 import { IMAGE_URL_PATTERN } from './product.constants';
 
 /** Alta de producto (rules §7: precio>0, prep>0, stock≥0, estado∈enum). */

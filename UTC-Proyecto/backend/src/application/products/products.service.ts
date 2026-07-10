@@ -6,8 +6,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { OptimisticLockVersionMismatchError } from 'typeorm';
-import type { IProductRepository } from '../../domain/product/product.repository';
-import { PRODUCT_REPOSITORY } from '../../domain/product/product.repository';
+import type { IProductRepository } from './product.repository.port';
+import { PRODUCT_REPOSITORY } from './product.repository.port';
 import { ProductEntity } from '../../infrastructure/database/entities/product.entity';
 import { DomainError } from '../../kernel/domain/DomainError';
 import {

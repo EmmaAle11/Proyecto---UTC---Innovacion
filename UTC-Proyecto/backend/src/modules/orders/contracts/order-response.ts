@@ -1,10 +1,5 @@
 import { OrderStatus } from '../domain/entities/Order';
-// ponytail: PaymentMethod/PaymentStatus aún se importan de infra (deuda de payments: ese
-// bounded context todavía no tiene sus enums en dominio). Fuera del alcance de esta rebanada.
-import {
-  PaymentMethod,
-  PaymentStatus,
-} from '../../../infrastructure/database/entities/enums';
+import { PaymentMethod, PaymentStatus } from '../../../domain/enums';
 
 /** Semáforo de congestión calculado en el servidor (D-019). */
 export interface CongestionResponse {

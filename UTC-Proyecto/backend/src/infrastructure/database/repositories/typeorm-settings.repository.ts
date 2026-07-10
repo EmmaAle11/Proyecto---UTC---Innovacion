@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AppSettingsEntity } from '../entities/app-settings.entity';
-import { ISettingsRepository } from '../../../domain/settings/settings.repository';
+import { ISettingsRepository } from '../../../application/settings/settings.repository.port';
 
 @Injectable()
 export class TypeOrmSettingsRepository implements ISettingsRepository {

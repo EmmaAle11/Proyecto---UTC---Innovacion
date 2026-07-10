@@ -10,7 +10,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
-import { ProductStatus } from '../../../infrastructure/database/entities/enums';
+import { ProductStatus } from '../../../domain/enums';
 import { IMAGE_URL_PATTERN } from './product.constants';
 
 /** Edición parcial de producto: todos los campos opcionales (sin mapped-types). */

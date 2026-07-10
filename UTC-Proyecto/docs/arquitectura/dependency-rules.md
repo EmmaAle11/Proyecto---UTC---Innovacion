@@ -45,6 +45,16 @@ Infrastructure ─────────────────────�
 Regla mnemónica: **si borro toda la carpeta `infrastructure/`, el `domain/` debe
 seguir compilando.** Si no compila, hay una flecha prohibida.
 
+> **Excepción documentada (D-043, hermana de D-041) — puertos clásicos entity-as-model.**
+> Los contextos SIN slice propio (products-CRUD, settings, identity/auth) usan la **entidad
+> TypeORM como modelo compartido** (estilo anémico deliberado; forzarles modelos de dominio +
+> mappers es la ceremonia que D-038/regla 46 rechazan). Por eso su puerto vive en
+> `application/<ctx>/*.repository.port.ts` y **sí** importa la entidad (`Application → Infra tipos`).
+> Es una excepción **acotada y consciente**, no una flecha libre: el `domain/` puro (sólo
+> vocabulario/`enums.ts`) y todo `modules/*/domain` siguen sin tocar `infrastructure/`. La
+> regla mnemónica se cumple para el dominio; la excepción es sólo para estos puertos de
+> persistencia clásicos.
+
 ---
 
 ## 3. Nivel de módulo (resumen — detalle en bounded-contexts.md)

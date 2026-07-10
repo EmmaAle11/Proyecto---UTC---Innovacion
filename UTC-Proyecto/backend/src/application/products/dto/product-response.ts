@@ -1,5 +1,5 @@
 import { ProductEntity } from '../../../infrastructure/database/entities/product.entity';
-import { ProductStatus } from '../../../infrastructure/database/entities/enums';
+import { ProductStatus } from '../../../domain/enums';
 
 /**
  * Contrato del catálogo expuesto al cliente. Refleja el esquema (architecture §5)
