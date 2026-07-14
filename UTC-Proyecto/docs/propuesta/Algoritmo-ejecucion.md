@@ -290,3 +290,93 @@ Antes de cambios en ramas principales:
 ---
 
 **Puerto del backend:** 3002 (especificado en `backend/.env`; `PORT=3002`).
+
+---
+
+## 20. Ampliación del alcance (2026-07-14) — la cooperativa como negocio
+
+Hasta la sección 19, la aplicación resolvía **la fila**: pedir sin moverse, recoger con turno, y que la
+cooperativa cocine con orden. Esta ampliación resuelve una pregunta distinta y más difícil:
+**¿la cooperativa está ganando dinero, y quién es responsable de cada peso?**
+
+El detalle de cada frente vive en `docs/superpowers/`. Aquí va el algoritmo, en el orden en que se ejecuta.
+
+### 20.1 Las cuatro personas de la cooperativa
+
+Hasta ahora había **dos** roles (`user`, `admin`). Una cooperativa real la operan **tres personas más el
+administrador**, y **cada una ve solo lo suyo**:
+
+| Rol | Mueve el pedido | Ve el dinero | Ve al cliente | Ve los costos |
+|---|---|---|---|---|
+| 🍳 **cocina** | ✅ acepta y marca listo | ❌ | ❌ *(solo el código `#U-00042`)* | ❌ |
+| 📦 **inventario** | ❌ | ❌ | ❌ | ✅ **es su trabajo** |
+| 💵 **mostrador** | ✅ entrega | ✅ **cobra y da cambio** | ✅ | ❌ |
+| 🛡️ **admin** | ✅ | ✅ | ✅ | ✅ *(de **su** cooperativa)* |
+
+**El principio:** *cada transición la dispara quien tiene la información.* El cocinero es el único que sabe
+que la hamburguesa ya salió; el de mostrador es el único que sabe que el cliente ya está enfrente con el
+dinero.
+
+**Y la regla dura:** cada persona está **anclada a UNA cooperativa**, y esa pertenencia **viaja dentro de
+su credencial**. El servidor **jamás** le pregunta al dispositivo de qué sucursal viene.
+*(Hoy sí lo hace — y eso permite que el mostrador de una sucursal lea los pedidos de otra. Es el primer
+defecto que cierra esta ampliación.)*
+
+### 20.2 Fuente única de la verdad (backend ↔ app)
+
+Se detectaron **25 duplicaciones** de lógica entre el servidor y la aplicación — incluida **la fórmula del
+precio a cobrar**, escrita en los dos lados. El carrito podía mostrar un total y la caja cobrar otro.
+
+**La solución no es generar código:** es que la aplicación **lea los contratos del servidor
+directamente**, de forma que **si el servidor cambia un campo, la aplicación deja de compilar**. No hay
+paso de generación que alguien pueda olvidar, porque no hay nada que generar.
+
+### 20.3 Seguridad a nivel de fila (RLS)
+
+Se **probó experimentalmente** que activar Row Level Security con la configuración actual **no protegería
+nada**: la política más restrictiva que existe seguía devolviendo todas las filas, porque la aplicación se
+conecta a la base como **superusuario**.
+
+**Por eso el orden importa más que la medida:** primero se cierra el defecto en la aplicación, después se
+le quitan los privilegios de superusuario a la base, y **solo entonces** se escriben las políticas. Una
+seguridad que miente es peor que no tenerla.
+
+### 20.4 Inventario, costos y ganancia
+
+El encargado registra **lo que compra con su costo real** (*"3 kg de carne, $150"*). El sistema deriva el
+**costo por gramo** y, con la receta de cada producto, **cuánto cuesta cada platillo**. Tres piezas hacen
+que el número sea verdad:
+
+1. **El rendimiento.** 3 kg de carne **con hueso** no dan 3 kg útiles. Sin esto, **el costo siempre queda
+   por debajo del real**.
+2. **El IVA (16 %).** La comida preparada lo causa, *incluso para llevar*. De $65 de menú, la cooperativa
+   **se queda con $56.03**.
+3. **El costo se congela en el pedido.** Una compra de mañana **no puede cambiar el margen de ayer**.
+
+**Y el menú se ajusta solo:** si se acaba el pan, **la hamburguesa sale del menú** — diciendo exactamente
+qué falta.
+
+### 20.5 Efectivo, caja y factura
+
+El alumno **declara con qué billetes y monedas paga**; el servidor calcula el cambio y **apaga las
+denominaciones imposibles**. Mostrador **abre la caja con un fondo**, el sistema registra cada pieza que
+entra y sale, y **al cerrar hace el corte**: lo contado contra lo esperado, con la diferencia registrada y
+**un responsable**.
+
+Quien quiera factura lo indica **en su perfil** y llena una sola vez sus datos fiscales; el sistema produce
+el **layout para timbrar un CFDI 4.0** (no lo timbra: eso lo hace un proveedor autorizado).
+
+### 20.6 Orden de ejecución
+
+```txt
+1. CIMIENTOS   roles + alcance por cooperativa   ← cierra el defecto de autorización.
+                                                    Vale aunque nada más se construya.
+2. SSOT        matar las 25 duplicaciones        ← en buena parte, BORRA código
+3. RLS         quitar el superusuario, y después las políticas
+4. INVENTARIO  materia prima, costos, rendimiento, ganancia, disponibilidad derivada
+5. EFECTIVO    desglose, caja, corte, ticket, layout CFDI
+6. RECETAS     el panel por alimento + las alertas de inventario
+```
+
+**El paso 1 no se puede saltar:** el efectivo lo cobra *mostrador* y los costos los lleva *inventario*.
+Sin los roles, los pasos 4 y 5 no tienen dueño y habría que construirlos dos veces.

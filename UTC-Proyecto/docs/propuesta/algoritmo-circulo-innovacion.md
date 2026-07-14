@@ -54,6 +54,19 @@ Todo lo que hará, **todo lo que hará UTC Pick Sazón** — juntando la idea or
 - Antes de pedir puede echarle un ojo al **semáforo de la cooperativa**: 🟢 verde = hay poca fila, 🟡 amarillo = va concurrido, 🔴 rojo = está a tope. Así decide si pide ya o se espera un toque (ver §3.14).
 - ¿No alcanzaste a recogerlo? Puede **cancelar** o **extender para después**; si lo dejas, el alimento se puede **reofertar** como *Preparado | Sin tiempo de espera*.
 
+- **Personaliza su comida** (nuevo, §3.18): quita la lechuga, quita el jitomate, agrega el aderezo mango habanero — y deja una **nota** si hace falta ("no quiero ningún aderezo"). Lo que elija llega tal cual a la cocina.
+- **Si paga en efectivo, dice con qué va a pagar** (nuevo, §3.19): elige los billetes y las monedas ("2 de $50, 2 de $20 y 2 monedas de $5"). El sistema le dice **cuánto cambio va a recibir**, y quien está en el mostrador ya lo sabe antes de que llegue.
+- **Si quiere factura, lo dice en su perfil** (nuevo, §3.21) y llena sus datos fiscales una sola vez.
+
+**Para la cooperativa — ahora son CUATRO personas, no una (§3.17-bis):**
+
+Una cooperativa la operan **tres personas más el administrador**, y cada una ve **solo lo suyo**:
+
+- 🍳 **Cocina** — acepta los pedidos y los marca listos. Ve **qué preparar**, con las personalizaciones y las notas. **No ve dinero, ni precios, ni el nombre del cliente** (BR-014).
+- 📦 **Inventario** — registra la **materia prima** con su **costo real** ("3 kg de carne, $150"), lleva las recetas, las mermas y el conteo físico. **El sistema deriva del stock qué productos se pueden vender**: si se acaba la carne, la hamburguesa sale del menú sola.
+- 💵 **Mostrador** — cobra, **da el cambio contra una caja real**, entrega, re-oferta lo que no se recogió, genera el **layout de la factura** y **hace el corte del día**.
+- 🛡️ **Administrador del plantel** — todo lo de su cooperativa: menú, precios, métricas y personal. **Nunca otra cooperativa.**
+
 **Para la cooperativa (panel de admin):**
 
 - Da de alta y edita el **menú** (productos, precios, fotos, stock mínimo/máximo de "Preparados").
@@ -259,11 +272,164 @@ La integración con **pasarelas reales** (Mercado Pago/PayPal/procesador de tarj
 
 ---
 
+### 3.17-bis. Las cuatro personas de la cooperativa — quién ve qué
+
+Hasta esta versión solo existían **dos** roles: `user` y `admin`. Pero una cooperativa real la operan
+**tres personas más el administrador**, y cada una necesita **cosas distintas** — y, sobre todo, **no debe
+ver las demás**.
+
+| Rol | Qué hace | Qué **nunca** ve |
+|---|---|---|
+| 🍳 **cocina** | **Acepta** el pedido y lo **marca listo**. Ve qué preparar, con las personalizaciones y las notas. | Dinero, precios, costos, márgenes, **ni el nombre o correo del cliente** (BR-014). Solo el código `#U-00042`. |
+| 📦 **inventario** | Materia prima, **compras con costo**, recetas, mermas, conteo físico, **márgenes y ganancia**. | No cambia estados, no cobra, **no fija el precio de venta**. |
+| 💵 **mostrador** | Cobra, **da cambio**, lleva **la caja**, entrega, **re-oferta**, **factura** y registra la ganancia. | No edita el menú ni fija precios de lista; no ve costos ni márgenes. |
+| 🛡️ **admin** | Todo lo de **su** cooperativa: menú, precios, reoferta, métricas, personalización y **alta de personal**. | **Otra cooperativa.** |
+
+**Dos reglas duras que esto impone:**
+
+1. **Cada transición la dispara quien tiene la información.** El cocinero es el único que sabe que la
+   hamburguesa ya salió; el de mostrador es el único que sabe que el cliente ya está enfrente con el
+   dinero. Por eso **cocina** mueve `pendiente → en preparación → listo`, y **mostrador** mueve
+   `listo → recogido`.
+2. **El alcance por cooperativa lo decide el servidor, no el cliente.** Cada persona está **anclada a una
+   sola cooperativa**, y esa pertenencia viaja **dentro de su credencial**. La aplicación **jamás** le
+   pregunta al dispositivo de qué sucursal viene.
+
+**No existe un "super-admin"** que vea todas las cooperativas: dar de alta planteles y administradores se
+hace fuera de la aplicación. Un rol capaz de leerlo todo es una superficie de ataque que el proyecto no
+necesita.
+
+---
+
+### 3.18. Personalización del pedido — insumos y notas
+
+Cada producto tiene sus **"ramas"**: los insumos que lo componen. Y cada insumo es de una de **tres clases**:
+
+- **BASE** — el pan, la carne, la tortilla. **Se muestra pero no se puede quitar.** Si se acaba,
+  **el producto sale del menú** (§3.20).
+- **ESTÁNDAR** — la lechuga, el jitomate, la mayonesa. **Vienen por defecto y el alumno puede quitarlos.**
+- **EXTRA** — el tocino, el aderezo mango habanero. **No vienen, y el alumno puede agregarlos.**
+
+Más un campo de **nota libre** para lo que ninguna casilla cubre — el ejemplo real que dio origen a esto:
+*"no quiero ningún aderezo aunque haya seleccionado Mango Habanero"*.
+
+Lo que el alumno elige **se congela en el pedido**: si mañana la cooperativa renombra un insumo, **el
+ticket viejo no cambia**. Es el mismo principio que ya rige el precio.
+
+---
+
+### 3.19. Efectivo con desglose — y la caja de verdad
+
+El alumno que paga en efectivo **declara con qué va a pagar**: elige los billetes y las monedas. El sistema:
+
+- **Calcula el cambio** (lo hace el servidor, no el teléfono).
+- **Apaga las denominaciones imposibles**: para un pedido de $148, el billete de $1 000 **nace apagado**,
+  porque el cambio ($852) excedería el tope que la cooperativa acepta devolver.
+- Ofrece un botón de **"pago exacto"** que arma el desglose con el menor número de piezas.
+
+**Y del otro lado hay una caja real.** Mostrador **abre el día declarando el fondo** (cuántos billetes y
+monedas hay), el sistema **registra cada entrada y cada salida**, y al final **hace el corte**: compara lo
+contado contra lo esperado y **deja registrada la diferencia** (faltante o sobrante). La diferencia **no se
+corrige sola**.
+
+Eso permite responder la pregunta que de verdad importa en el mostrador, y que un simple tope nunca podría
+contestar: **"¿tengo con qué dar este cambio?"** — porque el sistema **conoce las piezas que hay en el
+cajón**.
+
+---
+
+### 3.20. Inventario, costos y ganancia — el sistema sabe cuánto ganas
+
+El encargado de inventario **registra lo que compra con su costo real**: *"3 kg de carne, $150"*. De ahí
+el sistema deriva **el costo por gramo** ($0.05/g) y, con la receta de cada producto, **cuánto cuesta cada
+platillo**.
+
+**Tres cosas que hacen que el número sea verdad y no un adorno:**
+
+1. **El rendimiento.** 3 kg de carne **con hueso y grasa** no dan 3 kg de carne útil: dan ~2.4 kg. Para
+   poner 130 g en la hamburguesa hay que **sacar más** de la alacena. **Sin esto, el costo siempre queda
+   por debajo del real** y la cooperativa cree que gana más de lo que gana.
+2. **El IVA.** La comida preparada causa **16 %** — *incluso para llevar*. De un precio de menú de $65, la
+   cooperativa **se queda con $56.03**; los $8.97 restantes **son del SAT**. La ganancia se mide contra los
+   $56.03, **nunca** contra los $65.
+3. **El costo se congela en el pedido.** Una compra de mañana **no puede cambiar el margen de ayer**.
+
+**Y el menú se ajusta solo:** el sistema calcula **cuántas unidades puede preparar** de cada producto a
+partir del stock de sus insumos BASE. Si se acaba el pan, **la hamburguesa sale del menú sola** — y le dice
+al encargado **exactamente qué falta**: *"Te quedan 4 hamburguesas — te falta pan."*
+
+---
+
+### 3.21. Facturación — el layout para el CFDI
+
+El alumno indica **en su perfil** si quiere factura. Si dice que sí, llena **una sola vez** los datos que
+la ley exige (RFC, razón social, código postal fiscal, régimen y uso del CFDI), **tal cual aparecen en su
+Constancia de Situación Fiscal**.
+
+El sistema **produce el paquete de datos (el layout)** que se necesita para timbrar un **CFDI 4.0**.
+**No timbra**: el sello fiscal lo pone un proveedor autorizado, y eso queda fuera del alcance.
+
+Quien **no** pide factura entra en la **factura global** de "público en general". Y una regla que el
+sistema hace cumplir desde el primer día: **un pedido ya facturado no puede entrar también en la global**.
+
+---
+
+### 3.22. Reoferta — rescatar comida, no rematarla
+
+Cuando un pedido **ya preparado** no se recoge, **los insumos ya se gastaron**. Ese costo **no vuelve**.
+
+Y ahí está la trampa que hay que nombrar: la alternativa **no es venderlo a precio normal** (esa venta ya
+fracasó). **La alternativa es la basura.**
+
+| | Venta normal | **Reoferta** | **Si se tira** |
+|---|---|---|---|
+| Resultado para la cooperativa | **+$35** | **+$22** | **−$21** |
+
+**La reoferta no baja la ganancia de $35 a $22: rescata una pérdida de $21 y la convierte en una ganancia
+de $22.** Por eso el panel se lo dice a mostrador con esas palabras: *"Recuperaste $43 que se iban a la
+basura."*
+
+**Pero hay un piso**, y no es el costo: es **no enseñarle al alumno a esperar el descuento**. Si la
+reoferta es muy barata y muy predecible, deja de comprar a precio normal — y eso destruye el negocio que
+de verdad paga.
+
+---
+
+### 3.23. Alertas de inventario — antes de que se acabe, no después
+
+El sistema avisa **por notificación** cuando:
+
+- un insumo **baja de su mínimo** (antes de llegar a cero, no después);
+- un insumo **se agotó**, y **qué productos se cayeron con él**;
+- un lote **está por caducar**;
+- **un producto quedó bajo el margen mínimo porque subió un costo** — sin que nadie lo tocara. *Esta es la
+  alerta que salva dinero.*
+
+Y el mensaje es **accionable**, no informativo:
+
+> ❌ *"Stock bajo de Agua purificada."*
+> ✅ *"Agua purificada: quedan 2 garrafones (mínimo: 3). Sin ella se caen Horchata, Jamaica y Combo estudiante."*
+
+---
+
 ## 4. Implementación
 
 El **algoritmo para construir todo lo de la Propuesta** vive en [`Algoritmo-ejecucion.md`](Algoritmo-ejecucion.md): los pasos concretos (definir alcance y diseño, levantar servicios, estructura de carpetas, armar pantallas y backend, etc.). El **detalle técnico** (arquitectura, esquema de BD, seguridad) está en [`architecture-propuesta.md`](../arquitectura/architecture-propuesta.md) y las **decisiones** en [`decisiones.md`](../arquitectura/decisiones.md).
 
-**Estado de implementación (2026-07-02).** Todo lo descrito en esta Propuesta está implementado y verificado. En el último cierre (decisiones **D-027…D-034**) se completaron: buscador de menú (§3.1), **tiempos promedio** de preparación y "preparado hace X min" (§2/§3.7), **semáforo ajustable** desde el admin que también ve el alumno (§3.14), **métricas** de más-vendido y hora pico (§3.1), **auto-vencimiento** de la ventana de recogida (§3.8), estado "Calentando" y prompt cancelar/extender (§3.8/§3.9), **accesibilidad funcional** y foto de producto por URL (§3.1), **sucursal** persistida con el pedido (§3.12) y **MFA de admin forzada** (§3.2). Sobre los **pagos**: el checkout tiene un **formulario real de tarjeta** (valida formato/expiración/CVV, se guarda solo `last4`) con **aprobación simulada** protegida por un **circuit breaker**; la integración con **pasarelas reales** (Mercado Pago/PayPal/procesador) queda **diferida** por ser fuera de alcance de la demo (ver §3.17). Detalle en `decisiones.md`.
+**Estado de implementación (2026-07-14) — ALCANCE AMPLIADO.** Lo descrito en §3.1–§3.17 está **implementado y verificado**. Lo descrito en **§3.17-bis y §3.18–§3.23 es alcance NUEVO**, con **diseño y plan escritos pero SIN implementar**:
+
+| Sección nueva | Estado | Plan |
+|---|---|---|
+| §3.17-bis — Las 4 personas + alcance por cooperativa | 📋 diseñado, no implementado | [`01-cimientos-roles-y-alcance`](../superpowers/plans/2026-07-14-01-cimientos-roles-y-alcance.md) |
+| *(fuente única de la verdad backend↔app)* | 📋 diseñado | [`02-ssot`](../superpowers/plans/2026-07-14-02-ssot.md) |
+| *(seguridad a nivel de fila en la base de datos)* | 📋 diseñado | [`03-rls`](../superpowers/plans/2026-07-14-03-rls.md) |
+| §3.18 · §3.20 — Personalización, inventario, costos y ganancia | 📋 diseñado | [`04-inventario-costeo`](../superpowers/plans/2026-07-14-04-inventario-costeo.md) |
+| §3.19 · §3.21 — Efectivo con desglose, caja y layout CFDI | 📋 diseñado | [`05-efectivo-caja-ticket-cfdi`](../superpowers/plans/2026-07-14-05-efectivo-caja-ticket-cfdi.md) |
+| §3.22 · §3.23 — Panel de receta, reoferta y alertas | 📋 diseñado | [`06-panel-de-receta-por-alimento`](../superpowers/plans/2026-07-14-06-panel-de-receta-por-alimento.md) |
+
+El diseño del motor de costos está en [`motor-de-costeo-design.md`](../superpowers/specs/2026-07-14-motor-de-costeo-design.md). El uso de IA en el proyecto, en [`uso-de-ia-y-prompts.md`](uso-de-ia-y-prompts.md).
+
+**Estado previo (2026-07-02).** Todo lo descrito en §3.1–§3.17 de esta Propuesta está implementado y verificado. En el último cierre (decisiones **D-027…D-034**) se completaron: buscador de menú (§3.1), **tiempos promedio** de preparación y "preparado hace X min" (§2/§3.7), **semáforo ajustable** desde el admin que también ve el alumno (§3.14), **métricas** de más-vendido y hora pico (§3.1), **auto-vencimiento** de la ventana de recogida (§3.8), estado "Calentando" y prompt cancelar/extender (§3.8/§3.9), **accesibilidad funcional** y foto de producto por URL (§3.1), **sucursal** persistida con el pedido (§3.12) y **MFA de admin forzada** (§3.2). Sobre los **pagos**: el checkout tiene un **formulario real de tarjeta** (valida formato/expiración/CVV, se guarda solo `last4`) con **aprobación simulada** protegida por un **circuit breaker**; la integración con **pasarelas reales** (Mercado Pago/PayPal/procesador) queda **diferida** por ser fuera de alcance de la demo (ver §3.17). Detalle en `decisiones.md`.
 
 ---
 
@@ -277,7 +443,15 @@ Lo que hace que UTC Pick Sazón valga la pena, más allá de "una app para pedir
 - **La cooperativa gana:** menos desperdicio (reoferta), mejores compras (datos de demanda) y una operación más tranquila en la hora pico.
 - **Escala:** si funciona aquí, el mismo diseño sirve para otros planteles (selección de sucursal por cercanía).
 
-**Ideas en el tintero (roadmap)** para sumar aún más valor: **monedero/saldo escolar**, **alérgenos e ingredientes**, **favoritos ("lo de siempre")**, **avisos del día** y **tope de pedidos por horario**.
+**Y con el alcance ampliado (§3.17-bis–§3.23), el valor deja de ser solo "menos fila":**
+
+- **La cooperativa sabe, por fin, si gana dinero.** No "cuánto vendió" — **cuánto ganó**, con el costo real de cada platillo, el rendimiento de la materia prima y el IVA descontado. Es la diferencia entre llevar una tiendita y llevar un negocio.
+- **El menú se cuida solo.** Si se acaba el pan, la hamburguesa sale del menú **antes** de que un alumno la pida y se lleve el chasco.
+- **Nadie ve lo que no le toca.** El cocinero no ve el nombre del cliente; el de mostrador no ve los costos; el admin de Roma no ve los pedidos de Tlalpan. **Y eso lo hace cumplir el servidor, no la pantalla.**
+- **La caja cuadra.** Cada peso que entra y sale queda registrado, y el corte del día dice si falta o sobra — con **un responsable**.
+- **Se tira menos comida.** La reoferta deja de ser un remate y se vuelve un rescate medible: *"recuperaste $43 que se iban a la basura"*.
+
+**Ideas en el tintero (roadmap)** para sumar aún más valor: **monedero/saldo escolar**, **alérgenos e ingredientes** (que ahora salen casi gratis del catálogo de insumos), **favoritos ("lo de siempre")**, **avisos del día** y **tope de pedidos por horario**.
 
 ---
 
