@@ -14,30 +14,47 @@ el costo y la ganancia de cada producto**, que **la disponibilidad del menú se 
 
 ```txt
 Compra:    3 kg de carne por $150       →  $0.05 por gramo
-Receta:    la hamburguesa gasta 500 g   →  $25.00 de carne
+Receta:    el platillo gasta 500 g      →  $25.00 de carne
 ```
 
-Ese cálculo **rompe el modelo que yo tenía escrito** (insumos como "porciones" contables, `stock` entero).
+Ese cálculo **rompió el modelo que yo tenía escrito** (insumos como "porciones" contables, `stock` entero).
 El insumo necesita **unidad base**, **stock decimal** y **costo por unidad base**. Y la receta necesita
 guardar **una cantidad**, no un booleano *"lleva carne"*.
 
 ---
 
-## ⚠️ El hallazgo que faltaba: **el rendimiento (yield)**
+## ⚠️ Lo que faltaba: **el rendimiento (yield)**
 
-**Tu cuenta de $25 está incompleta, y el error va siempre en la misma dirección: hacia abajo.**
+**Si esa carne es un CORTE CON HUESO, tu cuenta de $25 está incompleta — y el error va siempre hacia abajo.**
 
-3 kg de carne con hueso y grasa **no dan 3 kg de carne útil**. Dan ~2.4 kg. Ese **rendimiento del 80 %**
-significa que para poner **500 g netos** en la hamburguesa hay que **sacar 625 g brutos** de la alacena:
+3 kg de carne **con hueso y grasa** no dan 3 kg útiles. Dan ~2.4 kg. Ese **rendimiento del 80 %** significa
+que para poner **500 g netos** en el plato hay que **sacar 625 g brutos** de la alacena:
 
 ```txt
 qty_bruta = qty_neta / rendimiento  =  500 g / 0.80  =  625 g
-costo real de la carne              =  625 × $0.05   =  $31.25   (no $25.00)
+costo real                          =  625 × $0.05   =  $31.25   (no $25.00)
 ```
 
 **Si no modelo esto, pasan dos cosas y ninguna se ve venir:**
 1. El costo teórico queda **subestimado siempre** → crees que ganas más de lo que ganas.
-2. El inventario **"se pierde" solo**, sin explicación — el sistema descuenta 500 g y la realidad se llevó 625.
+2. El inventario **"se pierde" solo** — el sistema descuenta 500 g y la realidad se llevó 625.
+
+### ⚠️ CORRECCIÓN (§40) — **el yield NO aplica a la hamburguesa**
+
+Una versión anterior de este plan presentaba el cálculo de arriba como **"el costo de la carne de la
+hamburguesa"**. **Es falso: la hamburguesa lleva carne MOLIDA, que no tiene hueso — su rendimiento es
+100 %.**
+
+> **Tu aritmética estaba bien. Estaba mal ETIQUETADA.** Es un test válido del mecanismo del yield **para un
+> corte con hueso**; no es el costo de la hamburguesa.
+
+| Dónde el yield **SÍ** muerde | Dónde **NO** |
+|---|---|
+| **Elote en mazorca 0.55** *(se tira casi la mitad)* · Aguacate 0.70 · Papa fresca 0.80 · **Corte con hueso 0.80** · Lechuga 0.85 · Cebolla 0.90 | **Carne MOLIDA 1.00** · papa **congelada** 1.00 · pan · quesos · salsas · polvos — **vienen listos** |
+
+**La lección de diseño es mejor que el error:** el rendimiento **depende de la PRESENTACIÓN de compra**.
+La misma papa rinde **80 % en costal** y **100 % congelada**. Por eso vive **en el insumo**, no en una
+constante global.
 
 Y hay una **segunda merma**, distinta, que también hay que separar:
 
@@ -177,8 +194,9 @@ is_default=false, is_customizable=true   →  EXTRA.    Aderezo mango habanero. 
 | Lado | IVA | Qué significa |
 |---|---|---|
 | **VENTA** (comida preparada) | **16 %** | **NO es tuyo.** Lo cobras y se lo das al SAT. El precio de menú **lo incluye**. |
-| **COMPRA de materia prima cruda** (carne, verdura, fruta, leche) | **0 %** | Los $150 de la carne **son $150**. No hay IVA que recuperar. |
-| **COMPRA de lo demás** (empaques, servilletas, gas, limpieza) | **16 %** | Pagas $116 → base $100 + IVA $16 |
+| **COMPRA de ALIMENTO** — y es casi todo: carne, verdura, leche, **aceite, mayonesa, catsup, aderezos, azúcar** | **0 %** | Los $150 de la carne **son $150**. LIVA 2-A: 0 % a *"productos destinados a la alimentación humana"*. **No pagan 16 % por ser procesados.** |
+| **COMPRA de NO-alimento** (desechables, vasos, charolas, bolsas, gas, limpieza) | **16 %** | Pagas $116 → base $100 + IVA $16 |
+| ⚠️ **Las dos excepciones** | **16 %** | **Concentrados/polvos que al diluirse dan refresco** (¡el polvo de horchata!) · **saborizantes y aditivos** (zona gris del chile en polvo). |
 
 **Y la bifurcación que decide si ese IVA es COSTO o no:**
 
@@ -204,7 +222,7 @@ IVA A PAGAR  ≈  todo el IVA que cobraste
 
 ### D7 — Margen: **contra el precio SIN IVA**, o te mientes 16 puntos
 
-| Concepto | Fórmula | Ejemplo (costo $31.25) |
+| Concepto | Fórmula |
 |---|---|---|
 | **Food cost %** | `costo / precio_sin_iva` | |
 | **Precio mínimo** | `costo / food_cost_max` | |
@@ -248,8 +266,13 @@ ganas cuando no. *(Y sí: la comida preparada causa IVA 16 % — ver Plan 05.)*
 - [ ] **Step 5 — `ProductMargin`:** food cost contra **`precio / 1.16`** (D7). Devuelve
       `{ costo, precioSinIva, foodCostPct, margen, bajoElMinimo }`.
 - [ ] **Step 6 — tests que blindan las trampas:**
-      - **Tu caso, con yield:** 3 kg / $150 → $0.05/g. Receta 500 g **netos**, yield 0.8 → **625 g brutos**
-        → **$31.25**. *(Si el test da $25.00, el yield no se aplicó y el costo miente.)*
+      - **El yield SÍ se aplica** — insumo `Corte de res CON HUESO` (yield **0.80**): 3 kg / $150 →
+        $0.05/g. Receta 500 g **netos** → **625 g brutos** → **$31.25**.
+        *(Si da $25.00, el yield no se aplicó y el costo miente hacia abajo.)*
+      - ⚠️ **El yield NO se aplica** — insumo `Carne MOLIDA` (yield **1.00**): 130 g netos → **130 g brutos**
+        → **$16.90** (a $0.130/g, PROFECO).
+        ***(Si da $21.13, alguien le metió un yield del 80 % a la molida — que NO TIENE HUESO. Este test es
+        el que atrapa el error que este plan cometió.)***
       - CPP con `stock = 0` → **no explota, congela el promedio**.
       - Aceite $37/L → $0.037/ml. 15 ml → **$0.555 → $0.56**. *(Con 2 decimales por ml daría $0.60: 7 % de error.)*
       - Margen con precio **$65 IVA incluido** → base `$56.03`, **no** `$65`.
@@ -296,7 +319,8 @@ ganas cuando no. *(Y sí: la comida preparada causa IVA 16 % — ver Plan 05.)*
 - [ ] **Step 6 — ⚠️ RIESGO ALTO:** este código **ya tuvo una regresión seria** (D-037: se perdieron los
       locks y el TOCTOU). **Escribir los tests de concurrencia ANTES de tocarlo.**
 - [ ] **Step 7 — verificación:** aceptar "sin lechuga" → la lechuga **no** baja, el jitomate **sí** (y baja
-      **625 g** de carne, no 500) · dos aceptaciones simultáneas → **una sola** baja · nunca negativo.
+      **273 g** de elote en mazorca por 150 g netos —el yield, aplicado donde SÍ va) · dos aceptaciones
+      simultáneas → **una sola** baja · nunca negativo.
 
 ### Task 5: Backend — slice `modules/inventory/`
 **Files:** Create `modules/inventory/{application,contracts,infrastructure,presentation}`
@@ -350,9 +374,12 @@ ganas cuando no. *(Y sí: la comida preparada causa IVA 16 % — ver Plan 05.)*
       Ejemplos con rendimiento real: carne con hueso **0.80** · lechuga (se quita el tronco) **0.85** ·
       jitomate **0.95** · sal/especias `track_stock = false`.
 - [ ] **Step 2 — recetas** con **`qty_net` en unidad base** (no booleanos):
-      *Hamburguesa: pan 1 pza · carne 500 g · queso 20 g · lechuga 15 g · jitomate 30 g · mayonesa 10 ml…*
+      *Hamburguesa: pan 1 pza · carne molida **130 g** (yield **1.00**) · queso 1 pza · lechuga 15 g
+      (yield 0.85) · jitomate 30 g (0.95) · mayonesa 12 g…* — **las 10 recetas viven en
+      [`docs/datos/recetas-e-insumos.md`](../../datos/recetas-e-insumos.md), no aquí.**
 - [ ] **Step 3 — verificación:** **ningún producto sale con margen negativo**, y el costo de la
-      Hamburguesa **incluye el yield** (la carne cuesta **$31.25**, no $25).
+      Hamburguesa se calcula **desde el catálogo** (§4 de `recetas-e-insumos.md`), **no desde números
+      inventados en este plan**.
       ⚠️ Los costos son **semilla de demo, plausible pero inventada** (§15 no-fabrication): se marcan como tal.
 
 ### Task 7: Frontend — personalizar
@@ -392,7 +419,8 @@ ganas cuando no. *(Y sí: la comida preparada causa IVA 16 % — ver Plan 05.)*
 
 | # | Riesgo | Mitigación |
 |---|---|---|
-| **R1** | **Olvidar el `yield`** → el costo miente hacia abajo, **siempre**, y el inventario "se pierde" solo. | Test de la Task 2 Step 6: si la carne da $25 en vez de $31.25, **falla**. |
+| **R1** | **Olvidar el `yield`** donde SÍ va (elote, aguacate, papa fresca, cortes con hueso) → el costo miente **hacia abajo, siempre**. | Test de la Task 2 Step 6 (corte con hueso): si da $25 en vez de $31.25, **falla**. |
+| **R1-bis** | **APLICAR el `yield` donde NO va** (la carne **molida** no tiene hueso). *Este plan lo hizo.* | Test gemelo: la molida a 130 g debe dar **$16.90**, no $21.13. |
 | **R2** | **Olvidar `track_stock`** → la sal reporta 0 hamburguesas **para siempre**. | Es el fallo #1 en la práctica. Test explícito. |
 | **R3** | Tocar `applyStockDelta` **reintroduce la regresión D-037** (locks/TOCTOU). | Tests de concurrencia **antes** de tocarlo (Task 4 Step 6). |
 | **R4** | El `lineId` del carrito rompe el carrito **en silencio**. | Test del carrito: dos hamburguesas con distinta personalización = **dos líneas**. |

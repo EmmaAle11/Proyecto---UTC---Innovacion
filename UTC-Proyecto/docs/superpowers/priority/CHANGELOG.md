@@ -4,6 +4,45 @@ Registro canónico de cambios significativos del proyecto, documentados con fech
 
 ---
 
+## 2026-07-14
+
+### `a12c44f` + `767e226` — Alcance ampliado: roles de cooperativa, motor de costeo, caja y CFDI (13:40)
+
+**Cambio:** expansión de alcance (**3 614 líneas** de specs y planes). **Solo diseño: cero código.**
+
+- **2 specs + 6 planes** (uno por sección): cimientos/roles · SSOT · RLS · inventario y costeo · efectivo, caja y CFDI · panel de receta.
+- **Documentos vivos** (§24): `algoritmo-circulo-innovacion.md` (§1.2 Ocurrencia, §2.2 Idea, §3.17-bis, §3.18–§3.23) y `Algoritmo-ejecucion.md` (§20).
+- **Nuevo:** `docs/propuesta/uso-de-ia-y-prompts.md` (registro del uso de IA para la defensa) y `docs/datos/recetas-e-insumos.md` (10 recetas, 68 insumos, costos con citas APA).
+- **PDF:** retirada la hoja de derechos (pág. 25) → 24 páginas.
+
+**Decisiones:** **D-047** (roles + alcance por cooperativa; **modifica BR-003**, crea **BR-016**) · **D-048** (SSOT) · **D-049** (RLS) · **D-050** (motor de costeo) · **D-051** (efectivo/caja/CFDI) · **D-052** (producto terminado).
+
+### `(pendiente de commit)` — Auditoría multi-agente y corrección de la propia deuda (16:30)
+
+**Cambio:** auditoría de 4 lentes + workflow de caza P0-P5 (60 hallazgos, 46 confirmados) **sobre lo escrito ese mismo día**. Se corrigió lo encontrado, **dejando el rastro escrito en vez de borrarlo** (§40).
+
+**🔴 Fabricaciones detectadas y corregidas (§15):**
+- **Cifra del INPC inventada** *(papa +21 %, limón +26 %)* — la auditoría **descargó el boletín citado**: dice **5.76 %** y **"limón" no aparece**. **Cita real, dato falso** — la peor variante.
+- **"Hallazgo" de Sam's** con 6 decimales, mientras el §0 del **mismo documento** decía que Sam's **bloqueó la lectura**.
+- **Afirmación de autoría refutable:** *"el 66 % de los commits no tiene IA"* — **7 de los 13 commits que el propio documento presenta como fruto de un prompt no llevan el trailer**. *El trailer mide si alguien pegó el footer, no si hubo IA.*
+- **"46 reglas" → son 34** (`rules.md` salta de la 24 a la 38).
+- **Número de líneas de Markdown no reproducible** — **dos veces**. Ahora se publica **el comando**, no la cifra.
+
+**🔴 Contradicciones que habrían llegado al código:**
+- El **Plan 04 ordenaba un test que consagraba un error** ($31.25 con yield 80 % sobre carne **molida**, que **no tiene hueso**). *La aritmética del usuario era correcta — estaba **mal etiquetada**.*
+- El **Plan 06 se contradecía consigo mismo** sobre el agua **dentro del mismo archivo**.
+- El **motor de costeo calculaba con precios inexistentes** ($0.05/g vs. $0.130/g reales) → **todas sus conclusiones eran falsas**, incluido un *"✅ negocio sano"* para un producto al **55 %**.
+- La **propuesta declaraba el bug de seguridad como "ya no pasa"**… **citando como prueba el parámetro que ES la vulnerabilidad**.
+- El **spec de roles decía "APROBADO"** con el modelo que el Plan 04 ya había declarado roto.
+
+**🔴 Bugs de producción destapados (D-052):** la **reoferta es un bucle infinito** (`release → reoferta → not_picked_up → release`, sin merma) y **se cobra antes de reservar** (`pending nunca reservó`).
+
+**Reglas:** **BR-003 modificada** (autoriza `cocina`/`inventario`/`mostrador`) · **BR-016 nueva** (*el alcance sale del token, no del request*).
+
+**Decisiones:** D-047 … D-052.
+
+---
+
 ## 2026-07-10
 
 ### `(pendiente de commit)` — `products` consolidado a slice + limpieza de mocks basura (13:40)

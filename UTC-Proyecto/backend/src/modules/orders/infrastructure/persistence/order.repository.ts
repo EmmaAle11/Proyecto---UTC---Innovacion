@@ -1,6 +1,7 @@
 import {
   Injectable,
   BadRequestException,
+  ConflictException,
   NotFoundException,
   Logger,
 } from '@nestjs/common';
@@ -32,8 +33,12 @@ import { PaymentGatewayService } from '../../../../application/payments/payment-
 import { CircuitOpenError } from '../../../../shared/resilience/circuit-breaker';
 import { DomainError } from '../../../../kernel/domain/DomainError';
 import { Order } from '../../domain/entities/Order';
+import type { StockEffect, PlacedLine } from '../../domain/entities/Order';
 import { OrderId } from '../../domain/value-objects/ids';
-import { OrderNotPickedUp } from '../../domain/events/order-events';
+import {
+  OrderNotPickedUp,
+  OrderCancelled,
+} from '../../domain/events/order-events';
 import { AuditLogService } from '../../../../shared/logging/audit-log.service';
 import { DomainEventDispatcher } from '../../../../shared/events/domain-event-dispatcher';
 import { OrderMapper, toOrderResponse } from './order.mapper';
@@ -63,6 +68,11 @@ const QUEUE_STATUSES = [
 ];
 /** Ventana (min) antes de la hora de recogida en la que un pedido programado "abre". */
 const SCHEDULE_WINDOW_MIN = 20;
+/** ponytail: TTL (min) de un pedido PENDING sin aceptar antes de vencerlo y LIBERAR su reserva
+ *  (D-052 — sin esto, "reservar al pedir" fugaría stock por abandono). Knob: 30 min por defecto;
+ *  si necesitara ser por sucursal → app_settings. En PROGRAMADOS el reloj corre desde
+ *  scheduled_for (retienen hasta su hora), no desde created_at. */
+const PENDING_TTL_MIN = 30;
 /** Promedio de preparación (BR-007/J5): últimas N muestras; con menos de MIN → tiempo base. */
 const MAX_PREP_SAMPLES = 20;
 const MIN_PREP_SAMPLES = 3;
@@ -125,6 +135,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
           reofferPrice: p.reofferPrice != null ? Number(p.reofferPrice) : null,
           isAvailable: p.isAvailable,
           basePrepTimeSeconds: p.basePrepTimeSeconds,
+          stock: p.stock, // D-052: place() valida cantidad ≤ stock (pre-check amable)
         })),
         avgPrepByProductId,
         scheduledForRaw: input.scheduledFor,
@@ -132,19 +143,18 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       }),
     );
 
-    // BR-009: efectivo queda pendiente; tarjeta/online se AUTORIZAN por la pasarela.
-    // Se hace ANTES de abrir la tx: no mantener locks/conexión durante el I/O de red (C4).
-    const payStatus =
-      input.payMethod === PaymentMethod.EFECTIVO
-        ? PaymentStatus.PENDING
-        : await this.authorizeCardPayment(plan.total.amount);
-
-    // Tx CORTA: solo persistir (sin I/O externo dentro). El pago ya está autorizado.
+    // D-052 — Saga "reservar → cobrar → confirmar/compensar" (revierte D-037).
+    // Tx1 CORTA (sin I/O de red, C4): RESERVA el stock condicionalmente y persiste el pedido en
+    // PENDING con el pago aún PENDING. Si no alcanza → 409 y la tx se revierte entera. La reserva
+    // queda SIEMPRE con dueño (la fila orders): si el proceso muere antes de cobrar, no hay stock
+    // fantasma sin pedido.
     const orderId = await this.dataSource.transaction(async (manager) => {
+      await this.reserveStockOrThrow(manager, plan.lines);
+
       const order = await manager.getRepository(OrderEntity).save(
         manager.getRepository(OrderEntity).create({
           user: profile,
-          status: plan.status,
+          status: plan.status, // PENDING
           totalAmount: plan.total.toString(),
           scheduledFor: plan.scheduledFor,
           branchId: input.branchId ?? null,
@@ -170,7 +180,8 @@ export class TypeOrmOrderRepository implements IOrderRepository {
         manager.getRepository(PaymentEntity).create({
           order,
           method: input.payMethod,
-          status: payStatus,
+          // Aún sin autorizar: efectivo se cobra en mostrador; tarjeta se autoriza tras esta tx.
+          status: PaymentStatus.PENDING,
           amount: plan.total.toString(),
         }),
       );
@@ -178,7 +189,82 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       return order.id;
     });
 
+    // BR-009: el efectivo se cobra en el mostrador → el pago queda PENDING (la reserva ya está hecha).
+    // La tarjeta se AUTORIZA ahora, FUERA de la tx (no sostener la conexión durante el I/O de red, C4).
+    if (input.payMethod !== PaymentMethod.EFECTIVO) {
+      let authorized: PaymentStatus;
+      try {
+        authorized = await this.authorizeCardPayment(plan.total.amount);
+      } catch (e) {
+        // §9: no dejar un pedido con reserva si el pago falló → liberar el stock y cancelar el
+        // pedido (compensación), luego re-lanzar el error original (400) al cliente.
+        await this.compensateFailedPayment(orderId);
+        throw e;
+      }
+      await this.dataSource.transaction(async (manager) => {
+        const payments = manager.getRepository(PaymentEntity);
+        const payment = await payments.findOne({
+          where: { order: { id: orderId } },
+        });
+        if (payment) {
+          payment.status = authorized; // PAID
+          await payments.save(payment);
+        }
+      });
+    }
+
     return toOrderResponse(await this.loadOwned(orderId, profile.id));
+  }
+
+  /**
+   * D-052: RESERVA el stock en la creación (revierte D-037 "cocina al momento si no alcanza").
+   * UPDATE condicional `stock = stock − qty WHERE id = :id AND stock >= :qty`: si no alcanza,
+   * `affected = 0` → 409, y la tx que la envuelve se revierte entera. Orden estable por productId
+   * (anti-deadlock, igual que applyStockDelta) y bump de `version` (optimistic lock del admin).
+   */
+  private async reserveStockOrThrow(
+    manager: EntityManager,
+    lines: readonly PlacedLine[],
+  ): Promise<void> {
+    const repo = manager.getRepository(ProductEntity);
+    const sorted = [...lines].sort((a, b) =>
+      a.productId.localeCompare(b.productId),
+    );
+    for (const line of sorted) {
+      const qty = line.quantity.value;
+      if (qty <= 0) continue;
+      const result = await repo
+        .createQueryBuilder()
+        .update()
+        .set({ stock: () => '"stock" - :qty', version: () => '"version" + 1' })
+        .where('id = :id AND stock >= :qty', { id: line.productId })
+        .setParameter('qty', qty)
+        .execute();
+      if (!result.affected) {
+        throw new ConflictException(
+          'Ya no queda suficiente inventario de un producto de tu pedido',
+        );
+      }
+    }
+  }
+
+  /**
+   * D-052: compensa un pago de tarjeta rechazado. El pedido nació PENDING con la reserva hecha
+   * (Tx1); si la autorización falla, se libera el stock y el pedido pasa a CANCELLED. No emite
+   * notificación: el cliente recibe el error del throw, no un pedido "cancelado" que nunca vio.
+   */
+  private async compensateFailedPayment(orderId: string): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(OrderEntity);
+      const order = await repo.findOne({
+        where: { id: orderId },
+        relations: ORDER_RELATIONS,
+      });
+      if (!order) return;
+      order.status = OrderStatus.CANCELLED;
+      await this.applyStock(manager, order, 'release'); // devuelve la reserva
+      await repo.save(order);
+    });
   }
 
   // --- Escritura: el adapter envuelve lock + tx + stock; el agregado decide ----------------
@@ -362,6 +448,84 @@ export class TypeOrmOrderRepository implements IOrderRepository {
     return expiredIds.length;
   }
 
+  /**
+   * D-052: vence los pedidos PENDING abandonados (nadie los aceptó ni canceló) y LIBERA su
+   * reserva — sin esto, "reservar al pedir" fugaría stock por abandono. Simétrico a
+   * `expireOverdue`: flip atómico y condicional, release agregado en orden GLOBAL de productId
+   * (anti-deadlock con las transiciones de un solo pedido), eventos y auditoría. El reloj corre
+   * desde `scheduled_for` si el pedido es programado (retiene hasta su hora), o desde `created_at`
+   * si es inmediato — `COALESCE` lo resuelve en una sola expresión.
+   */
+  async expireStalePending(): Promise<number> {
+    const now = new Date(); // BR-005: hora del servidor
+    const cutoff = new Date(now.getTime() - PENDING_TTL_MIN * 60 * 1000);
+    const expiredIds = await this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(OrderEntity);
+      const flipped = await repo
+        .createQueryBuilder()
+        .update()
+        .set({ status: OrderStatus.CANCELLED })
+        .where('status = :pending', { pending: OrderStatus.PENDING })
+        .andWhere('COALESCE(scheduled_for, created_at) < :cutoff', { cutoff })
+        .returning(['id'])
+        .execute();
+      const ids = ((flipped.raw as Array<{ id: string }>) ?? []).map(
+        (r) => r.id,
+      );
+      if (ids.length) {
+        const orders = await repo.find({
+          where: { id: In(ids) },
+          relations: ORDER_RELATIONS,
+        });
+        // Devolver la reserva de cada pedido vencido, agregada por producto en orden GLOBAL.
+        const byProduct = new Map<string, number>();
+        for (const order of orders) {
+          for (const it of order.items ?? []) {
+            const pid = it.product?.id;
+            if (!pid || it.quantity <= 0) continue;
+            byProduct.set(pid, (byProduct.get(pid) ?? 0) + it.quantity);
+          }
+        }
+        const productRepo = manager.getRepository(ProductEntity);
+        for (const pid of [...byProduct.keys()].sort((a, b) =>
+          a.localeCompare(b),
+        )) {
+          await productRepo
+            .createQueryBuilder()
+            .update()
+            .set({ stock: () => '"stock" + :qty', version: () => '"version" + 1' })
+            .where('id = :id', { id: pid })
+            .setParameter('qty', byProduct.get(pid))
+            .execute();
+        }
+        // BR-012: el flip masivo NO pasa por el agregado → se construyen los OrderCancelled y se
+        // despachan en ESTA tx (atómico con el cambio de estado y la liberación de stock).
+        const events = orders.map(
+          (o) =>
+            new OrderCancelled(
+              OrderId.of(o.id),
+              o.orderNumber,
+              o.user?.keycloakId ?? '',
+              now,
+            ),
+        );
+        await this.events.dispatch(events, manager);
+      }
+      return ids;
+    });
+    // Auditoría del vencimiento (barredor del sistema): pending -> cancelled.
+    for (const id of expiredIds) {
+      this.auditLog.logOrderStateChange(
+        id,
+        OrderStatus.PENDING,
+        OrderStatus.CANCELLED,
+        'system',
+        'system',
+      );
+    }
+    return expiredIds.length;
+  }
+
   // --- Lectura -----------------------------------------------------------------------------
 
   async findMine(ownerUserId: string): Promise<OrderResponse[]> {
@@ -496,27 +660,33 @@ export class TypeOrmOrderRepository implements IOrderRepository {
     }
   }
 
-  /** Aplica el efecto de stock que decidió el agregado (D-037). */
+  /** Aplica el efecto de stock que decidió el agregado (D-037/D-052). */
   private applyStock(
     manager: EntityManager,
     order: OrderEntity,
-    effect: 'reserve' | 'release' | 'none',
+    effect: StockEffect,
   ): Promise<void> {
-    if (effect === 'none') return Promise.resolve();
-    return this.applyStockDelta(manager, order, effect);
+    if (effect === 'release') return this.applyStockDelta(manager, order);
+    if (effect === 'reserve') {
+      // D-052: la reserva ocurre SOLO en la creación (reserveStockOrThrow). Ninguna transición
+      // debe pedir 'reserve'; si llega aquí es una regresión → fallar ruidoso, no fugar stock.
+      throw new Error(
+        'StockEffect "reserve" inesperado en transición (regresión D-052)',
+      );
+    }
+    return Promise.resolve(); // 'none'
   }
 
   /**
-   * Ciclo de vida del INVENTARIO (D-037). Atómico vía SQL (respeta el CHECK stock >= 0):
-   *  - reserve: `stock = GREATEST(0, stock − cantidad)` (aparta; cocina al momento si no alcanza).
-   *  - release: `stock = stock + cantidad` (excedente reofertable).
-   * Orden estable por productId → dos pedidos concurrentes lockean filas en el MISMO orden
+   * DEVUELVE inventario al catálogo (release, D-037/D-052): `stock = stock + cantidad`.
+   * Lo usan not_picked_up, la cancelación (cliente/admin) y la compensación de pago. La RESERVA
+   * ya NO vive aquí: se hace en la creación con `reserveStockOrThrow` (UPDATE condicional).
+   * Orden estable por productId → dos operaciones concurrentes lockean filas en el MISMO orden
    * (sin deadlock).
    */
   private async applyStockDelta(
     manager: EntityManager,
     order: OrderEntity,
-    action: 'reserve' | 'release',
   ): Promise<void> {
     const repo = manager.getRepository(ProductEntity);
     const items = [...(order.items ?? [])].sort((a, b) =>
@@ -525,20 +695,13 @@ export class TypeOrmOrderRepository implements IOrderRepository {
     for (const it of items) {
       const productId = it.product?.id;
       if (!productId || it.quantity <= 0) continue;
-      const expr =
-        action === 'reserve'
-          ? 'GREATEST(0, "stock" - :qty)'
-          : '"stock" + :qty';
       await repo
         .createQueryBuilder()
         .update()
-        // Bump de `version`: el flujo de stock (QueryBuilder) NO pasa por save(), así que
-        // sin esto el @VersionColumn del admin no vería la reserva → lost-update. Al subir
-        // version, un edit concurrente del admin (optimistic lock) recibe 409 en vez de pisar.
-        // Tradeoff aceptado: como `version` es única por fila, un edit de admin que NO toca
-        // stock (nombre, categoría, reoferta) también puede recibir 409 en plena hora pico;
-        // falla-seguro (sin pérdida de datos, el front muestra Alert y el admin reintenta).
-        .set({ stock: () => expr, version: () => '"version" + 1' })
+        // Bump de `version`: el flujo de stock (QueryBuilder) NO pasa por save(), así que sin
+        // esto el @VersionColumn del admin no vería el cambio → lost-update. Al subir version,
+        // un edit concurrente del admin (optimistic lock) recibe 409 en vez de pisar.
+        .set({ stock: () => '"stock" + :qty', version: () => '"version" + 1' })
         .where('id = :id', { id: productId })
         .setParameter('qty', it.quantity)
         .execute();

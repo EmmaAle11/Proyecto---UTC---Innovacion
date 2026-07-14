@@ -9,12 +9,41 @@
 
 ## 1. Ocurrencia
 
+### 1.1. Primera vuelta *(2026-06)* — "hay que matar la fila"
+
 - Resolver el problema de **congestión** en la cooperativa.
 - Implementar **tecnologías** en la cooperativa.
 - Crear una **app móvil intuitiva**.
 - Agregar una **fila por turnos**.
 - **Semáforo de congestión** / pedir para después.
 - **Programar tu pedido**.
+
+### 1.2. Segunda vuelta *(2026-07)* — "¿y la cooperativa, gana o no gana?"
+
+> **Un círculo de innovación da vueltas.** Con la primera ya resuelta y funcionando, al ver la cooperativa
+> operando aparecieron **ocurrencias nuevas** — y todas nacen de la misma pregunta incómoda: *la app ya
+> ordena la fila… pero **¿la cooperativa está ganando dinero, y quién responde por cada peso?***
+>
+> *Ocurrencias del equipo realizador.*
+
+- **¿Y si el alumno arma su comida a su gusto?** Que le quite la lechuga, que le ponga el aderezo que
+  quiera — y que **lo que pida llegue tal cual a la cocina**, sin que nadie tenga que gritar nada.
+- **¿Y si el que paga en efectivo dice de antemano con cuánto va a pagar?** *"Voy con 2 billetes de $50,
+  2 de $20 y 2 monedas de $5."* Así **el del mostrador ya tiene el cambio listo** antes de que el alumno
+  llegue — y eso también es fila que se mata.
+- **¿Y si el sistema supiera cuánto GANA la cooperativa, y no solo cuánto vende?** Vender mucho y ganar
+  poco es el error clásico de una cooperativa escolar. **Vender ≠ ganar.**
+- **¿Y si el inventario se llevara con el costo real de lo que se compra?** *"3 kilos de carne, $150"* —
+  y de ahí el sistema saca **cuánto cuesta cada hamburguesa**.
+- **¿Y si el propio sistema quitara del menú lo que ya no se puede preparar?** Si se acabó el pan, que la
+  hamburguesa **desaparezca sola**, en vez de que el alumno la pida y se lleve el chasco.
+- **¿Y si la caja cuadrara al final del día?** Que se sepa **cuánto debería haber** en el cajón, cuánto
+  hay de verdad, y **quién responde por la diferencia**.
+- **¿Y si cada persona de la cooperativa viera solo lo suyo?** Porque **no la opera una persona: la operan
+  tres.** El que cocina no tiene por qué ver el dinero; el que cobra no tiene por qué ver los costos.
+- **¿Y si se pudiera facturar?** Para el maestro o el trabajador que necesita comprobante.
+- **¿Y si supiéramos qué insumo subió de precio esta semana?** Para negociar con el proveedor **antes** de
+  que el margen se caiga solo.
 
 ---
 
@@ -35,6 +64,47 @@ Crear una aplicación web/móvil amigable (p. ej. con Expo Go o framework simila
 - **Número de pedido** — cada pedido trae un **número secuencial** (el primero es **U-00001**, el siguiente U-00002, y así) que es a la vez tu **código de recogida**. Con ese número en tu celular **no te acercas antes de tiempo**, evitando la congestión en la ventanilla.
 - **Programar tu pedido** — pides con anticipación y recoges a la hora justa, tomando desde antes tu número de pedido. 
 - **Semáforo de congestión** — aunque existan los turnos, siempre habrá muchos pedidos, así que un semáforo en vivo detecta cuántos hay en cola: **menos de 5 = Verde**, **de 5 a 10 = Amarillo**, **más de 10 = Rojo** (se detalla en §3.14).
+
+### 2.2. Segunda vuelta *(2026-07)* — la cooperativa como negocio
+
+Cada ocurrencia de §1.2, ya aterrizada. *(Ideas del equipo realizador; el detalle técnico, en §3.17-bis–§3.23.)*
+
+**Personalizar el alimento** — *de la ocurrencia "que arme su comida a su gusto"*
+- Cada producto se descompone en sus **"ramas"**: los insumos que lo forman.
+- Tres clases: **BASE** (el pan, la carne — no se quitan), **ESTÁNDAR** (la lechuga, la mayonesa — vienen, pero se pueden quitar) y **EXTRA** (el tocino, el aderezo — no vienen, pero se pueden poner).
+- Más una **nota libre** para lo que ninguna casilla cubre.
+- Lo que el alumno elige **se congela en el pedido**: si mañana se renombra un insumo, **el ticket viejo no cambia**.
+
+**Stock de insumos — el menú se cuida solo** — *de "que quite del menú lo que ya no se puede hacer"*
+- El insumo **no es una porción: es una cantidad con unidad** (gramos, mililitros, piezas). **Nunca kilos ni litros** — esas son unidades de *compra*, no de medida.
+- La receta guarda **cuánto gasta** de cada insumo (130 g de carne), no un "sí lleva carne".
+- El sistema calcula **cuántas unidades puede preparar** de cada producto, y **le dice al encargado qué falta**: *"Te quedan 4 hamburguesas — te falta pan."*
+- **Alertas** cuando un insumo baja de su mínimo, se agota, o está por caducar.
+
+**Fuente de ingreso — saber cuánto se gana, no cuánto se vende** — *de "vender ≠ ganar"*
+- El encargado registra **la compra con su costo real** ("3 kg, $150") → el sistema saca **el costo por gramo**.
+- **El rendimiento**: 3 kg de carne **con hueso** no dan 3 kg útiles. Lo que se tira **se paga igual**, y si no se cuenta, **el costo siempre sale por debajo del real**.
+- **El IVA**: la comida preparada causa **16 %**, incluso para llevar. De $65 de menú, **la cooperativa se queda con $56.03**; el resto es del SAT. **La ganancia se mide contra los $56.03.**
+- **El costo se congela en el pedido**: una compra de mañana **no puede cambiar el margen de ayer**.
+- **Histórico de precios**: qué subió y qué bajó, semana a semana — ordenado **por impacto**, no por porcentaje. *(Que la nuez suba 40 % da igual si gastas 5 g al mes. Que el pan suba 8 % sí duele.)*
+
+**Reoferta — rescatar, no rematar** — *replanteo de la reoferta ya existente (§3.11)*
+- Cuando algo **ya preparado** no se recoge, **los insumos ya se gastaron**. La alternativa **no es venderlo a precio normal** — esa venta ya fracasó. **La alternativa es la basura.**
+- Por eso el panel se lo dice a mostrador así: *"Recuperaste $43 que se iban a la basura."*
+- **Pero con un piso**, y no es el costo: es **no enseñarle al alumno a esperar el descuento**.
+
+**Efectivo con desglose y caja** — *de "que diga con cuánto va a pagar"*
+- El alumno elige **los billetes y las monedas** con los que va a pagar; el sistema **calcula el cambio** y **apaga las denominaciones imposibles**.
+- Mostrador **abre el día con un fondo**, el sistema **registra cada pieza que entra y sale**, y al cerrar **hace el corte**: lo contado contra lo esperado, con la diferencia registrada.
+
+**Roles — tres personas, no una** — *de "que cada quien vea solo lo suyo"*
+- 🍳 **cocina** (acepta y termina) · 📦 **inventario** (materia prima, costos, ganancia) · 💵 **mostrador** (cobra, caja, entrega, reoferta, factura) · 🛡️ **admin** del plantel.
+- **Cada transición la dispara quien tiene la información**: el cocinero es el único que sabe que la hamburguesa salió; el de mostrador, el único que sabe que el alumno ya está enfrente con el dinero.
+- **Cada persona pertenece a UNA cooperativa**, y eso **lo decide el servidor, no el teléfono**.
+
+**Facturación** — *de "que se pueda facturar"*
+- El alumno dice **en su perfil** si quiere factura y llena **una sola vez** sus datos fiscales.
+- El sistema arma **el paquete de datos para timbrar un CFDI**; **no timbra** — eso lo hace un proveedor autorizado.
 
 ---
 
@@ -225,6 +295,25 @@ El menú con el que arranca la app refleja los antojos típicos del recreo. Es u
 - **Gelatina de mosaico** — $15 · lista para llevar. Gelatina de leche con cubos de colores, fresquita.
 - **Agua de horchata** — $18 · lista para llevar. Horchata de arroz con canela, dulce y cremosa.
 
+> ### 🚩 Cuatro descripciones NO coinciden con su receta — **decisión pendiente**
+>
+> La auditoría del 2026-07-14 cruzó este menú contra las recetas de
+> [`recetas-e-insumos.md`](../datos/recetas-e-insumos.md). **No describen el mismo producto.**
+> **Y eso importa porque la receta es la que COSTEA y la que decide si el producto se puede vender.**
+>
+> | Producto | El **menú** promete… | La **receta** dice… | Consecuencia |
+> |---|---|---|---|
+> | **Hamburguesa** $65 | *"**Doble carne**"* | **UNA** carne de 130 g | ⚠️ **Publicidad falsa** *y* el costeo miente. Doble carne = **260 g** → el costo sube ~$17 y el food cost pasa de **55 % a 85 %**. |
+> | **Combo estudiante** $50 | *"**Quesadilla** a elegir + agua"* | **Hamburguesa sencilla + papas + agua** | ⚠️ **Son productos distintos.** No es un matiz: es otro platillo, con otro costo. |
+> | **Quesadilla** $38 | Tortilla de **maíz** | Tortilla de **harina** de 30 cm | Cambia el insumo y el costo. |
+> | **Papas con queso** $32 | Queso **amarillo** fundido | Queso **cheddar** líquido | Cambia el insumo y el costo. |
+>
+> **No se corrige aquí, y a propósito:** el **menú es del equipo realizador** (es el producto);
+> las **recetas son una sugerencia investigada**. **Manda el menú** — pero entonces **hay que corregir las
+> recetas**, y **la Hamburguesa con doble carne no cierra a $65**.
+>
+> **Es exactamente la decisión que el sistema existe para forzar.**
+
 Las **aguas frescas** y la **gelatina** suelen ofrecerse como *Preparado | Sin tiempo de espera*, listas para recoger casi de inmediato; el resto se prepara al momento mostrando su tiempo de espera. Cada producto tendrá su foto en la app (al inicio con una imagen provisional que la cooperativa puede reemplazar).
 
 ### 3.14. Semáforo de congestión (cómo se calcula y quién lo ve)
@@ -408,7 +497,7 @@ El sistema avisa **por notificación** cuando:
 Y el mensaje es **accionable**, no informativo:
 
 > ❌ *"Stock bajo de Agua purificada."*
-> ✅ *"Agua purificada: quedan 2 garrafones (mínimo: 3). Sin ella se caen Horchata, Jamaica y Combo estudiante."*
+> ✅ *"Agua purificada: quedan 2 garrafones (mínimo: 3). Sin ella se caen **Horchata, Jamaica, Esquites y Gelatina**."*
 
 ---
 

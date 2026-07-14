@@ -49,17 +49,20 @@ pone de verdad.
 Cuando una hamburguesa **ya preparada** no se recoge, **los insumos ya se consumieron**. El costo está
 **hundido**. La venta normal **ya ocurrió y fracasó** — por eso la hamburguesa sigue ahí.
 
-**Las tres columnas que el panel DEBE mostrar** (Hamburguesa 130 g · costo ≈ $21 · precio $65 · reoferta $50):
+**Las tres columnas que el panel DEBE mostrar.**
+*(Ejemplo con la semilla actual: Hamburguesa 130 g, costo **$30.80**, precio $65, reoferta $50 — números
+de [`recetas-e-insumos.md` §9](../../datos/recetas-e-insumos.md), **reproducibles con el script de §9.4**.)*
 
 | | Venta normal | **Reoferta** | **Si la tiras** |
 |---|---|---|---|
 | Precio (con IVA) | $65.00 | $50.00 | — |
-| Ingreso real (`÷1.16`) | $56.03 | $43.10 | $0.00 |
-| Costo (**ya gastado**) | −$21.00 | −$21.00 | −$21.00 |
-| **RESULTADO** | **+$35.03** | **+$22.10** | **−$21.00** |
+| Ingreso real (`÷ 1.16`) | $56.03 | $43.10 | $0.00 |
+| Costo (**ya gastado**) | −$30.80 | −$30.80 | −$30.80 |
+| **RESULTADO** | **+$25.23** | **+$12.30** | **−$30.80** |
 
-> **La reoferta no te bajó la ganancia de $35 a $22. Te rescató de una PÉRDIDA de $21 y la convirtió en una
-> GANANCIA de $22.** Un giro de **$43.10**.
+> **La reoferta no te bajó la ganancia de $25 a $12. Te rescató de una PÉRDIDA de $30.80 y la convirtió en
+> una GANANCIA de $12.30.** Un giro de **$43.10** — que es, exactamente, **todo el ingreso recuperado**
+> (`$50 / 1.16`).
 
 **Y eso cambia la regla de decisión.** Contra un costo hundido, **cualquier precio > $0 le gana a la
 basura**. Si anclas el piso de la reoferta al costo, **tirarás hamburguesas que podías vender en $20**.
@@ -122,7 +125,7 @@ UNIDADES BASE (las únicas permitidas):
 ### Task 2: Backend — la semilla de las 10 recetas
 **Files:** `infra/postgres/seed-demo.sql`
 
-- [ ] **Step 1 — el catálogo de insumos** (~54 rastreados + ~14 con `track_stock = false`), cada uno con
+- [ ] **Step 1 — el catálogo de insumos** (**55** rastreados + **13** con `track_stock = false` = **68**), cada uno con
       **unidad base**, **yield** y **costo por unidad base a 6 decimales**.
 - [ ] **Step 2 — las 10 recetas** con las cantidades investigadas. Lo esencial:
       **Hamburguesa = 130 g de carne**, no 500. *(130 g crudos ≈ 105 g cocidos: una hamburguesa honesta a $65.)*
@@ -133,8 +136,13 @@ UNIDADES BASE (las únicas permitidas):
       `factor_a_base = 20000` ml) y se descuenta por vaso.
 
       **Pero eso convierte las alertas en el seguro de vida del modelo, no en un adorno:**
-      si el agua llega a **0**, se caen **las TRES bebidas de golpe** (horchata, jamaica y el agua del
-      combo). → **La Task 5 (alertas) deja de ser opcional.**
+      si el agua llega a **0**, se caen **CUATRO productos de golpe**: **Horchata · Jamaica · Esquites**
+      (caldo de cocción) **· Gelatina**.
+      *(El **Combo NO** lleva `Agua purificada`: lleva `Agua fresca del día`, otro insumo — que además
+      **no tiene precio**, y por eso **el Combo no se puede costear**. Ver `recetas-e-insumos.md` §10.)*
+      → **La Task 5 (alertas) deja de ser opcional.**
+      ⚠️ *(Una versión decía "las TRES bebidas"; la corrección se pasó y dijo "CINCO". **Son CUATRO.**
+      Una alerta que omite productos miente; una que sobra, también.)*
 
       **Dos salvaguardas que lo hacen seguro:**
       1. **Alerta de stock mínimo** (Task 5) — avisa **antes** de llegar a 0, no después.
@@ -172,7 +180,7 @@ UNIDADES BASE (las únicas permitidas):
 
 > Usuario: *"sería bueno implementar un diseño de alertas / notificaciones push sobre que el inventario
 > se está acabando"*.
-> **Y con el agua rastreada, esto ya no es un "sería bueno": es lo que impide que las tres bebidas se
+> **Y con el agua rastreada, esto ya no es un "sería bueno": es lo que impide que CUATRO productos se
 > caigan sin aviso.**
 
 - [ ] **Step 1 — REUSO (§42):** ya existe **todo** el aparato — `DomainEventDispatcher`, el **outbox**
@@ -195,16 +203,21 @@ UNIDADES BASE (las únicas permitidas):
       ```txt
       ❌ "Stock bajo de Agua purificada"
       ✅ "Agua purificada: quedan 2 garrafones (mínimo: 3).
-          Sin ella se caen Horchata, Jamaica y Combo estudiante."
+          Sin ella se caen Horchata, Jamaica, Esquites y Gelatina."
       ```
-- [ ] **Step 6 — verificación:** bajar el agua a 0 → llega **una** alerta (no 30) · las 3 bebidas salen del
-      menú · el mensaje **nombra a las 3** · reponer stock → vuelven solas.
+- [ ] **Step 6 — verificación:** bajar el agua a 0 → llega **UNA** alerta (no 30) · **los 4 productos** salen
+      del menú · el mensaje **nombra a los 4** · reponer stock → **vuelven solos**.
 
 ### Task 4: Verificación
 - [ ] **Step 1 — la unidad no se puede romper:** intentar guardar una receta con `unit: 'kg'` → **se ignora
       y se usa la del insumo**. Intentar "1 kg de agua" → **imposible desde la UI**.
-- [ ] **Step 2 — disponibilidad:** un producto con un `BASE` en 0 → **no disponible**. El **agua purificada**
-      (`BASE` + `track_stock=false`) en 0 → **sigue disponible** (no entra en el mínimo). *Este es EL test.*
+- [ ] **Step 2 — disponibilidad. ⚠️ EL test:** un insumo `BASE` **que SÍ se rastrea** en 0 → el producto
+      **NO está disponible**, y el sistema **nombra al culpable**.
+      **El caso canónico:** `Agua purificada` (`BASE` + **`track_stock = true`**) en 0 → **se caen CINCO
+      productos**: Horchata, Jamaica, Combo, **Esquites** y **Gelatina**.
+      Y un `BASE` **que NO se rastrea** (no queda ninguno tras la corrección) **nunca** bloquearía.
+      *(Una versión anterior de este Step exigía **exactamente lo contrario** de lo que siembra el Step 3
+      de la Task 2 — se contradecía a sí mismo dentro del mismo archivo. §40.)*
 - [ ] **Step 3 — reoferta:** el panel muestra que a $50 se gana **más** que tirándola, y **avisa** si el
       precio queda bajo el piso.
 - [ ] **Step 4 — snapshot:** cambiar la receta **después** de un pedido → **el costo del pedido viejo NO

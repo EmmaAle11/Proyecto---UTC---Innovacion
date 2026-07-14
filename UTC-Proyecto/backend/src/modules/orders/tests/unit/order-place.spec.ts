@@ -16,6 +16,7 @@ function snap(over: Partial<ProductSnapshot> = {}): ProductSnapshot {
     reofferPrice: null,
     isAvailable: true,
     basePrepTimeSeconds: 600,
+    stock: 100,
     ...over,
   };
 }
@@ -69,6 +70,18 @@ describe('Order.place (BR-015 / spec #4)', () => {
     expect(() =>
       Order.place(input({ products: [snap({ isAvailable: false })] })),
     ).toThrow(DomainError);
+  });
+
+  it('D-052: rechaza cantidad mayor al stock (pre-check amable que nombra el producto)', () => {
+    // Pide 2 (default) sobre stock 1 → DomainError con el nombre del producto.
+    expect(() =>
+      Order.place(input({ products: [snap({ name: 'Hamburguesa', stock: 1 })] })),
+    ).toThrow('Solo quedan 1 de Hamburguesa');
+  });
+
+  it('D-052: acepta cantidad igual al stock (frontera exacta)', () => {
+    const plan = Order.place(input({ products: [snap({ stock: 2 })] })); // pide 2, hay 2
+    expect(plan.lines[0].quantity.value).toBe(2);
   });
 
   it('J5: usa el promedio real si hay muestras; si no, el tiempo base', () => {

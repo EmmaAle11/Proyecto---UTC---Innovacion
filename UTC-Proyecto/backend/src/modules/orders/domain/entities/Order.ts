@@ -25,8 +25,11 @@ export enum OrderStatus {
   READY_LATER = 'ready_later',
 }
 
-/** Efecto que una transición tiene sobre el inventario (D-037). El agregado decide el
- *  efecto (intención); el adapter ejecuta el SQL sobre las filas de Product. */
+/** Efecto que una transición tiene sobre el inventario (D-037/D-052). El agregado decide el
+ *  efecto (intención); el adapter ejecuta el SQL sobre las filas de Product.
+ *  ⚠️ D-052: 'reserve' YA NO lo emite ninguna transición — la reserva ocurre en la creación
+ *  (`place()` → `reserveStockOrThrow`). Las transiciones solo devuelven ('release') o no-op ('none').
+ *  Se conserva 'reserve' en el type por simetría del ciclo de vida. */
 export type StockEffect = 'reserve' | 'release' | 'none';
 
 /** Línea del pedido con sus VOs de dominio (productId tipado + cantidad validada). */
@@ -98,6 +101,9 @@ export interface ProductSnapshot {
   readonly reofferPrice: number | null;
   readonly isAvailable: boolean;
   readonly basePrepTimeSeconds: number;
+  /** Unidades disponibles (D-052). `place()` valida cantidad ≤ stock como pre-check amable;
+   *  el guardia atómico real es el UPDATE condicional del adapter (`reserveStockOrThrow`). */
+  readonly stock: number;
 }
 
 /** Línea CRUDA de entrada (viene del DTO ya validado por class-validator). */
@@ -174,6 +180,12 @@ export class Order extends AggregateRoot<OrderId> {
         throw new DomainError(`Producto no disponible: ${product.name}`);
       }
       const quantity = Quantity.of(it.quantity);
+      // Pre-check amable (D-052): rechaza NOMBRANDO el producto antes de abrir la tx. El guardia
+      // atómico real es el UPDATE condicional del adapter (reserveStockOrThrow): este snapshot se
+      // leyó FUERA de la tx y puede quedar rancio si otro pedido corre en paralelo.
+      if (quantity.value > product.stock) {
+        throw new DomainError(`Solo quedan ${product.stock} de ${product.name}`);
+      }
       // §3.11 "Pon tu precio": si el producto está reofertado (reofferPrice puesto) se cobra
       // ese precio menor; si no, el de catálogo. Precio congelado al momento de compra (BR-015).
       const unitPrice = Money.of(product.reofferPrice ?? product.price);
@@ -270,36 +282,38 @@ export class Order extends AggregateRoot<OrderId> {
     switch (target) {
       case OrderStatus.PREPARING:
         this._acceptedAt = now;
-        return 'reserve'; // D-037: aparta del almacén
+        // D-052: el stock YA se reservó en place(); reservar aquí sería DOBLE reserva.
+        return 'none';
       case OrderStatus.READY:
         this._readyAt = now;
         this._pickupDeadline = new Date(now.getTime() + READY_WINDOW_MS);
         return 'none';
       case OrderStatus.PICKED_UP:
         this._pickedUpAt = now;
-        return 'none';
+        return 'none'; // la reserva se vuelve consumo permanente: NO se libera
       case OrderStatus.NOT_PICKED_UP:
-        return 'release'; // D-037: excedente reofertable
+        return 'release'; // el excedente vuelve al stock (Plan 08 lo mandará a finished_goods)
+      case OrderStatus.CANCELLED:
+        // D-052: el pending cancelado por el admin TENÍA reserva desde place() → liberar, o fuga.
+        return 'release';
       default:
-        return 'none'; // ready_later / cancelled (pending nunca reservó)
+        return 'none'; // ready_later: la reserva continúa (la comida sigue prometida)
     }
   }
 
-  /** Cancelación del CLIENTE (§3.8/§3.9). Libera stock solo si ya estaba preparado; emite evento. */
+  /** Cancelación del CLIENTE (§3.8/§3.9). Libera SIEMPRE: con reserva-en-place (D-052) los tres
+   *  estados cancelables (pending/ready/ready_later) retienen stock desde que se pidió. Emite evento. */
   cancelByOwner(now: Date): StockEffect {
     if (!CLIENT_CANCELLABLE.includes(this._status)) {
       throw new DomainError(
         'Solo puedes cancelar un pedido pendiente o uno listo que aún no recogiste',
       );
     }
-    const wasPrepared =
-      this._status === OrderStatus.READY ||
-      this._status === OrderStatus.READY_LATER;
     this._status = OrderStatus.CANCELLED;
     this.record(
       new OrderCancelled(this.id, this.orderNumber, this._ownerUserId, now),
     );
-    return wasPrepared ? 'release' : 'none';
+    return 'release';
   }
 
   /** Extender un pedido listo para recogerlo después (§3.10: ready → ready_later). Sin notificación (BR-012). */

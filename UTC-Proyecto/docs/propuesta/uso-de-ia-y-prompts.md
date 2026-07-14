@@ -34,20 +34,65 @@ Esa frase hay que poder sostenerla con evidencia, así que aquí está desglosad
 
 ## 2. Los números (evidencia, no impresión)
 
+> **Método de conteo (§0 — evidence or block).** Todo número de esta sección **se reproduce con un
+> comando**. Se cuentan **solo archivos rastreados por git** (nada de `node_modules`, nada sin commitear).
+> Corte: **2026-07-14**.
+
+| Métrica | Valor | Comando que lo reproduce |
+|---|---|---|
+| Periodo | 2026-06-20 → 2026-07-14 (25 días) | `git log --format=%ad --date=short` |
+| **Commits totales** | **121** | `git rev-list --count HEAD` |
+| Commits con el trailer `Co-Authored-By` | **43** | `git log --grep='Co-Authored-By: Claude' --oneline \| wc -l` |
+| Código (TS/TSX) | **13 200** líneas | `git ls-files 'UTC-Proyecto/backend/src/*.ts' 'UTC-Proyecto/frontend/src/*.ts' 'UTC-Proyecto/frontend/src/*.tsx' \| xargs wc -l` |
+| **Documentación (Markdown)** | **≈ 12 900** *(crece con cada documento — **corre el comando**)* | `git ls-files '*.md' \| xargs wc -l \| tail -1` |
+| Reglas del proyecto | **34** (numeradas 0–24 y 38–46) + 15 de negocio | `grep -c '^# [0-9]' docs/superpowers/priority/rules.md` |
+| Decisiones (ADR) | D-001 … D-046 | `docs/arquitectura/decisiones.md` |
+| Pruebas automatizadas | **117**, verdes | `cd backend && npx jest --silent` |
+
+**La documentación pesa casi tanto como el código** — ~12 900 líneas de Markdown contra 13 200 de
+TypeScript. **No es accidente: es el método** (§3).
+
+> ⚠️ **Este número NO se fija: se corre.** Crece con cada documento (mientras se escribía esta línea pasó de
+> 12 757 a 12 908). **Fijarlo sería volver a cometer el error que §7 registra.** Lo verificable es
+> **el comando**, no la cifra.
+
+---
+
+### ⚠️ 2.1 Lo que estos números **NO** demuestran (§40)
+
+**Una versión anterior de este documento concluía: *"el 66 % de los commits no tiene participación de
+IA"*. Esa afirmación es FALSA, y la auditoría del propio proyecto la refutó con un solo comando.**
+
+**El trailer `Co-Authored-By` no mide participación de IA. Mide si alguien se acordó de pegar el footer.**
+
+De los **13 commits que este mismo documento lista en §4 como producto directo de un prompt a Claude
+Code**, **siete NO llevan el trailer**:
+
 ```txt
-Periodo                     2026-06-20 → 2026-07-14   (25 días)
-Commits totales             119
-  ├─ con co-autoría de IA     41   (34 %)
-  └─ del autor, sin IA        78   (66 %)
-Código (TS/TSX)          13 358 líneas
-Documentación (Markdown) 10 695 líneas   ← casi 1:1 con el código
-Reglas del proyecto          46 + 15 reglas de negocio
-Decisiones (ADR)             D-001 … D-046
-Pruebas automatizadas       117 (verdes)
+1ae1d33   Fase 0: cimientos — infra Docker, backend NestJS, Expo FSD
+0aada36   Seguridad JWT Guard + roles asignados + login + TOTP
+fab5ebe   Seguridad implementada en cada paso concreto
+5f5276d   .gitignore endurecido + hook pre-commit anti-secretos
+d0d177f   feat(products): GET /products real (turno de datos, paso 1)
+a0ae218   feat(products): alta/edición admin (POST + PATCH /products)
+e441fbd   feat(orders): cancelar/extender pedido del cliente
 ```
 
-**El dato que más dice:** **la documentación pesa casi tanto como el código** (10 695 vs 13 358 líneas).
-No es accidente — es el método (§3).
+**El documento imprimía, en §4, el prompt que generó el commit que en §2 contaba como "libre de IA".**
+Cualquiera lo tira con `git log --grep`. **Se retira la afirmación.**
+
+### 2.2 Lo que estos números **SÍ** demuestran
+
+| Afirmación | Por qué es defendible |
+|---|---|
+| **El 100 % de los commits los ejecutó el autor, a mano.** | Regla §23: la IA tiene **prohibido** hacer `commit`, `push`, `merge` o `rebase`. Prepara los comandos; el autor los corre. *(Esto dice **quién opera el historial**, no quién escribió cada línea — y la diferencia importa.)* |
+| **La documentación pesa casi tanto como el código.** | ~12 900 vs. 13 200 líneas — **reproducible con el comando**, no con la cifra. Es la huella del método spec→plan→gate (§3). |
+| **117 pruebas verdes, verificables.** | `npx jest` → `117 passed`. |
+| **El diseño del producto es del autor.** | Ver §1. Es la afirmación que de verdad importa, y **no depende de contar commits**. |
+
+> **La lección (§40):** medir la autoría con un *trailer* de git es **medir la etiqueta, no el contenido**.
+> Un documento de tesis que se apoya en esa métrica **se cae en la primera pregunta del jurado**.
+> Es mejor una afirmación cualitativa que se sostiene (§1) que una cuantitativa que no.
 
 ---
 
@@ -58,7 +103,7 @@ No fue "pídele código y pégalo". El proyecto impuso **un protocolo**, escrito
 
 ### 3.1 `rules.md` — el contrato
 
-**46 reglas + 15 reglas de negocio** que gobiernan cada intervención. Las que más forma dieron al trabajo:
+**34 reglas** (numeradas 0–24 y 38–46; los números 25–37 **no existen**) **+ 15 reglas de negocio** que gobiernan cada intervención. Las que más forma dieron al trabajo:
 
 | Regla | Qué obliga |
 |---|---|
@@ -225,7 +270,7 @@ Esto es lo que justifica su uso, y conviene que sea concreto:
 | Hallazgo | Por qué importa |
 |---|---|
 | **RLS habría sido teatro.** Se **probó experimentalmente** que activar Row Level Security con el usuario actual de la base **no protegía nada**: la política más restrictiva (`USING(false)`) seguía devolviendo todas las filas, porque el usuario es **superusuario** y Postgres **no le aplica RLS**. | Se habría commiteado una medida de seguridad que **miente**, y eso es peor que no tenerla. |
-| **El costo de la hamburguesa estaba mal, y el error iba siempre hacia abajo.** Faltaba el **rendimiento (yield)**: 3 kg de carne con hueso no dan 3 kg útiles. | Sin él, el negocio **cree que gana más de lo que gana** y el inventario "se pierde" solo. |
+| **El costeo ignoraba el rendimiento (*yield*).** De un kilo de elote en mazorca se tira **casi la mitad** (olote y hojas); del aguacate, el 30 %. **Eso se paga y no se sirve.** | Sin modelarlo, el costo teórico queda **sistemáticamente por debajo del real** y el inventario **"se pierde" solo**. *(⚠️ Y la IA aplicó mal su propio hallazgo — ver §7.)* |
 | **El cliente decidía a qué cocina iba su pedido.** `branchId` era texto libre: un pedido podía cobrarse y **quedar invisible para todas las cocinas**. | Fuga de autorización (OWASP A01) + pedidos fantasma. |
 | **25 duplicaciones** entre backend y frontend, incluida **la fórmula del precio a cobrar**. | El carrito podía mostrar un total y la caja cobrar otro. |
 | **El IVA del 16 % no existía en el sistema.** La comida preparada lo causa (LIVA art. 2-A). | El margen estaba **inflado ~16 puntos**. |
@@ -244,6 +289,16 @@ Un registro que solo cuente los aciertos no es un registro, es publicidad.
 | **Afirmación falsa, corregida en el acto** | La IA afirmó que el frontend seguía usando datos falsos. Al leer el código, **era mentira**: ya consumía la API real. | Se autocorrigió explícitamente (§40). |
 | **Se saltó el proceso** | Escribió código (`Money.tsx`, conversión de assets) **antes** de existir el spec y el plan. | **El autor lo detectó y lo detuvo:** *"No escribas más código, no veo la propuesta de roles. Tampoco veo tu plan con writing plans + specs."* |
 | **Modeló mal los insumos** | Los diseñó como "porciones" contables, con stock entero. **No podía expresar** que 3 kg de carne cuestan $0.05/g. | El autor lo detectó al plantear su ejemplo de la carne. **El modelo tuvo que rehacerse.** |
+| **Aplicó mal el rendimiento** | Afirmó que 500 g de carne al 80 % de rendimiento costaban $31.25. **La carne MOLIDA no tiene hueso: su rendimiento es 100 %.** El 80 % aplica a cortes con hueso. | La investigación de recetas lo contradijo. **Se corrigió y quedó registrado**, junto con el hallazgo bueno: el rendimiento **depende de la presentación de compra** (la misma papa rinde 80 % en costal y 100 % congelada). |
+| **Simplificó mal el IVA** | Dijo *"materia prima cruda 0 %, todo lo demás 16 %"*. **Es más amplio:** la ley da 0 % a *"productos destinados a la alimentación humana"* — **incluidos el aceite, la mayonesa y el azúcar**. | La investigación fiscal lo corrigió, y destapó **dos trampas reales**: los concentrados que dan refresco (el polvo de horchata) **sí** gravan 16 %, y el chile en polvo es **zona gris**. |
+| **🔴 REINCIDIÓ mientras corregía** | En el spec del *producto terminado* —escrito **para denunciar** que los documentos afirmaban cosas falsas del código— **afirmó que el `UPDATE … WHERE stock >= qty` "ya existe"**. **No existe:** el SQL real es `GREATEST(0, stock − qty)`, **incondicional, satura en 0, nunca falla**. Y **`ProductSnapshot` ni siquiera tiene campo `stock`**. | **Lo cazó el workflow de auditoría del propio proyecto**, con verificadores adversarios. Y encontró algo peor: **el "arreglo de una línea" habría FUGADO STOCK PARA SIEMPRE** en cada pedido cancelado. **El remedio era peor que la enfermedad.** |
+| **🔴 Anunció una corrección y NO la aplicó** | En `recetas-e-insumos.md` **§4.0 declaró** que la Salsa BBQ, el ranch y la leche evaporada tenían la unidad cruzada… **y las dejó cruzadas** en las recetas y en el catálogo. | **Es el mismo pecado, cometido DENTRO de la corrección del pecado.** |
+| **Errores de aritmética publicados** | Una suma impresa que **no sumaba** ($13.96 en vez de $13.08). *"El pollo es el 51 % del costo"* — es el **63 %** (dividió entre el ingreso, no entre el costo). *"Ocho de diez productos"* — **su propia tabla decía siete**. | **Todos cazados por el verificador adversario**, recalculando a mano. |
+| **Publicó un número no reproducible** | Reportó **10 695 líneas de Markdown** en la sección *"Los números (**evidencia**, no impresión)"*. **Ningún comando lo reproducía.** | **La auditoría del propio proyecto lo detectó** (§2). Caso de manual de por qué existe §0: *un número sin comando que lo reproduzca no es evidencia — es una impresión.* |
+| **🔴 FABRICÓ una cifra, con una fuente real detrás** | En `recetas-e-insumos.md` escribió: *"Según el **INPC**, la papa subió **~21 %** y el limón **~26 %** en un mes."* **La auditoría descargó el boletín del INEGI que la propia IA citaba:** dice **5.76 %** para la papa, y **la palabra "limón" no aparece en todo el documento.** | **Es la peor variante de lo que §15 prohíbe:** la cita legítima **le presta credibilidad al invento**. Corregido y **registrado en el documento, no borrado**. |
+| **🔴 Se contradijo para tener un hallazgo bonito** | En el **§0** del mismo documento escribió que *"Sam's bloqueó la lectura; sus precios NO pudieron capturarse"*. **Doce secciones después** presentó como **hallazgo estrella**: *"el aceite de 20 L de Sam's sale más caro por mililitro ($0.037698/ml)"* — **con seis decimales y sin marca de estimado**. | El **principio** era correcto (*compara el $/gramo, no el precio del bulto*), pero **el dato que lo "probaba" era inventado**. Se conservó la lección; se retiró el dato. |
+| **🔴 Midió la autoría con la etiqueta equivocada** | Concluyó que *"el 66 % de los commits no tiene participación de IA"*, contando el trailer `Co-Authored-By`. **Siete de los 13 commits que este mismo documento presenta como fruto de un prompt no llevan el trailer.** | **El trailer mide si alguien pegó el footer, no si hubo IA.** Un jurado lo refuta con `git log --grep`. **Retirado** (§2.1). |
+| **🔴 Vendió como hallazgo el error que él mismo cometió** | §6 celebraba, como aporte de la IA: *"faltaba el rendimiento — **3 kg de carne con hueso** no dan 3 kg útiles"*. **La carne de la hamburguesa es MOLIDA: no tiene hueso.** El rendimiento correcto es **100 %**. | **El "hallazgo" era, literalmente, el error corregido, reciclado como victoria** — y la tabla de errores lo omitía. **Es el maquillaje que §40 prohíbe, y ocurrió justo en el documento que presume de honestidad.** El hallazgo **real** (el yield sí importa, pero en el elote, el aguacate y la papa fresca) sobrevive; la falsa gloria, no. |
 
 **El patrón es claro y vale la pena decirlo:** la IA falla **en silencio y con confianza**. Lo que la
 atrapa no es revisar su prosa — es **ejecutar el código de verdad** (§0: *evidence or block*) y tener a un
@@ -256,9 +311,11 @@ humano que **conoce el negocio** y detecta cuando el modelo no representa la rea
 1. **El diseño del producto, las reglas de negocio y la identidad visual son autoría del alumno.** La IA
    no propuso el problema, ni la solución, ni el modelo de negocio, ni el aspecto.
 2. **La IA fue un ejecutor técnico y un asesor de arquitectura**, sujeto a un protocolo escrito
-   (`rules.md`, 46 reglas) que el alumno definió y hace cumplir.
-3. **El 66 % de los commits no tienen participación de IA.** Y **el 100 % de los commits los ejecutó el
-   alumno a mano** — la IA tiene prohibido tocar el historial de Git (§23).
+   (`rules.md`, **34 reglas**) que el alumno definió y hace cumplir.
+3. **El 100 % de los commits los ejecutó el alumno a mano** — la IA tiene **prohibido** tocar el historial
+   de Git (§23). *(Lo que NO se puede afirmar —y una versión anterior de este documento afirmaba— es un
+   porcentaje de commits "sin IA" basado en el trailer `Co-Authored-By`. Ese trailer mide la etiqueta, no
+   el contenido. Ver §2.1.)*
 4. **La IA aportó valor que es medible**: encontró un agujero de autorización, un error sistemático de
    costeo, una medida de seguridad que habría sido falsa, y 25 duplicaciones de lógica.
 5. **La IA también introdujo errores**, y el proyecto los documentó en vez de esconderlos. Ese es,

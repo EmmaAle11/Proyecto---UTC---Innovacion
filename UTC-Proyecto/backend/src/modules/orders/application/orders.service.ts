@@ -60,6 +60,10 @@ export class OrdersService {
     return this.orders.expireOverdue();
   }
 
+  async expireStalePending(): Promise<number> {
+    return this.orders.expireStalePending();
+  }
+
   async congestion(): Promise<CongestionResponse> {
     return this.orders.congestion();
   }

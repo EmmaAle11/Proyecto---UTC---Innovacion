@@ -84,7 +84,25 @@ La app trabaja con varias cooperativas UTC y NO precarga ninguna: detecta la má
 - Cooperativa más cercana por distancia, asignada automáticamente (sin default precargado).
 - Tocar el encabezado abre la lista para elegir a mano; es el respaldo si se niega el permiso. No se puede pedir sin cooperativa.
 - El panel del administrador también detecta por geolocalización qué cooperativa opera (no viene fija).
-- Cada pedido guarda su cooperativa y la cola del administrador solo trae los de SU cooperativa: pedir en una y que responda otra ya no pasa (`GET /orders/all?branchId=`).
+- Cada pedido guarda su cooperativa (`orders.branch_id`) y la cola del administrador **puede filtrarse** por ella (`GET /orders/all?branchId=`).
+
+> 🔴 **CORRECCIÓN (auditoría 2026-07-14).** Una versión anterior de esta línea afirmaba que *"pedir en una
+> cooperativa y que responda otra **ya no pasa**"* — **y citaba como prueba del arreglo exactamente el
+> parámetro que ES la vulnerabilidad.**
+>
+> **Sí pasa.** El `branchId` **lo manda el cliente** en el query string, y **el backend le cree**:
+> ```ts
+> // orders.controller.ts:52-58
+> @Get('all') @Roles('admin')
+> findAll(@Query('branchId') branchId?: string) { … }   // ← dato del CLIENTE
+> // order.repository.ts:380
+> where: branchId ? { branchId } : {}                   // ← SIN el parámetro: TODAS las cooperativas
+> ```
+> Y además **`create-order.dto.ts` acepta el `branchId` como texto libre**, sin catálogo: un pedido puede
+> cobrarse y **quedar invisible para todas las cocinas**.
+>
+> **Lo cierra el [Plan 01](../superpowers/plans/2026-07-14-01-cimientos-roles-y-alcance.md)** — el alcance
+> saldrá del **JWT**, nunca del request. **Hasta entonces, el defecto está abierto y así se declara.**
 
 11.- Menú inicial de la cooperativa
 La aplicación arranca con un menú base pensado para el recreo. La cooperativa puede cambiarlo cuando lo necesite (productos, precios y disponibilidad). Estos son los productos y sus precios:

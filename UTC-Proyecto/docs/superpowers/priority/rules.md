@@ -1188,24 +1188,76 @@ El backend valida identidad mediante Keycloak.
 
 ## BR-003 — ROLES
 
+> **MODIFICADA el 2026-07-14** por autorización explícita del usuario (ADR **D-047**).
+> La versión anterior solo permitía `admin` y `user`, y prohibía `staff`/`cashier` — que es,
+> literalmente, lo que `mostrador` es. **La autorización, textual:**
+>
+> *"Por cooperativa suelen ser 3 personas. Quiero que una persona se dedique a cocinar; que otra haga el
+> inventario y lo registre junto con costos y ganancias; que otra reciba las órdenes, cambie estatus por
+> orden de cocina, cobre y dé cambio cuando es en efectivo, y facture. Más el admin que ya tenemos."*
+
 Roles permitidos:
 
 ```txt
-admin
-user
+user          cliente de la PLATAFORMA (@edu.utc.mx). Sin cooperativa fija.
+cocina        ACEPTA y TERMINA los pedidos. Ve qué preparar.
+inventario    materia prima, costos, recetas, mermas, ganancia.
+mostrador     cobra, da cambio, CAJA, entrega, reoferta, layout CFDI.
+admin         administrador de UNA cooperativa. Superconjunto de los tres.
 ```
+
+**Regla dura — los DOS ejes del permiso:**
+
+```txt
+1. ¿QUÉ PUEDES HACER?   → el ROL
+2. ¿SOBRE QUÉ?          → la COOPERATIVA (branch_id)
+```
+
+**Todo rol distinto de `user` está anclado a EXACTAMENTE UNA cooperativa.**
+**El `branch_id` de autorización sale del JWT — JAMÁS del request.**
+El query string solo puede *filtrar dentro* de lo que el token ya permite. *(Ver BR-016.)*
+
+**Una persona = un rol.** Keycloak permite arreglos, pero no se usan: le da **dueño inequívoco** al
+faltante de caja.
 
 No crear:
 
 ```txt
 manager
-super-admin
-owner
-staff
-cashier
+super-admin      ← EXPRESAMENTE rechazado: un rol que vea TODAS las cooperativas es
+owner              superficie de ataque que el proyecto no necesita. Dar de alta
+                   cooperativas y administradores se hace en la consola de Keycloak,
+                   FUERA de la aplicación.
 ```
 
 sin autorización explícita.
+
+---
+
+## BR-016 — EL ALCANCE SALE DEL TOKEN, NO DEL REQUEST
+
+> **Nueva el 2026-07-14** (ADR D-047). Nace de un defecto real encontrado en auditoría.
+
+**Prohibido autorizar con un dato que manda el cliente.**
+
+```txt
+❌ @Get('all') findAll(@Query('branchId') branchId?: string)   ← el CLIENTE decide qué ve
+✅ @Get('all') findAll(@Req() { user })  → user.branchId       ← el TOKEN decide
+```
+
+**Y el filtro debe ser IMPOSIBLE de olvidar:** la firma del puerto exige `branchId: string`
+(**no** `string | undefined`), para que **el compilador** sea el guardia.
+
+Prohibido:
+
+```txt
+aceptar branch_id / branchName como texto libre en un DTO (debe validarse contra el catálogo)
+devolver TODAS las cooperativas cuando falta el filtro (fail-open)
+confiar en que el frontend mande el alcance correcto
+```
+
+Si alguien manda un `branchId` que no es el suyo → **403**, no un 200 filtrado en silencio.
+**Queremos que truene, para que el intento se note.**
 
 ---
 

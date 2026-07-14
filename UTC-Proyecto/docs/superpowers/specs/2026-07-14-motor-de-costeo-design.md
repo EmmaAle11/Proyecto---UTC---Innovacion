@@ -3,35 +3,51 @@
 **Fecha:** 2026-07-14 · **Estado:** PROPUESTA — diseño detallado, pendiente de tu visto bueno.
 **Alimenta al** `plans/2026-07-14-04-inventario-costeo.md` y al `05-efectivo-caja-ticket-cfdi.md`.
 
-> Este documento existe porque el usuario pidió **"diseñar a mano"** el sistema de costeo tras descubrir
-> que el cálculo ingenuo (`500 g × $0.05 = $25`) estaba mal. Aquí está la cadena completa, con números
-> reales, desde que se compra la carne hasta que se sabe cuánto se ganó.
+> Este documento existe porque el usuario pidió **"diseñar a mano"** el sistema de costeo tras plantear su
+> ejemplo (`3 kg de carne por $150`, `500 g por hamburguesa`). Aquí está **la cadena completa**, desde que
+> se compra un insumo hasta que se sabe cuánto se ganó.
+>
+> **Es la FÓRMULA, no los números.** Los números viven en
+> [`recetas-e-insumos.md`](../../datos/recetas-e-insumos.md) — y son **semilla de demo**.
 
 ---
 
-## 0. El hallazgo que obliga a este documento
+## 0. Lo que este documento **NO** es
 
-**Con tus números, la hamburguesa no es negocio.**
+> 🚨 **Este documento NO contiene los números del negocio. Contiene EL MOTOR que los calcula.**
+>
+> **Los precios y las cantidades que aparecen aquí son EJEMPLOS.** Los números vivos —los únicos que
+> importan— están en **[`recetas-e-insumos.md`](../../datos/recetas-e-insumos.md)**, y **ni siquiera esos
+> son verdad**: son **semilla de demo** que el inventarista sustituye con **sus compras reales**.
 
-| | |
-|---|---|
-| Carne: **500 g netos** ÷ **0.80** de rendimiento | **625 g brutos** × $0.05/g = **$31.25** |
-| Resto de la receta | ≈ **$12.40** |
-| **COSTO TOTAL** | **≈ $43.65** |
-| Precio de menú **$65 (IVA incluido)** → ingreso real | `65 / 1.16` = **$56.03** |
-| **GANANCIA** | **$12.38** |
-| **FOOD COST** | **78 %** ⚠️ *(estándar: 28–35 %. Cooperativa: 35–45 %)* |
+```txt
+EL SISTEMA NO SABE CUÁNTO CUESTA UNA HAMBURGUESA.
+El sistema sabe SUMAR lo que el inventarista le dice que lleva.
+```
 
-**La causa es una sola: 500 g de carne es medio kilo.** Una hamburguesa lleva **120–150 g**.
+> ⚠️ **CORRECCIÓN (§15 / §40).** Una versión anterior de este documento **calculaba con precios que no
+> existen en ningún catálogo** — carne a **$0.05/g** (el ejemplo del usuario) cuando el precio citado de
+> PROFECO es **$0.130/g**, **2.6 veces más**; pan a $6.00 cuando cuesta $4.75. **Todas sus conclusiones
+> eran falsas**, incluido un veredicto de *"✅ negocio sano"* para un producto que en realidad está al
+> **55 % de food cost**.
+>
+> **Es el pecado que este mismo documento denuncia**, cometido por el documento. Queda registrado.
+> **Regla nueva: el motor NO trae precios propios. Cita al catálogo.**
 
-| Escenario | Costo | Food cost | Ganancia | Veredicto |
-|---|---|---|---|---|
-| Carne **500 g** @ $65 | $43.65 | **78 %** | $12.38 | ❌ inviable |
-| Carne **500 g** → precio mínimo para 40 % | — | 40 % | — | **el precio tendría que ser $127** |
-| Carne **150 g** @ $65 | **$21.78** | **39 %** | **$34.25** | ✅ **negocio** |
+### 0.1 El motor, en una línea
 
-**No lo corrijo yo.** Si de verdad es media hamburguesa de kilo, el precio sube. Es tu decisión.
-**Lo que el sistema tiene que hacer es gritártelo antes de que abras.**
+```txt
+compra (con su presentación)  →  costo por unidad base
+      ↓ rendimiento (yield)
+cantidad bruta de la receta   →  costo del producto
+      ↓ ÷ 1.16 (el IVA no es tuyo)
+ingreso real                  →  GANANCIA · FOOD COST · PRECIO MÍNIMO
+      ↓
+   🔔 y GRITA cuando algo no da.
+```
+
+**Eso es todo. Y es lo único que hay que defender.** Que la hamburguesa lleve 130 g o 180 g, y cueste $65 o
+$70, **lo decide la cooperativa** — el sistema **calcula lo que le digan** y **avisa cuando no cierra**.
 
 ---
 
@@ -59,14 +75,21 @@ CAPA 3 — CULINARIA     ¿Cuánto llega al plato?          rendimiento (yield)
 
 ```txt
 qty_bruta  =  qty_neta / rendimiento
+```
 
-500 g netos / 0.80  =  625 g brutos      ← lo que SALE de la alacena
-625 g × $0.05/g     =  $31.25            ← lo que CUESTA de verdad
+**El ejemplo que de verdad muerde — el elote** *(rendimiento 55 %: se va casi la mitad en olote y hojas)*:
+
+```txt
+150 g netos / 0.55  =  273 g brutos      ← lo que SALE de la alacena
 ```
 
 **Sin esto pasan dos cosas, y ninguna se ve venir:**
 1. El costo teórico queda **subestimado siempre** → crees que ganas más de lo que ganas.
-2. El inventario **"se pierde" solo** → el sistema descuenta 500 g y la realidad se llevó 625.
+2. El inventario **"se pierde" solo** → el sistema descuenta 150 g y la realidad se llevó 273.
+
+> ⚠️ **Y ojo con dónde NO aplica.** Una versión anterior usaba la **carne de la hamburguesa** como ejemplo,
+> con un rendimiento del 80 %. **La carne MOLIDA no tiene hueso: su rendimiento es 100 %.**
+> El 80 % es de los **cortes con hueso**. *(Ver la corrección completa abajo.)*
 
 ### ⚠️ TRES mermas, no dos — y solo DOS se modelan
 
@@ -192,7 +215,7 @@ la acreditación puede estar limitada → **el IVA pagado se vuelve costo real**
 
 ```txt
 VENTAS   →  16 % de IVA trasladado  (mucho)
-COMPRAS  →   0 % de IVA acreditable (casi nada — la materia prima cruda no lo causa)
+COMPRAS  →   0 % de IVA acreditable (casi nada — el ALIMENTO no lo causa, y casi todo es alimento)
 ───────────────────────────────────────────────────────────────────
 IVA A PAGAR  ≈  todo el IVA que cobraste
 ```
@@ -213,7 +236,7 @@ ENTRADA:  "3 kg de carne, pagué $150"
   unidad_compra   = kg
   factor_a_base   = 1000          ← va en el LOTE (§1, capa 2)
   total_pagado    = $150.00
-  iva_insumo      = 0 %           ← carne cruda
+  iva_insumo      = 0 %           ← es alimento (LIVA 2-A)
 
   base_gravable   = 150 / (1 + 0) = $150.00     (si fuera empaque con IVA y NO acreditable → $174)
   qty_base        = 3 × 1000      = 3 000 g
@@ -245,36 +268,43 @@ nuevo_promedio = (stock × promedio_actual + qty_entrada × costo_entrada) / (st
 
 ### Paso 3 — La receta cobra el costo (con rendimiento)
 
-**Hamburguesa de la casa** — precio de menú **$65 (IVA incluido)**
-
-| Insumo | Neto | Rend. | **Bruto** | $/u. base | **Costo** |
-|---|---|---|---|---|---|
-| Pan de hamburguesa | 1 pza | 1.00 | 1 pza | $6.000000 | **$6.00** |
-| **Carne de res** | **500 g** | **0.80** | **625 g** | $0.050000 | **$31.25** |
-| Queso amarillo | 20 g | 1.00 | 20 g | $0.150000 | $3.00 |
-| Lechuga | 15 g | 0.85 | 17.65 g | $0.040000 | $0.71 |
-| Jitomate | 30 g | 0.95 | 31.58 g | $0.035000 | $1.11 |
-| Cebolla | 10 g | 0.90 | 11.11 g | $0.030000 | $0.33 |
-| Mayonesa | 10 ml | 1.00 | 10 ml | $0.060000 | $0.60 |
-| Catsup | 10 ml | 1.00 | 10 ml | $0.045000 | $0.45 |
-| Sal y especias | — | — | `track_stock = false` | — | $0.20 |
-| | | | | **COSTO** | **$43.65** |
-
-### Paso 4 — La verdad
+> **Los datos vivos NO están aquí.** La receta y los costos de la Hamburguesa están en
+> **[`recetas-e-insumos.md` §1.1 y §4](../../datos/recetas-e-insumos.md)** — y son **semilla de demo**, no
+> la receta oficial de la cooperativa.
+>
+> **Este documento define la FÓRMULA; el catálogo aporta los NÚMEROS.**
 
 ```txt
-Precio de menú        $65.00   (con IVA)
-Base (ingreso real)   $56.03   = 65 / 1.16      ← contra ESTO se mide todo
-IVA trasladado         $8.97   → al SAT
-
-Costo de la receta    $43.65
-─────────────────────────────
-GANANCIA              $12.38
-FOOD COST               78 %   ⚠️  (objetivo de la coop: ≤ 45 %)
-PRECIO MÍNIMO        $126.59   = (43.65 / 0.40) × 1.16
+costo_línea    = (cantidad_neta / rendimiento) × costo_por_unidad_base
+costo_producto = Σ costo_línea   sobre los insumos BASE y ESTÁNDAR
+                                 (los EXTRA no vienen por defecto → no cuentan)
 ```
 
-**Con 150 g de carne** (una hamburguesa normal): costo **$21.78** · food cost **39 %** ✅ · ganancia **$34.25**.
+**Ejemplo de una línea** — la carne de la Hamburguesa, con los datos del catálogo:
+
+```txt
+neto 130 g  ÷  rendimiento 1.00 (molida: no tiene hueso)  =  130 g brutos
+130 g  ×  $0.130000/g  (PROFECO, citado)                  =  $16.90
+```
+
+### Paso 4 — La verdad, y cómo se calcula
+
+```txt
+Precio de menú        P          (CON IVA — es lo que el estudiante ve y paga)
+Base (ingreso real)   P / 1.16   ← contra ESTO se mide TODO
+IVA trasladado        P − base   → al SAT. NO es tuyo.
+
+GANANCIA       =  base − costo
+FOOD COST      =  costo / base
+PRECIO MÍNIMO  =  (costo / food_cost_max) × 1.16
+```
+
+**Con la semilla actual, esta fórmula marca 5 de los 9 productos calculables por encima del techo del
+45 %** — incluida la Hamburguesa, al **55 %**. *(Y el **Combo ni siquiera se puede costear**: uno de sus
+insumos BASE no tiene precio. **El sistema se niega a fingir un número, que es lo correcto.**)* *(El desglose completo: [`recetas-e-insumos.md` §9](../../datos/recetas-e-insumos.md).)*
+
+> **Y ese es el éxito del motor, no su fracaso.** El sistema existe **para gritar eso antes de abrir**.
+> Con los gramajes y las compras reales de la cooperativa, la lista será otra — **y el grito, también**.
 
 ---
 
@@ -299,9 +329,14 @@ UNIDADES BASE PERMITIDAS (las únicas tres):
 - **La receta solo puede hablar en la unidad base del insumo.** No la elige el usuario: **la hereda del
   insumo**. La UI la muestra, no la deja escoger. **Es imposible pedir "1 kg de agua".**
 
-**Y el agua, en concreto:** el agua de jamaica no se mide en kg. Se mide en **ml** — y ni siquiera se
-cuenta: **el agua de la llave es `track_stock = false`**. Lo que sí se costea es la **flor de jamaica (g)**,
-el **azúcar (g)**, el **hielo (g)** y el **vaso (pza)**.
+**Y el agua, en concreto:** el agua de jamaica no se mide en kg. Se mide en **ml**.
+
+> ⚠️ **CORRECCIÓN — el agua SÍ se rastrea** (decisión del usuario, 2026-07-14: *"el inventarista tiene la
+> **obligación** de llenar el stock de agua disponible"*). `Agua purificada` = **`BASE` + `track_stock = true`**,
+> capturada **por garrafón** (20 000 ml). Una versión anterior de este documento decía lo contrario.
+>
+> **Y eso hace que las alertas dejen de ser un adorno:** si el agua llega a 0, **se caen CUATRO productos**
+> (Horchata, Jamaica, **Esquites** y **Gelatina**). *(El Combo lleva `Agua fresca del día`, otro insumo.)*
 
 ---
 
@@ -373,22 +408,24 @@ Cuando una hamburguesa **ya preparada** no se recoge, **los insumos YA se consum
 
 ### Las tres columnas que el panel debe mostrar
 
-Con la Hamburguesa a **150 g** (costo **$21.78**, precio **$65**, reoferta a **$50**):
+Con la Hamburguesa de la semilla (**130 g**, costo **$30.80**, precio **$65**, reoferta a **$50**) —
+*números de [`recetas-e-insumos.md` §9](../../datos/recetas-e-insumos.md), **reproducibles con su script de §9.4***:
 
 | | Venta normal | **Reoferta** | **Si la tiras** |
 |---|---|---|---|
 | Precio (con IVA) | $65.00 | $50.00 | — |
 | Ingreso real (`/1.16`) | $56.03 | $43.10 | $0.00 |
-| Costo (**ya gastado**) | $21.78 | $21.78 | $21.78 |
-| **RESULTADO** | **+$34.25** | **+$21.32** | **−$21.78** |
+| Costo (**ya gastado**) | −$30.80 | −$30.80 | −$30.80 |
+| **RESULTADO** | **+$25.23** | **+$12.30** | **−$30.80** |
 
-**La reoferta no te bajó la ganancia de $34 a $21. Te rescató de una PÉRDIDA de $21.78 y la convirtió en
-una GANANCIA de $21.32.** Eso es un giro de **$43.10** — que es, exactamente, todo el ingreso recuperado.
+**La reoferta no te bajó la ganancia de $25 a $12. Te rescató de una PÉRDIDA de $30.80 y la convirtió en
+una GANANCIA de $12.30.** Eso es un giro de **$43.10** — que es, exactamente, **todo el ingreso recuperado**
+(`$50 / 1.16`).
 
 ### La regla de decisión (y la que la contrapesa)
 
 ```txt
-Precio de NO-PÉRDIDA (reoferta) = costo × 1.16 = $25.26
+Precio de NO-PÉRDIDA (reoferta) = costo × 1.16 = $35.73
    ↑ debajo de esto SIGUES perdiendo dinero… pero MENOS que tirándola.
 ```
 
@@ -442,9 +479,11 @@ entrada en el `audit-log` (que ya existe). El admin legítimamente puede querer 
 
 ```txt
 ingredients          base_unit      'g' | 'ml' | 'pza'
-                     yield_pct      NUMERIC(5,4)   ← el rendimiento. 0.80 = carne con hueso
+                     yield_pct      NUMERIC(5,4)   ← 0.55 elote en mazorca · 0.80 corte CON hueso
+                                                     1.00 carne MOLIDA (ya viene limpia)
                      track_stock    boolean        ← ⚠️ la sal. Ver §5
-                     iva_rate       NUMERIC(5,4)   ← 0.00 cruda · 0.16 empaques/gas
+                     iva_rate       NUMERIC(5,4)   ← 0.00 casi todo el ALIMENTO
+                                                     0.16 desechables · concentrados de refresco
                      stock          NUMERIC(14,3)  CHECK >= 0
                      avg_unit_cost  NUMERIC(14,6)  ← SEIS decimales (§4, paso 1)
 

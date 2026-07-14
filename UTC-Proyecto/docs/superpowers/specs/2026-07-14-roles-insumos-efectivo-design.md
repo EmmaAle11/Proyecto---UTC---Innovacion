@@ -1,10 +1,21 @@
 # Roles de cooperativa · Insumos con stock · Efectivo con desglose — Design
 
 **Fecha:** 2026-07-14
-**Estado:** **APROBADO en brainstorming — pendiente de ejecución.**
+**Estado:** **APROBADO en brainstorming — pero ⚠️ SUPERADO EN PARTE.**
+
+> 🚨 **AVISO (auditoría 2026-07-14).** Este spec fue el primero de la tanda, y **su modelo de insumos quedó
+> obsoleto** al plantear el usuario su ejemplo de la carne. **En caso de conflicto, MANDA el plan, no este
+> spec.**
+>
+> | Tema | Lo que este spec dice | **Lo que MANDA** |
+> |---|---|---|
+> | **Modelo de insumos** | Receta = 2 booleanos, 3 tablas, sin cantidad ni rendimiento | **Plan 04** — `qty_net` · `yield_pct` · `track_stock` · `iva_rate` · **5 tablas** (+ lotes y ledger) |
+> | **Cancelar tras cocinar** | *"se **devuelve** el insumo"* | **Plan 04 (D5)** — **NO se devuelve: es MERMA.** La carne ya está en la hamburguesa. |
+> | **Claves CFDI** | `50192700` · `H87` | **Plan 05** — **`90101500`** (*Establecimientos para comer y beber*) · **`E48`** (*Unidad de servicio*), que es lo que sugiere el SAT |
+> | **Reoferta** | aparece **dos veces** en la matriz, con dueños distintos | **`mostrador`** (movida desde `admin`) |
 **Sustituye a:** `docs/arquitectura/roles-y-accesos.md` (borrador previo, eliminado).
 
-## Los 5 planes (uno por sección)
+## Los planes (uno por sección)
 
 | Plan | Sección | Depende de |
 |---|---|---|
@@ -13,6 +24,11 @@
 | [`03-rls`](../plans/2026-07-14-03-rls.md) | Row Level Security. **Hoy sería un no-op — está PROBADO.** | 01 |
 | [`04-inventario-costeo`](../plans/2026-07-14-04-inventario-costeo.md) | Materia prima · CPP · **yield** · disponibilidad derivada · ganancia · personalización. | 01 |
 | [`05-efectivo-caja-ticket-cfdi`](../plans/2026-07-14-05-efectivo-caja-ticket-cfdi.md) | Efectivo con desglose · **caja y corte** · ticket · **layout CFDI**. | 01, 04 |
+| [`06-panel-de-receta-por-alimento`](../plans/2026-07-14-06-panel-de-receta-por-alimento.md) | Panel de receta (el sistema sugiere, el encargado corrige) · reoferta · **alertas de inventario**. | 01, 04 |
+
+**Specs de apoyo:** [`motor-de-costeo-design`](2026-07-14-motor-de-costeo-design.md) (la fórmula) ·
+[`producto-terminado-design`](2026-07-14-producto-terminado-design.md) (**⚠️ el agujero que la auditoría
+destapó — dos bugs YA EN PRODUCCIÓN**).
 
 ---
 
@@ -202,7 +218,7 @@ las cooperativas es superficie de ataque que el proyecto no necesita (§46 YAGNI
 | Ver / editar **costos** y márgenes | `…/ingredients`, `…/margin` 🆕 | ❌ | ❌ | ✅ | ❌ | ✅ |
 | Editar la **receta** de un producto | `PUT /products/:id/ingredients` 🆕 | ❌ | ❌ | ✅ | ❌ | ✅ |
 | Crear / editar producto y **precio** | `POST\|PATCH /products` | ❌ | ❌ | ❌ | ❌ | ✅ |
-| Reoferta "pon tu precio" | `PATCH /products/:id` | ❌ | ❌ | ❌ | ❌ | ✅ |
+| ~~Reoferta "pon tu precio"~~ *(renglón OBSOLETO — ver arriba: es de **mostrador**)* | `PATCH /products/:id` | ❌ | ❌ | ❌ | **✅** | ✅ |
 | Dashboard (ingresos, métricas) | `GET /orders/metrics` | ❌ | ❌ | 👁 costos | ❌ | ✅ |
 | Umbrales / horario **de su coop** | `GET\|PATCH /settings/*` | 👁 | ❌ | ❌ | ❌ | ✅ |
 | Alta de personal de su coop | `POST /staff` 🆕 | ❌ | ❌ | ❌ | ❌ | ✅ |
@@ -479,7 +495,14 @@ dinero y contrato.
 
 ---
 
-## 6. Modelo de datos — resumen de cambios
+## 6. Modelo de datos — ⚠️ **SUPERADO por el Plan 04**
+
+> El modelo de insumos de abajo **NO es el vigente**. El vigente está en
+> [`04-inventario-costeo`](../plans/2026-07-14-04-inventario-costeo.md) — con `base_unit`, `yield_pct`,
+> `track_stock`, `iva_rate`, la tabla de **lotes** (`ingredient_purchases`) y el **libro mayor**
+> (`stock_movements`). Se conserva aquí como registro de lo que se pensó primero.
+
+### 6.1 (histórico) Resumen de cambios de la primera versión
 
 ```txt
 NUEVAS TABLAS
