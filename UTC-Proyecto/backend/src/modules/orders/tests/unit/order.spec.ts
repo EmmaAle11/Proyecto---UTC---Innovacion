@@ -33,9 +33,9 @@ function make(status: OrderStatus, over: Partial<OrderSnapshot> = {}): Order {
 }
 
 describe('Order.cancelByOwner (§3.8/§3.9)', () => {
-  it('cancela un PENDING → cancelled, sin liberar stock', () => {
+  it('cancela un PENDING → cancelled y LIBERA la reserva (reservó en place, D-052)', () => {
     const o = make(OrderStatus.PENDING);
-    expect(o.cancelByOwner(NOW)).toBe('none');
+    expect(o.cancelByOwner(NOW)).toBe('release');
     expect(o.status).toBe(OrderStatus.CANCELLED);
   });
 
@@ -77,9 +77,9 @@ describe('Order.extendByOwner (§3.10)', () => {
 });
 
 describe('Order.applyAdminTransition (BR-004)', () => {
-  it('PENDING → PREPARING: reserva stock y fija acceptedAt', () => {
+  it('PENDING → PREPARING: NO reserva (ya se reservó en place, D-052) y fija acceptedAt', () => {
     const o = make(OrderStatus.PENDING);
-    expect(o.applyAdminTransition(OrderStatus.PREPARING, NOW)).toBe('reserve');
+    expect(o.applyAdminTransition(OrderStatus.PREPARING, NOW)).toBe('none');
     expect(o.status).toBe(OrderStatus.PREPARING);
     expect(o.acceptedAt).toEqual(NOW);
   });
@@ -106,13 +106,13 @@ describe('Order.applyAdminTransition (BR-004)', () => {
     ).toBe('release');
   });
 
-  it('PENDING → CANCELLED (admin): sin efecto de stock (nunca reservó)', () => {
+  it('PENDING → CANCELLED (admin): LIBERA la reserva (el pending reservó en place, D-052)', () => {
     expect(
       make(OrderStatus.PENDING).applyAdminTransition(
         OrderStatus.CANCELLED,
         NOW,
       ),
-    ).toBe('none');
+    ).toBe('release');
   });
 
   it('idempotente: mismo estado → none, sin cambios', () => {

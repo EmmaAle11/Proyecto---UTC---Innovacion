@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { ApiError } from '../../../shared/api/client';
 import { QUEUE_STATUSES, type AdminOrder } from '../../../entities/order/admin-types';
 import type { OrderStatus } from '../../../entities/order/model/types';
 import {
@@ -93,8 +94,11 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       }));
       return created;
     } catch (e) {
-      // Sin backend en la demo (dev): crea un pedido local para no dejar muerto el checkout.
-      if (__DEV__ && buildDemo) {
+      // Demo (dev): si NO hay backend (fallo de conectividad, status 0) se crea un pedido local
+      // para no dejar muerto el checkout. Un rechazo de NEGOCIO del servidor (409 sin stock, 400)
+      // NO se enmascara: debe propagar para que el cliente vea "se agotó" (D-052).
+      const isConnectivity = e instanceof ApiError && e.status === 0;
+      if (__DEV__ && buildDemo && isConnectivity) {
         const local = buildDemo();
         set((st) => ({ orders: [local, ...st.orders], activeOrderId: local.id }));
         return local;

@@ -31,6 +31,7 @@ import { useBranchStore } from '../../features/branch/model/branch.store';
 import { useWalletStore } from '../../features/wallet/model/wallet.store';
 import { CardForm } from '../../features/wallet/ui/CardForm';
 import { fetchCongestion, type ApiCongestion } from '../../entities/order/api';
+import { ApiError } from '../../shared/api/client';
 import type { PaymentMethod } from '../../entities/order/model/types';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'Cart'>;
@@ -254,8 +255,10 @@ export function CartScreen({ navigation }: Props) {
       clear();
       navigation.replace('Tracking');
     } catch (e) {
+      // D-052: 409 = se agotó mientras el cliente pedía (la reserva no alcanzó). Título accionable.
+      const soldOut = e instanceof ApiError && e.status === 409;
       Alert.alert(
-        'No se pudo enviar el pedido',
+        soldOut ? 'Se agotó mientras pedías' : 'No se pudo enviar el pedido',
         e instanceof Error ? e.message : 'Intenta de nuevo',
       );
     } finally {

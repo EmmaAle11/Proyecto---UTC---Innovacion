@@ -1,4 +1,8 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import type { DataSource } from 'typeorm';
 import { OrdersService } from './orders.service';
 import { TypeOrmOrderRepository } from '../infrastructure/persistence/order.repository';
@@ -28,6 +32,7 @@ interface AnyProduct {
   price: string;
   isAvailable: boolean;
   basePrepTimeSeconds: number;
+  stock: number;
 }
 function product(
   id: string,
@@ -40,6 +45,7 @@ function product(
     price,
     isAvailable: true,
     basePrepTimeSeconds: 600,
+    stock: 100, // D-052: place() valida cantidad ≤ stock; alto por defecto para no estorbar
     ...over,
   };
 }
@@ -54,14 +60,21 @@ function buildService(opts: {
   thresholds?: { congestionYellow: number; congestionRed: number };
   gatewayAuthorize?: jest.Mock;
   overdue?: unknown[];
+  stockAffected?: number;
 }) {
   const orderSave = jest.fn((o: unknown) =>
     Promise.resolve({ ...(o as object), id: 'order-1' }),
   );
-  // D-037: registra cada UPDATE de inventario (reserve/release) para asertar el ciclo.
+  // D-037/D-052: registra cada UPDATE de inventario (reserva/release) para asertar el ciclo.
   const stockOps: Array<{ id: string; expr: string; qty: number }> = [];
   const itemSave = jest.fn((x: unknown) => Promise.resolve(x));
-  const paymentSave = jest.fn((p: unknown) => Promise.resolve(p));
+  // D-052: la saga guarda el pago PENDING (Tx1) y lo actualiza a PAID (Tx2). El mock recuerda el
+  // último pago para que el findOne de la Tx2 lo devuelva y se pueda mutar/re-guardar.
+  let lastPayment: unknown = null;
+  const paymentSave = jest.fn((p: unknown) => {
+    lastPayment = p;
+    return Promise.resolve(p);
+  });
   const prepSave = jest.fn((x: unknown) => Promise.resolve(x));
   // Captura las condiciones `andWhere` del QueryBuilder de congestion (para asertar el filtro).
   const congestionWhere: string[] = [];
@@ -100,7 +113,8 @@ function buildService(opts: {
           }),
           execute: jest.fn(() => {
             stockOps.push({ ...cap });
-            return Promise.resolve({ affected: 1 });
+            // D-052: `affected` 0 simula stock insuficiente en la reserva condicional → 409.
+            return Promise.resolve({ affected: opts.stockAffected ?? 1 });
           }),
         };
         return qb;
@@ -154,7 +168,12 @@ function buildService(opts: {
       ),
     },
     OrderItemEntity: { create: jest.fn((x: unknown) => x), save: itemSave },
-    PaymentEntity: { create: jest.fn((x: unknown) => x), save: paymentSave },
+    PaymentEntity: {
+      create: jest.fn((x: unknown) => x),
+      save: paymentSave,
+      // D-052: la Tx2 recarga el pago recién creado para marcarlo PAID.
+      findOne: jest.fn(() => Promise.resolve(lastPayment)),
+    },
     PreparationTimeEntity: {
       create: jest.fn((x: unknown) => x),
       save: prepSave,
@@ -369,6 +388,71 @@ describe('OrdersService.create', () => {
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
+
+  it('D-052: reserva el stock AL PEDIR (UPDATE stock − qty por línea)', async () => {
+    const { service, stockOps } = buildService({
+      profile: PROFILE,
+      products: [product('p1', '38.00'), product('p2', '65.00')],
+    });
+    await service.create(
+      {
+        items: [
+          { productId: 'p1', quantity: 2 },
+          { productId: 'p2', quantity: 1 },
+        ],
+        payMethod: PaymentMethod.EFECTIVO,
+      },
+      USER.sub,
+    );
+    expect(stockOps).toHaveLength(2);
+    expect(stockOps.every((o) => o.expr.includes('"stock" - :qty'))).toBe(true);
+    expect(stockOps).toContainEqual(expect.objectContaining({ id: 'p1', qty: 2 }));
+    expect(stockOps).toContainEqual(expect.objectContaining({ id: 'p2', qty: 1 }));
+  });
+
+  it('D-052: stock insuficiente → 409 (Conflict) y NO se persiste el pedido', async () => {
+    const { service, orderSave } = buildService({
+      profile: PROFILE,
+      products: [product('p1', '38.00')],
+      stockAffected: 0, // el UPDATE condicional no afectó filas → agotado
+    });
+    await expect(
+      service.create(
+        {
+          items: [{ productId: 'p1', quantity: 1 }],
+          payMethod: PaymentMethod.EFECTIVO,
+        },
+        USER.sub,
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(orderSave).not.toHaveBeenCalled(); // la tx se revirtió antes de guardar
+  });
+
+  it('D-052: si la tarjeta se rechaza, COMPENSA — reserva (Tx1) y luego libera + cancela', async () => {
+    const { service, stockOps } = buildService({
+      profile: PROFILE,
+      products: [product('p1', '38.00')],
+      // el pedido que compensateFailedPayment recarga (con items para poder liberar).
+      order: {
+        id: 'order-1',
+        orderNumber: 1,
+        status: 'pending',
+        items: [{ id: 'i1', product: { id: 'p1' }, quantity: 2 }],
+        user: PROFILE,
+        createdAt: new Date(),
+      },
+      gatewayAuthorize: jest.fn().mockRejectedValue(new Error('rechazo')),
+    });
+    await expect(
+      service.create(
+        { items: [{ productId: 'p1', quantity: 2 }], payMethod: PaymentMethod.TDC },
+        USER.sub,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    // Se reservó al pedir y se liberó al compensar: NO queda stock reservado por un pago que no entró.
+    expect(stockOps.some((o) => o.expr.includes('"stock" - :qty'))).toBe(true);
+    expect(stockOps.some((o) => o.expr.includes('"stock" + :qty'))).toBe(true);
+  });
 });
 
 describe('OrdersService.create (programado, spec #4)', () => {
@@ -527,7 +611,7 @@ describe('OrdersService.updateStatus', () => {
   });
 });
 
-describe('OrdersService inventario (stock dark kitchen, D-037)', () => {
+describe('OrdersService inventario (stock dark kitchen, D-052)', () => {
   const withItems = (status: OrderStatus, items: unknown[]) => ({
     id: 'o1',
     status,
@@ -539,7 +623,7 @@ describe('OrdersService inventario (stock dark kitchen, D-037)', () => {
     items,
   });
 
-  it('aceptar (pending→preparing) APARTA del almacén: GREATEST(0, stock−cant) por línea', async () => {
+  it('D-052: aceptar (pending→preparing) NO toca el stock (ya se reservó en place)', async () => {
     const { service, stockOps } = buildService({
       order: withItems(OrderStatus.PENDING, [
         { id: 'i1', product: { id: 'p1' }, quantity: 2 },
@@ -547,10 +631,8 @@ describe('OrdersService inventario (stock dark kitchen, D-037)', () => {
       ]),
     });
     await service.updateStatus('o1', OrderStatus.PREPARING, 'admin@test');
-    expect(stockOps).toHaveLength(2);
-    expect(stockOps.every((o) => o.expr.includes('GREATEST(0'))).toBe(true);
-    expect(stockOps).toContainEqual(expect.objectContaining({ id: 'p1', qty: 2 }));
-    expect(stockOps).toContainEqual(expect.objectContaining({ id: 'p2', qty: 1 }));
+    // La reserva se hizo al PEDIR; aceptar solo cambia estado (sin doble reserva).
+    expect(stockOps).toHaveLength(0);
   });
 
   it('BR-012: aceptar despacha el Domain Event OrderAccepted en la tx', async () => {
@@ -621,7 +703,7 @@ describe('OrdersService inventario (stock dark kitchen, D-037)', () => {
     expect(stockOps).toEqual([expect.objectContaining({ id: 'p1', qty: 1 })]);
   });
 
-  it('cancelOwn desde PENDING NO toca el stock (nunca se apartó)', async () => {
+  it('D-052: cancelOwn desde PENDING LIBERA la reserva (se reservó al pedir)', async () => {
     const { service, stockOps } = buildService({
       profile: PROFILE,
       order: withItems(OrderStatus.PENDING, [
@@ -629,7 +711,24 @@ describe('OrdersService inventario (stock dark kitchen, D-037)', () => {
       ]),
     });
     await service.cancelOwn('o1', USER.sub);
-    expect(stockOps).toHaveLength(0);
+    expect(stockOps).toEqual([expect.objectContaining({ id: 'p1', qty: 1 })]);
+    expect(stockOps[0].expr).toContain('+'); // release, no reserva
+  });
+
+  it('D-052: expireStalePending cancela PENDING abandonados y LIBERA su reserva', async () => {
+    const stale = [
+      {
+        ...withItems(OrderStatus.PENDING, [
+          { id: 'i1', product: { id: 'p1' }, quantity: 2 },
+        ]),
+        id: 'o1',
+      },
+    ];
+    const { service, stockOps } = buildService({ overdue: stale });
+    const n = await service.expireStalePending();
+    expect(n).toBe(1);
+    expect(stockOps).toEqual([expect.objectContaining({ id: 'p1', qty: 2 })]);
+    expect(stockOps[0].expr).toContain('+'); // release
   });
 
   it('cancelOwn re-valida el estado FRESCO: si entre el chequeo y la tx pasó a picked_up → BadRequest, sin liberar stock (TOCTOU)', async () => {

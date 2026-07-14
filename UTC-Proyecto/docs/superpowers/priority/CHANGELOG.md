@@ -6,6 +6,18 @@ Registro canónico de cambios significativos del proyecto, documentados con fech
 
 ## 2026-07-14
 
+### `(pendiente de commit)` — Plan 07: reservar en `place()` (bug 3), primer código de la 2ª vuelta (18:00)
+
+**Cambio:** se cierra el **bug 3** del ADR D-052 (*se acepta/paga el pedido antes de reservar*). **Primer código de producción de la ampliación de alcance** (los planes 01-06 siguen siendo diseño). **Sin migración de esquema.** Backend **123 tests verdes** (117 baseline + 6 nuevos), `tsc` 0 back y front.
+
+- **Dominio (`Order.ts`):** `ProductSnapshot` gana `stock`; `place()` valida cantidad ≤ stock (pre-check que nombra el producto); `PREPARING → 'none'` (evita **doble reserva**); `cancelByOwner` siempre `'release'` y admin-`CANCELLED → 'release'` (evitan **fuga de stock**).
+- **Adapter (`order.repository.ts`):** **`reserveStockOrThrow`** (UPDATE condicional `WHERE stock >= qty`, `affected` → **409**); **saga reservar→cobrar→confirmar/compensar** (si la tarjeta se rechaza, se libera la reserva y se cancela); **`expireStalePending`** vence PENDING abandonados y libera su reserva (programados hasta que pasa su hora); **eliminado el `GREATEST` incondicional** (código muerto), `applyStockDelta` release-only.
+- **Frontend:** el 409 "se agotó" **deja de enmascararse** por el fallback demo (solo aplica a fallos de conectividad, status 0) y el carrito lo muestra con título accionable.
+- **Decisiones del usuario:** programados reservan al pedir · reservar **antes** de cobrar (bien hecho ya, lista para pasarela real).
+
+**Decisión:** **D-052** actualizada — bug 3 **IMPLEMENTADO**; bugs 1-2 (`finished_goods`) → **Plan 08 pendiente**. Revierte **D-037** (*"cocina al momento si no alcanza"*).
+**Evidencia:** `cd backend && npx tsc --noEmit && npx jest` → **123 passed**; `cd frontend && npx tsc --noEmit` → 0.
+
 ### `a12c44f` + `767e226` — Alcance ampliado: roles de cooperativa, motor de costeo, caja y CFDI (13:40)
 
 **Cambio:** expansión de alcance (**3 614 líneas** de specs y planes). **Solo diseño: cero código.**
