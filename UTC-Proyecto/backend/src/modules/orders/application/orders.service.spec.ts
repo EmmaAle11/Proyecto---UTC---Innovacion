@@ -59,6 +59,8 @@ function buildService(opts: {
   gatewayAuthorize?: jest.Mock;
   overdue?: unknown[];
   stockAffected?: number;
+  /** Plan 08: finished_goods vencidas que `expireFinishedGoods().find` devolverá. */
+  expiredFinishedGoods?: unknown[];
 }) {
   const orderSave = jest.fn((o: unknown) =>
     Promise.resolve({ ...(o as object), id: 'order-1' }),
@@ -76,6 +78,15 @@ function buildService(opts: {
     return Promise.resolve(p);
   });
   const prepSave = jest.fn((x: unknown) => Promise.resolve(x));
+  // Plan 08 (D-052): captura las `finished_goods` producidas ('to_reoffer') y las mermas (stock_movements).
+  const finishedGoodsCreated: Array<Record<string, unknown>> = [];
+  const stockMovements: Array<Record<string, unknown>> = [];
+  // Predicado del claim atómico del barrido de merma (para pinear `expires_at < :now` sin BD real).
+  const fgSweepWhere: string[] = [];
+  const pushRows = (bag: Array<Record<string, unknown>>) => (rows: unknown) => {
+    bag.push(...(Array.isArray(rows) ? rows : [rows]) as Record<string, unknown>[]);
+    return Promise.resolve(rows);
+  };
   // Captura las condiciones `andWhere` del QueryBuilder de congestion (para asertar el filtro).
   const congestionWhere: string[] = [];
   const repos: Record<string, unknown> = {
@@ -185,6 +196,35 @@ function buildService(opts: {
         opts.thresholds ?? { congestionYellow: 5, congestionRed: 10 },
       ),
     },
+    // Plan 08 (D-052): producto terminado y merma. El barrido reclama con DELETE...RETURNING (claim
+    // atómico, anti doble-merma); el mock devuelve las filas crudas y captura el predicado del WHERE.
+    FinishedGoodEntity: {
+      create: jest.fn((x: unknown) => x),
+      save: jest.fn(pushRows(finishedGoodsCreated)),
+      createQueryBuilder: jest.fn(() => {
+        const qb: {
+          delete: jest.Mock;
+          where: jest.Mock;
+          returning: jest.Mock;
+          execute: jest.Mock;
+        } = {
+          delete: jest.fn(() => qb),
+          where: jest.fn((sql: string) => {
+            fgSweepWhere.push(sql);
+            return qb;
+          }),
+          returning: jest.fn(() => qb),
+          execute: jest
+            .fn()
+            .mockResolvedValue({ raw: opts.expiredFinishedGoods ?? [] }),
+        };
+        return qb;
+      }),
+    },
+    StockMovementEntity: {
+      create: jest.fn((x: unknown) => x),
+      save: jest.fn(pushRows(stockMovements)),
+    },
   };
   const getRepository = (e: { name: string }) => repos[e.name];
   // J5: promedio de prep times. Por defecto sin muestras → create usa el tiempo base.
@@ -233,6 +273,9 @@ function buildService(opts: {
     congestionWhere,
     stockOps,
     dispatchedEvents,
+    finishedGoodsCreated,
+    stockMovements,
+    fgSweepWhere,
   };
 }
 
@@ -741,19 +784,25 @@ describe('OrdersService inventario (stock dark kitchen, D-052)', () => {
     expect(stockOps).toHaveLength(0);
   });
 
-  it('no recogido (→not_picked_up) DEVUELVE como excedente: stock + cant', async () => {
-    const { service, stockOps } = buildService({
+  it('D-052 Plan 08: no recogido (→not_picked_up) PRODUCE finished_good (reoferta), NO toca stock', async () => {
+    const { service, stockOps, finishedGoodsCreated } = buildService({
       order: withItems(OrderStatus.READY, [
         { id: 'i1', product: { id: 'p1' }, quantity: 2 },
       ]),
     });
     await service.updateStatus('o1', OrderStatus.NOT_PICKED_UP, 'admin@test');
-    expect(stockOps).toEqual([expect.objectContaining({ id: 'p1', qty: 2 })]);
-    expect(stockOps[0].expr).toContain('+');
-    expect(stockOps[0].expr).not.toContain('GREATEST');
+    // La comida hecha NO vuelve a products.stock (eso era el bucle infinito); nace como finished_good.
+    expect(stockOps).toHaveLength(0);
+    expect(finishedGoodsCreated).toHaveLength(1);
+    expect(finishedGoodsCreated[0]).toMatchObject({
+      qty: 2,
+      isReoffer: true,
+      reofferPrice: null,
+      source: 'no_recogido',
+    });
   });
 
-  it('expireOverdue vence los READY vencidos (UPDATE condicional) y devuelve su comida al inventario', async () => {
+  it('D-052 Plan 08: expireOverdue vence los READY y PRODUCE finished_goods (no toca stock)', async () => {
     const overdue = [
       {
         ...withItems(OrderStatus.READY, [
@@ -768,24 +817,53 @@ describe('OrdersService inventario (stock dark kitchen, D-052)', () => {
         id: 'o2',
       },
     ];
-    const { service, stockOps } = buildService({ overdue });
+    const { service, stockOps, finishedGoodsCreated } = buildService({ overdue });
     const n = await service.expireOverdue();
     expect(n).toBe(2); // solo cuenta lo que el UPDATE...RETURNING venció
-    expect(stockOps).toHaveLength(2);
-    expect(stockOps.every((o) => o.expr.includes('+'))).toBe(true);
-    expect(stockOps).toContainEqual(expect.objectContaining({ id: 'p1', qty: 1 }));
-    expect(stockOps).toContainEqual(expect.objectContaining({ id: 'p2', qty: 4 }));
+    expect(stockOps).toHaveLength(0); // la comida vencida NO vuelve a stock (rompe el bucle)
+    expect(finishedGoodsCreated).toHaveLength(2);
+    expect(finishedGoodsCreated.every((fg) => fg.isReoffer === true)).toBe(true);
+    expect(finishedGoodsCreated).toContainEqual(
+      expect.objectContaining({ qty: 1, source: 'no_recogido' }),
+    );
+    expect(finishedGoodsCreated).toContainEqual(
+      expect.objectContaining({ qty: 4, source: 'no_recogido' }),
+    );
   });
 
-  it('cancelOwn desde READY devuelve la comida como excedente (release)', async () => {
-    const { service, stockOps } = buildService({
+  it('D-052 Plan 08: cancelOwn desde READY manda la comida hecha a REOFERTA (finished_good), no a stock', async () => {
+    const { service, stockOps, finishedGoodsCreated } = buildService({
       profile: PROFILE,
       order: withItems(OrderStatus.READY, [
         { id: 'i1', product: { id: 'p1' }, quantity: 1 },
       ]),
     });
     await service.cancelOwn('o1', USER.sub);
-    expect(stockOps).toEqual([expect.objectContaining({ id: 'p1', qty: 1 })]);
+    expect(stockOps).toHaveLength(0);
+    // Cancelada ya lista → provenance 'cancelado' (no 'no_recogido'): la auditoría distingue la causa.
+    expect(finishedGoodsCreated).toEqual([
+      expect.objectContaining({ qty: 1, isReoffer: true, source: 'cancelado' }),
+    ]);
+  });
+
+  it('D-052 Plan 08: not_picked_up MULTI-línea produce una finished_good POR línea, hereda branch_id', async () => {
+    const { service, finishedGoodsCreated } = buildService({
+      order: {
+        ...withItems(OrderStatus.READY, [
+          { id: 'i1', product: { id: 'p1' }, quantity: 2 },
+          { id: 'i2', product: { id: 'p2' }, quantity: 3 },
+        ]),
+        branchId: 'suc-1', // la unidad rescatada debe quedar scopeada a su sucursal (multi-cooperativa)
+      },
+    });
+    await service.updateStatus('o1', OrderStatus.NOT_PICKED_UP, 'admin@test');
+    expect(finishedGoodsCreated).toHaveLength(2);
+    expect(finishedGoodsCreated).toContainEqual(
+      expect.objectContaining({ qty: 2, source: 'no_recogido', branchId: 'suc-1' }),
+    );
+    expect(finishedGoodsCreated).toContainEqual(
+      expect.objectContaining({ qty: 3, source: 'no_recogido', branchId: 'suc-1' }),
+    );
   });
 
   it('D-052: cancelOwn desde PENDING LIBERA la reserva (se reservó al pedir)', async () => {
@@ -835,6 +913,36 @@ describe('OrdersService inventario (stock dark kitchen, D-052)', () => {
           s.includes('p.order_id = orders.id'),
       ),
     ).toBe(true);
+  });
+
+  it('D-052 Plan 08: expireFinishedGoods merma las caducadas (claim atómico DELETE...RETURNING) y las borra', async () => {
+    // Filas CRUDAS del RETURNING (id, qty, product_id): el claim atómico evita la doble merma si dos
+    // barridos se solapan (mismo patrón que expireOverdue/expireStalePending).
+    const { service, stockMovements, fgSweepWhere } = buildService({
+      expiredFinishedGoods: [
+        { id: 'fg1', qty: 2, product_id: 'p1' },
+        { id: 'fg2', qty: 5, product_id: 'p2' },
+      ],
+    });
+    const n = await service.expireFinishedGoods();
+    expect(n).toBe(7); // UNIDADES mermadas (2 + 5), no filas (el log dice "N unidades")
+    expect(stockMovements).toHaveLength(2);
+    expect(stockMovements).toContainEqual(
+      expect.objectContaining({
+        qty: 2,
+        type: 'merma',
+        reason: 'caducado',
+        finishedGoodId: 'fg1',
+      }),
+    );
+    expect(stockMovements).toContainEqual(
+      expect.objectContaining({ qty: 5, finishedGoodId: 'fg2' }),
+    );
+    // Pinea el predicado del claim (`expires_at < :now`, tolerante a `<=`). ponytail: en mock puro
+    // esto solo caza el BORRADO del filtro, no una INVERSIÓN (`>`), que barrería no-vencidas: eso
+    // requiere una prueba de integración contra Postgres real (techo del harness unit, igual que
+    // el predicado `stock >= :qty` del Plan 07). Documentado, no silenciado.
+    expect(fgSweepWhere.some((s) => /expires_at\s*<=?\s*:now/.test(s))).toBe(true);
   });
 
   it('cancelOwn re-valida el estado FRESCO: si entre el chequeo y la tx pasó a picked_up → BadRequest, sin liberar stock (TOCTOU)', async () => {

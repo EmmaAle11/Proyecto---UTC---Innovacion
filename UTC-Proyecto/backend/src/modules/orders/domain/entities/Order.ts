@@ -26,11 +26,15 @@ export enum OrderStatus {
 }
 
 /** Efecto que una transición tiene sobre el inventario (D-037/D-052). El agregado decide el
- *  efecto (intención); el adapter ejecuta el SQL sobre las filas de Product.
- *  ⚠️ D-052: 'reserve' YA NO lo emite ninguna transición — la reserva ocurre en la creación
- *  (`place()` → `reserveStockOrThrow`). Las transiciones solo devuelven ('release') o no-op ('none').
- *  Se conserva 'reserve' en el type por simetría del ciclo de vida. */
-export type StockEffect = 'reserve' | 'release' | 'none';
+ *  efecto (intención); el adapter lo ejecuta.
+ *  - 'release'    → la reserva NO se consumió (comida sin hacer): vuelve a `products.stock`.
+ *  - 'to_reoffer' → la comida SÍ se hizo pero no se entregó (no recogida / cancelada ya lista):
+ *                   NACE una `finished_good` (reoferta con caducidad), NO vuelve a stock fresco.
+ *                   Esto ROMPE el bucle infinito de reoferta (bug 1 de D-052, Plan 08).
+ *  - 'none'       → sin efecto.
+ *  ⚠️ 'reserve' YA NO lo emite ninguna transición — la reserva ocurre en la creación
+ *  (`place()` → `reserveStockOrThrow`). Se conserva en el type por simetría del ciclo. */
+export type StockEffect = 'reserve' | 'release' | 'to_reoffer' | 'none';
 
 /** Línea del pedido con sus VOs de dominio (productId tipado + cantidad validada). */
 export interface OrderLine {
@@ -287,7 +291,9 @@ export class Order extends AggregateRoot<OrderId> {
         this._pickedUpAt = now;
         return 'none'; // la reserva se vuelve consumo permanente: NO se libera
       case OrderStatus.NOT_PICKED_UP:
-        return 'release'; // el excedente vuelve al stock (Plan 08 lo mandará a finished_goods)
+        // D-052/Plan 08: la comida SE HIZO y no se recogió → nace una `finished_good` (reoferta
+        // con caducidad), NO vuelve al stock como fresca. Aquí es donde el bucle infinito TERMINA.
+        return 'to_reoffer';
       case OrderStatus.CANCELLED:
         // D-052: el pending cancelado por el admin TENÍA reserva desde place() → liberar, o fuga.
         return 'release';
@@ -296,19 +302,24 @@ export class Order extends AggregateRoot<OrderId> {
     }
   }
 
-  /** Cancelación del CLIENTE (§3.8/§3.9). Libera SIEMPRE: con reserva-en-place (D-052) los tres
-   *  estados cancelables (pending/ready/ready_later) retienen stock desde que se pidió. Emite evento. */
+  /** Cancelación del CLIENTE (§3.8/§3.9). El efecto depende de si la comida ya se hizo:
+   *  - desde PENDING (sin preparar): 'release' → la reserva vuelve al stock.
+   *  - desde READY/READY_LATER (ya lista): 'to_reoffer' → la comida hecha nace como `finished_good`
+   *    (reoferta con caducidad), NO vuelve a stock fresco (bug 1 de D-052, Plan 08). Emite evento. */
   cancelByOwner(now: Date): StockEffect {
     if (!CLIENT_CANCELLABLE.includes(this._status)) {
       throw new DomainError(
         'Solo puedes cancelar un pedido pendiente o uno listo que aún no recogiste',
       );
     }
+    const wasMade =
+      this._status === OrderStatus.READY ||
+      this._status === OrderStatus.READY_LATER;
     this._status = OrderStatus.CANCELLED;
     this.record(
       new OrderCancelled(this.id, this.orderNumber, this._ownerUserId, now),
     );
-    return 'release';
+    return wasMade ? 'to_reoffer' : 'release';
   }
 
   /** Extender un pedido listo para recogerlo después (§3.10: ready → ready_later). Sin notificación (BR-012). */

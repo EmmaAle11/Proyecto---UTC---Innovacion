@@ -14,6 +14,13 @@ import { ProductEntity } from '../../../../infrastructure/database/entities/prod
 import { UserProfileEntity } from '../../../../infrastructure/database/entities/user-profile.entity';
 import { PreparationTimeEntity } from '../../../../infrastructure/database/entities/preparation-time.entity';
 import { AppSettingsEntity } from '../../../../infrastructure/database/entities/app-settings.entity';
+import { FinishedGoodEntity } from '../../../../infrastructure/database/entities/finished-good.entity';
+import { StockMovementEntity } from '../../../../infrastructure/database/entities/stock-movement.entity';
+import {
+  FinishedGoodSource,
+  StockMovementReason,
+  StockMovementType,
+} from '../../../../infrastructure/database/entities/enums';
 import { IOrderRepository } from '../../domain/ports/order.repository.port';
 import {
   OrderStatus,
@@ -73,6 +80,10 @@ const SCHEDULE_WINDOW_MIN = 20;
  *  si necesitara ser por sucursal → app_settings. En PROGRAMADOS el reloj corre desde
  *  scheduled_for (retienen hasta su hora), no desde created_at. */
 const PENDING_TTL_MIN = 30;
+/** ponytail: vida (horas) de una unidad rescatada a reoferta antes de caducar y MERMARSE (D-052,
+ *  Plan 08). 4 h = comida del día, no cruza al día siguiente. Si necesitara ser por producto/sucursal
+ *  → app_settings. Es lo que hace que el ciclo de reoferta TERMINE (rompe el bucle infinito). */
+const REOFFER_TTL_HOURS = 4;
 /** Promedio de preparación (BR-007/J5): últimas N muestras; con menos de MIN → tiempo base. */
 const MAX_PREP_SAMPLES = 20;
 const MIN_PREP_SAMPLES = 3;
@@ -446,8 +457,8 @@ export class TypeOrmOrderRepository implements IOrderRepository {
 
   /**
    * E6 (§3.8): vence la ventana de recogida. Flip ATÓMICO y condicional (solo READY con
-   * deadline pasado); devuelve el inventario de TODAS las órdenes vencidas agregado y en
-   * orden GLOBAL de productId (anti-deadlock con las transiciones de un solo pedido, D-037).
+   * deadline pasado). D-052/Plan 08: la comida vencida SE HIZO → NACE como `finished_good` por
+   * pedido (reoferta con caducidad), NO vuelve a `products.stock` como fresca (rompe el bucle 1).
    */
   async expireOverdue(): Promise<number> {
     const now = new Date(); // BR-005: hora del servidor
@@ -468,23 +479,9 @@ export class TypeOrmOrderRepository implements IOrderRepository {
           where: { id: In(ids) },
           relations: ORDER_RELATIONS,
         });
-        const byProduct = new Map<string, number>();
+        // Cada pedido vencido produce sus finished_goods (reoferta) en ESTA tx. No toca stock.
         for (const order of orders) {
-          for (const it of order.items ?? []) {
-            const pid = it.product?.id;
-            if (!pid || it.quantity <= 0) continue;
-            byProduct.set(pid, (byProduct.get(pid) ?? 0) + it.quantity);
-          }
-        }
-        const productRepo = manager.getRepository(ProductEntity);
-        for (const pid of [...byProduct.keys()].sort((a, b) => a.localeCompare(b))) {
-          await productRepo
-            .createQueryBuilder()
-            .update()
-            .set({ stock: () => '"stock" + :qty', version: () => '"version" + 1' })
-            .where('id = :id', { id: pid })
-            .setParameter('qty', byProduct.get(pid))
-            .execute();
+          await this.produceFinishedGoods(manager, order);
         }
         // BR-012: este flip NO pasa por el agregado (es masivo por SQL), así que se construyen
         // los eventos OrderNotPickedUp desde las filas vencidas y se despachan en ESTA tx.
@@ -603,6 +600,52 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       );
     }
     return expiredIds.length;
+  }
+
+  /**
+   * D-052/Plan 08: vence las `finished_goods` cuyo `expires_at` ya pasó → registra una MERMA en
+   * `stock_movements` (motivo `caducado`) y ELIMINA la fila, todo en una tx. Es lo que hace que el
+   * ciclo de reoferta TERMINE (la comida de ayer no se revende para siempre). Junto a los otros
+   * barridos, cada minuto. NO toca `products.stock`: el stock ya se consumió al producir la unidad;
+   * la pérdida se registra como merma (Plan 04 la usará para el costeo real).
+   */
+  async expireFinishedGoods(): Promise<number> {
+    const now = new Date(); // BR-005: hora del servidor
+    return this.dataSource.transaction(async (manager) => {
+      const fgRepo = manager.getRepository(FinishedGoodEntity);
+      // Claim ATÓMICO: DELETE ... RETURNING (mismo espíritu que el UPDATE...RETURNING de expireOverdue
+      // /expireStalePending). Bajo READ COMMITTED, dos barridos solapados no pueden borrar la MISMA fila:
+      // el segundo re-evalúa el WHERE y borra 0 → sin doble merma en stock_movements (que no tiene UNIQUE).
+      const deleted = await fgRepo
+        .createQueryBuilder()
+        .delete()
+        .where('expires_at < :now', { now })
+        .returning(['id', 'qty', 'product_id'])
+        .execute();
+      const rows =
+        (deleted.raw as Array<{
+          id: string;
+          qty: number;
+          product_id: string;
+        }>) ?? [];
+      if (!rows.length) return 0;
+      const movRepo = manager.getRepository(StockMovementEntity);
+      const movements = rows
+        .filter((r) => r.product_id && r.qty > 0)
+        .map((r) =>
+          movRepo.create({
+            // La finished_good ya se borró en el mismo statement; el movimiento conserva su id suelto.
+            product: { id: r.product_id } as ProductEntity,
+            qty: r.qty,
+            type: StockMovementType.MERMA,
+            reason: StockMovementReason.CADUCADO,
+            finishedGoodId: r.id,
+          }),
+        );
+      if (movements.length) await movRepo.save(movements);
+      // Devuelve UNIDADES mermadas (Σ qty), no filas: el scheduler lo loguea como "N unidad(es)".
+      return rows.reduce((sum, r) => sum + (r.qty > 0 ? r.qty : 0), 0);
+    });
   }
 
   // --- Lectura -----------------------------------------------------------------------------
@@ -739,13 +782,14 @@ export class TypeOrmOrderRepository implements IOrderRepository {
     }
   }
 
-  /** Aplica el efecto de stock que decidió el agregado (D-037/D-052). */
+  /** Aplica el efecto de stock que decidió el agregado (D-037/D-052/Plan 08). */
   private applyStock(
     manager: EntityManager,
     order: OrderEntity,
     effect: StockEffect,
   ): Promise<void> {
     if (effect === 'release') return this.applyStockDelta(manager, order);
+    if (effect === 'to_reoffer') return this.produceFinishedGoods(manager, order);
     if (effect === 'reserve') {
       // D-052: la reserva ocurre SOLO en la creación (reserveStockOrThrow). Ninguna transición
       // debe pedir 'reserve'; si llega aquí es una regresión → fallar ruidoso, no fugar stock.
@@ -754,6 +798,41 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       );
     }
     return Promise.resolve(); // 'none'
+  }
+
+  /**
+   * D-052/Plan 08 ('to_reoffer'): la comida SE HIZO y no se entregó (no recogida o cancelada ya
+   * lista) → NACE una `finished_good` por línea (reoferta con caducidad `now + REOFFER_TTL_HOURS`,
+   * `reoffer_price` = null hasta que el admin lo ponga). NO toca `products.stock`: el stock ya se
+   * consumió al reservar en `place()`; devolverlo como fresco es justo el bucle infinito (bug 1).
+   * Al caducar, `expireFinishedGoods` la merma y el ciclo TERMINA.
+   */
+  private async produceFinishedGoods(
+    manager: EntityManager,
+    order: OrderEntity,
+  ): Promise<void> {
+    const repo = manager.getRepository(FinishedGoodEntity);
+    const expiresAt = new Date(Date.now() + REOFFER_TTL_HOURS * 60 * 60 * 1000);
+    // Provenance de la pérdida (para el costeo/auditoría de Plan 04): una cancelación ya lista es
+    // 'cancelado'; una recogida vencida es 'no_recogido'. Se deriva del estado NUEVO del pedido.
+    const source =
+      order.status === OrderStatus.CANCELLED
+        ? FinishedGoodSource.CANCELADO
+        : FinishedGoodSource.NO_RECOGIDO;
+    const rows = (order.items ?? [])
+      .filter((it) => it.product?.id && it.quantity > 0)
+      .map((it) =>
+        repo.create({
+          branchId: order.branchId ?? null,
+          product: it.product,
+          qty: it.quantity,
+          isReoffer: true,
+          reofferPrice: null,
+          source,
+          expiresAt,
+        }),
+      );
+    if (rows.length) await repo.save(rows);
   }
 
   /**

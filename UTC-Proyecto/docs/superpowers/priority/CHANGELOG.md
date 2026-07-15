@@ -6,6 +6,17 @@ Registro canónico de cambios significativos del proyecto, documentados con fech
 
 ## 2026-07-15
 
+### `(pendiente de commit)` — Plan 08 F1-F3: bug 1 (bucle infinito de reoferta) CERRADO (loop-break)
+
+**Cambio:** se cierra el **bug 1** del ADR D-052 (*la reoferta es un bucle infinito: la comida de ayer se revende para siempre*). Modelo nuevo **`finished_goods`** (lo ya hecho, con caducidad) + **`stock_movements`** (merma). **Con migración** (`1782941000000-AddFinishedGoods`). **127 tests verdes**, tsc 0. Endurecido por **3 rondas de caza adversaria** (convergió: 0 defectos de producto).
+
+- **Esquema (F1):** tablas `finished_goods` (`qty`, `produced_at`, **`expires_at`**, `is_reoffer`, `reoffer_price` DE LA UNIDAD, `source`, `branch_id`) y `stock_movements` (`type`, `reason`, `finished_good_id` suelto); `text`+CHECK (no enum pg) para que Plan 04 crezca sin ALTER.
+- **Dominio (F2a):** nuevo `StockEffect 'to_reoffer'` (comida hecha no entregada) distinto de `'release'` (reserva no hecha). `not_picked_up` y cancelar-desde-`ready/ready_later` → `'to_reoffer'`; cancelar-desde-`pending` y admin-cancel → `'release'`.
+- **Adapter (F2a+F3):** `produceFinishedGoods` (una unidad por línea, `expires_at=now+4h`, **provenance** `cancelado`/`no_recogido` según el estado, hereda `branch_id`), NO toca `products.stock` → rompe el bucle; `expireOverdue` produce finished_goods en vez de sumar a stock; **`expireFinishedGoods`** barre las caducadas con **claim atómico `DELETE...RETURNING`** (anti doble-merma) → `stock_movements(merma, caducado)`, devuelve unidades. Cableado en el scheduler (3er barrido).
+
+**Decisión:** **D-052** — bug 1 **CERRADO** (loop-break). **Falta bug 2** (Plan 08 F2b: compra de rescate de la unidad + quitar `product.reofferPrice`) + F4/F5 (disponibilidad + frontend). **Alcance elegido: completo en un Plan 08**, ejecutado por fases verdes.
+**Evidencia:** `cd backend && npx tsc --noEmit && npx jest` → **127 passed**. Caza: `wf_002c2657` / `wf_5091d9a4` / `wf_4897435b` (R3: 0 defectos de producto).
+
 ### `(pendiente de commit)` — Plan 07 CERRADO: bug 3 (reservar en `place()`) a gate §22 = 0 P0-P5
 
 **Cambio:** se **cierra** el **bug 3** del ADR D-052 (*se acepta/paga el pedido antes de reservar*), endurecido por **4 rondas de caza adversaria multi-agente** (§22/§40) que hallaron y cerraron defectos que las propias correcciones introducían. **Sin migración de esquema.** Backend **125 tests verdes**, `tsc` 0 back y front.

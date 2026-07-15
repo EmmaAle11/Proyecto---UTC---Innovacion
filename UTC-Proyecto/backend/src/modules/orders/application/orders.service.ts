@@ -64,6 +64,10 @@ export class OrdersService {
     return this.orders.expireStalePending();
   }
 
+  async expireFinishedGoods(): Promise<number> {
+    return this.orders.expireFinishedGoods();
+  }
+
   async congestion(): Promise<CongestionResponse> {
     return this.orders.congestion();
   }

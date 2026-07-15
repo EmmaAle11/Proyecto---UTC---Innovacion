@@ -441,7 +441,7 @@ Registro único y canónico de decisiones (estilo ADR ligero). Para añadir una 
 
 ## D-052 · Producto terminado: la reoferta es un bucle infinito y se cobra antes de reservar
 
-- Fecha: 2026-07-14 (cierre 2026-07-15) · Estado: **bug 3 IMPLEMENTADO Y CERRADO — gate §22 = 0 P0-P5 (Plan 07)** · bugs 1-2 (finished_goods) **propuestos** · ⚠️ **DOS BUGS AÚN EN PRODUCCIÓN**.
+- Fecha: 2026-07-14 (cierre 2026-07-15) · Estado: **bug 3 CERRADO (Plan 07, gate §22)** · **bug 1 (bucle infinito de reoferta) CERRADO (Plan 08 F1-F3, loop-break, caza 3 rondas)** · **bug 2 (reoferta contamina frescas) PENDIENTE (Plan 08 F2b: compra de rescate + quitar `product.reofferPrice`)**.
 - **Contexto:** el modelo solo conoce **insumos** y **recetas**. Pero **la cocina produce en lote y guarda cosas hechas** (la gelatina se cuaja en molde de 20; el aceite se compra en tina de 20 L; **la reoferta vende una hamburguesa ya hecha, cuyo respaldo de insumos es CERO**). **Cinco síntomas, una ausencia.**
 - **Bug 1 — la reoferta nunca termina.** `reofferPrice` vive **en el PRODUCTO** (`Order.ts:179`), no en la unidad rescatada → **toda venta de ese producto va con descuento, incluidas las recién hechas** *(es la canibalización que el propio diseño advertía… implementada)*. Y `NOT_PICKED_UP → 'release'` (`Order.ts:283`) devuelve la unidad al stock **sin caducidad y sin merma**: `release → reoferta → not_picked_up → release`, **infinito**. **La hamburguesa del lunes sigue disponible el viernes.**
 - **Bug 2 — se cobra antes de reservar.** El stock se aparta al **aceptar**; el cliente **paga al pedir**. El propio código lo confiesa: `default: return 'none' // (pending nunca reservó)`. **Dos clientes pagan la última hamburguesa.**

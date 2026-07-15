@@ -20,6 +20,7 @@ export interface IOrderRepository {
   extendOwn(id: string, ownerUserId: string): Promise<OrderResponse>;
   expireOverdue(): Promise<number>;
   expireStalePending(): Promise<number>;
+  expireFinishedGoods(): Promise<number>;
   findMine(ownerUserId: string): Promise<OrderResponse[]>;
   findAll(branchId?: string): Promise<OrderResponse[]>;
   findOneOwned(id: string, ownerUserId: string): Promise<OrderResponse>;

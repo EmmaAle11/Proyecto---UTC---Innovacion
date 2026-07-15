@@ -39,14 +39,14 @@ describe('Order.cancelByOwner (§3.8/§3.9)', () => {
     expect(o.status).toBe(OrderStatus.CANCELLED);
   });
 
-  it('cancela un READY → cancelled y LIBERA stock (excedente reofertable, D-037)', () => {
+  it('cancela un READY → cancelled y la comida hecha va A REOFERTA (to_reoffer, D-052 Plan 08)', () => {
     const o = make(OrderStatus.READY);
-    expect(o.cancelByOwner(NOW)).toBe('release');
+    expect(o.cancelByOwner(NOW)).toBe('to_reoffer');
     expect(o.status).toBe(OrderStatus.CANCELLED);
   });
 
-  it('cancela un READY_LATER → release', () => {
-    expect(make(OrderStatus.READY_LATER).cancelByOwner(NOW)).toBe('release');
+  it('cancela un READY_LATER → to_reoffer (la comida ya estaba hecha)', () => {
+    expect(make(OrderStatus.READY_LATER).cancelByOwner(NOW)).toBe('to_reoffer');
   });
 
   it('RECHAZA cancelar en PREPARING (no cancelable) y no muta', () => {
@@ -97,13 +97,13 @@ describe('Order.applyAdminTransition (BR-004)', () => {
     expect(o.pickedUpAt).toEqual(NOW);
   });
 
-  it('READY → NOT_PICKED_UP: libera stock (D-037)', () => {
+  it('READY → NOT_PICKED_UP: la comida hecha va A REOFERTA (to_reoffer, D-052 Plan 08)', () => {
     expect(
       make(OrderStatus.READY).applyAdminTransition(
         OrderStatus.NOT_PICKED_UP,
         NOW,
       ),
-    ).toBe('release');
+    ).toBe('to_reoffer');
   });
 
   it('PENDING → CANCELLED (admin): LIBERA la reserva (el pending reservó en place, D-052)', () => {

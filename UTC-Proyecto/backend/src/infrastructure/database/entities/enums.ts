@@ -10,4 +10,7 @@ export {
   ProductStatus,
   PaymentMethod,
   PaymentStatus,
+  FinishedGoodSource,
+  StockMovementType,
+  StockMovementReason,
 } from '../../../domain/enums';

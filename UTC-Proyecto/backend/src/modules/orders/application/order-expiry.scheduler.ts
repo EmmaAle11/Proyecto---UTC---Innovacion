@@ -55,5 +55,16 @@ export class OrderExpiryScheduler implements OnModuleInit, OnModuleDestroy {
         `No se pudo barrer pendientes abandonados: ${e instanceof Error ? e.message : e}`,
       );
     }
+    try {
+      const m = await this.orders.expireFinishedGoods();
+      if (m > 0)
+        this.logger.log(
+          `Producto terminado caducado: ${m} unidad(es) → merma (D-052, bucle de reoferta cerrado)`,
+        );
+    } catch (e) {
+      this.logger.warn(
+        `No se pudo barrer producto terminado caducado: ${e instanceof Error ? e.message : e}`,
+      );
+    }
   }
 }

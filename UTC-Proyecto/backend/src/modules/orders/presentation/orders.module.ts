@@ -7,6 +7,8 @@ import { ProductEntity } from '../../../infrastructure/database/entities/product
 import { UserProfileEntity } from '../../../infrastructure/database/entities/user-profile.entity';
 import { PreparationTimeEntity } from '../../../infrastructure/database/entities/preparation-time.entity';
 import { AppSettingsEntity } from '../../../infrastructure/database/entities/app-settings.entity';
+import { FinishedGoodEntity } from '../../../infrastructure/database/entities/finished-good.entity';
+import { StockMovementEntity } from '../../../infrastructure/database/entities/stock-movement.entity';
 import { OrdersService } from '../application/orders.service';
 import { OrderExpiryScheduler } from '../application/order-expiry.scheduler';
 import { PaymentGatewayService } from '../../../application/payments/payment-gateway.service';
@@ -24,6 +26,8 @@ import { TypeOrmOrderRepository } from '../infrastructure/persistence/order.repo
       UserProfileEntity,
       PreparationTimeEntity,
       AppSettingsEntity,
+      FinishedGoodEntity,
+      StockMovementEntity,
     ]),
   ],
   controllers: [OrdersController],

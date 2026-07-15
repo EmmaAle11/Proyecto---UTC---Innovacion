@@ -34,3 +34,24 @@ export enum PaymentStatus {
   FAILED = 'failed',
   REFUNDED = 'refunded',
 }
+
+/** De dónde salió una unidad de `finished_goods` (D-052, Plan 08). Producción en lote
+ *  ("cuajé 20"), una unidad NO recogida, o una cancelada ya lista — la provenance distingue la
+ *  causa de la pérdida para el costeo/auditoría (Plan 04). */
+export enum FinishedGoodSource {
+  PRODUCCION = 'produccion',
+  NO_RECOGIDO = 'no_recogido',
+  CANCELADO = 'cancelado',
+}
+
+/** Tipo de movimiento de inventario (D-052). Por ahora solo MERMA (baja); Plan 04 añadirá
+ *  entradas/salidas de insumos. Columna `text` + CHECK (no enum pg) para crecer sin ALTER. */
+export enum StockMovementType {
+  MERMA = 'merma',
+}
+
+/** Motivo de una merma (D-052). `caducado` = una `finished_good` venció su `expires_at` (rompe el
+ *  bucle de reoferta). Plan 04 añadirá `cambio_de_aceite`, etc. */
+export enum StockMovementReason {
+  CADUCADO = 'caducado',
+}
