@@ -16,7 +16,6 @@ function snap(over: Partial<ProductSnapshot> = {}): ProductSnapshot {
     reofferPrice: null,
     isAvailable: true,
     basePrepTimeSeconds: 600,
-    stock: 100,
     ...over,
   };
 }
@@ -72,17 +71,9 @@ describe('Order.place (BR-015 / spec #4)', () => {
     ).toThrow(DomainError);
   });
 
-  it('D-052: rechaza cantidad mayor al stock (pre-check amable que nombra el producto)', () => {
-    // Pide 2 (default) sobre stock 1 → DomainError con el nombre del producto.
-    expect(() =>
-      Order.place(input({ products: [snap({ name: 'Hamburguesa', stock: 1 })] })),
-    ).toThrow('Solo quedan 1 de Hamburguesa');
-  });
-
-  it('D-052: acepta cantidad igual al stock (frontera exacta)', () => {
-    const plan = Order.place(input({ products: [snap({ stock: 2 })] })); // pide 2, hay 2
-    expect(plan.lines[0].quantity.value).toBe(2);
-  });
+  // P4#6: el AGOTADO ya NO es regla de dominio (se validaba sobre un snapshot rancio). El único
+  // gate de inventario es el UPDATE atómico del adapter (reserveStockOrThrow → 409). Por eso
+  // Order.place ya no rechaza por cantidad > stock: ese caso se prueba en orders.service.spec.
 
   it('J5: usa el promedio real si hay muestras; si no, el tiempo base', () => {
     const conAvg = Order.place(input({ avgPrepByProductId: { p1: 420 } }));

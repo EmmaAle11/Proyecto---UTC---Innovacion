@@ -32,7 +32,6 @@ interface AnyProduct {
   price: string;
   isAvailable: boolean;
   basePrepTimeSeconds: number;
-  stock: number;
 }
 function product(
   id: string,
@@ -45,7 +44,6 @@ function product(
     price,
     isAvailable: true,
     basePrepTimeSeconds: 600,
-    stock: 100, // D-052: place() valida cantidad ≤ stock; alto por defecto para no estorbar
     ...over,
   };
 }
@@ -66,7 +64,9 @@ function buildService(opts: {
     Promise.resolve({ ...(o as object), id: 'order-1' }),
   );
   // D-037/D-052: registra cada UPDATE de inventario (reserva/release) para asertar el ciclo.
-  const stockOps: Array<{ id: string; expr: string; qty: number }> = [];
+  // `where` (P4#7): guarda el predicado SQL para pinear `stock >= :qty` en la reserva (que un
+  // futuro cambio de `>=` a `>` o el borrado del predicado rompa el test aunque no haya BD real).
+  const stockOps: Array<{ id: string; expr: string; qty: number; where: string }> = [];
   const itemSave = jest.fn((x: unknown) => Promise.resolve(x));
   // D-052: la saga guarda el pago PENDING (Tx1) y lo actualiza a PAID (Tx2). El mock recuerda el
   // último pago para que el findOne de la Tx2 lo devuelva y se pueda mutar/re-guardar.
@@ -90,7 +90,7 @@ function buildService(opts: {
       findBy: jest.fn().mockResolvedValue(opts.products ?? []),
       // D-037: QueryBuilder de inventario. Captura la expresión SQL, el id y la cantidad.
       createQueryBuilder: jest.fn(() => {
-        const cap = { id: '', expr: '', qty: 0 };
+        const cap = { id: '', expr: '', qty: 0, where: '' };
         const qb: {
           update: jest.Mock;
           set: jest.Mock;
@@ -103,7 +103,8 @@ function buildService(opts: {
             cap.expr = obj.stock();
             return qb;
           }),
-          where: jest.fn((_sql: string, params: { id: string }) => {
+          where: jest.fn((sql: string, params: { id: string }) => {
+            cap.where = sql;
             cap.id = params.id;
             return qb;
           }),
@@ -406,6 +407,8 @@ describe('OrdersService.create', () => {
     );
     expect(stockOps).toHaveLength(2);
     expect(stockOps.every((o) => o.expr.includes('"stock" - :qty'))).toBe(true);
+    // P4#6/P4#7: el gate atómico es condicional. Sin `stock >= :qty` la reserva sobregiraría stock.
+    expect(stockOps.every((o) => o.where.includes('stock >= :qty'))).toBe(true);
     expect(stockOps).toContainEqual(expect.objectContaining({ id: 'p1', qty: 2 }));
     expect(stockOps).toContainEqual(expect.objectContaining({ id: 'p2', qty: 1 }));
   });
@@ -428,8 +431,8 @@ describe('OrdersService.create', () => {
     expect(orderSave).not.toHaveBeenCalled(); // la tx se revirtió antes de guardar
   });
 
-  it('D-052: si la tarjeta se rechaza, COMPENSA — reserva (Tx1) y luego libera + cancela', async () => {
-    const { service, stockOps } = buildService({
+  it('D-052: si la tarjeta se rechaza en PENDING, COMPENSA (libera) pero NO notifica (el cliente ya vio el 400)', async () => {
+    const { service, stockOps, dispatchedEvents } = buildService({
       profile: PROFILE,
       products: [product('p1', '38.00')],
       // el pedido que compensateFailedPayment recarga (con items para poder liberar).
@@ -452,6 +455,88 @@ describe('OrdersService.create', () => {
     // Se reservó al pedir y se liberó al compensar: NO queda stock reservado por un pago que no entró.
     expect(stockOps.some((o) => o.expr.includes('"stock" - :qty'))).toBe(true);
     expect(stockOps.some((o) => o.expr.includes('"stock" + :qty'))).toBe(true);
+    // PENDING: el cliente recibió el 400; NO se le manda además un push "cancelado" (doble-signal).
+    expect(dispatchedEvents.some((e) => e.eventType === 'order.cancelled')).toBe(false);
+  });
+
+  it('P2: si el admin canceló durante la autorización, la Tx2 NO marca PAID (cobro sobre cancelado)', async () => {
+    // La tarjeta autoriza OK, pero cuando vuelve la Tx2 el pedido ya está CANCELLED (el admin lo
+    // canceló en la ventana). El guardia bajo lock evita capturar sobre un pedido cancelado.
+    const { service, paymentSave } = buildService({
+      profile: PROFILE,
+      products: [product('p1', '38.00')],
+      order: {
+        id: 'order-1',
+        orderNumber: 1,
+        status: 'cancelled', // el admin ya lo canceló + liberó su stock
+        items: [{ id: 'i1', product: { id: 'p1' }, quantity: 1 }],
+        user: PROFILE,
+        createdAt: new Date(),
+      },
+    });
+    await service.create(
+      { items: [{ productId: 'p1', quantity: 1 }], payMethod: PaymentMethod.TDC },
+      USER.sub,
+    );
+    expect(paymentSave).toHaveBeenCalledWith(
+      expect.objectContaining({ status: PaymentStatus.PENDING }),
+    ); // Tx1
+    expect(paymentSave).not.toHaveBeenCalledWith(
+      expect.objectContaining({ status: PaymentStatus.PAID }),
+    ); // Tx2 se saltó
+  });
+
+  it('P2/P3: si el admin ACEPTÓ (preparing) y el pago autoriza, la Tx2 SÍ marca PAID (no "no pagado")', async () => {
+    // Simétrico con la compensación: PREPARING sigue "vivo por cobrar". Sin esto, un pedido aceptado
+    // en la ventana se cocinaba y entregaba con el pago en PENDING para siempre (hueco de ingresos).
+    const { service, paymentSave } = buildService({
+      profile: PROFILE,
+      products: [product('p1', '38.00')],
+      order: {
+        id: 'order-1',
+        orderNumber: 1,
+        status: 'preparing', // el admin lo aceptó mientras autorizaba
+        items: [{ id: 'i1', product: { id: 'p1' }, quantity: 1 }],
+        user: PROFILE,
+        createdAt: new Date(),
+      },
+    });
+    await service.create(
+      { items: [{ productId: 'p1', quantity: 1 }], payMethod: PaymentMethod.TDC },
+      USER.sub,
+    );
+    expect(paymentSave).toHaveBeenCalledWith(
+      expect.objectContaining({ status: PaymentStatus.PAID }),
+    );
+  });
+
+  it('P5/P4: admin ACEPTÓ (preparing) y el pago truena → compensa: cancela, libera y NOTIFICA+audita', async () => {
+    // Un pago rechazado gana sobre una aceptación prematura (el pedido con tarjeta rechazada no se
+    // cocina). El guardia de compensación admite PENDING y PREPARING; y como el admin ya cocinaba,
+    // NO puede ser un cambio mudo: emite OrderCancelled (outbox) igual que toda otra cancelación.
+    const { service, stockOps, dispatchedEvents } = buildService({
+      profile: PROFILE,
+      products: [product('p1', '38.00')],
+      order: {
+        id: 'order-1',
+        orderNumber: 1,
+        status: 'preparing', // el admin lo aceptó en la ventana de autorización
+        items: [{ id: 'i1', product: { id: 'p1' }, quantity: 2 }],
+        user: PROFILE,
+        createdAt: new Date(),
+      },
+      gatewayAuthorize: jest.fn().mockRejectedValue(new Error('rechazo')),
+    });
+    await expect(
+      service.create(
+        { items: [{ productId: 'p1', quantity: 2 }], payMethod: PaymentMethod.TDC },
+        USER.sub,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    // Reservó al pedir y liberó al compensar pese a estar PREPARING: no queda reserva de un pago fallido.
+    expect(stockOps.some((o) => o.expr.includes('"stock" + :qty'))).toBe(true);
+    // No es un cambio silencioso: la cancelación se despacha al outbox (BR-012).
+    expect(dispatchedEvents.some((e) => e.eventType === 'order.cancelled')).toBe(true);
   });
 });
 
@@ -729,6 +814,27 @@ describe('OrdersService inventario (stock dark kitchen, D-052)', () => {
     expect(n).toBe(1);
     expect(stockOps).toEqual([expect.objectContaining({ id: 'p1', qty: 2 })]);
     expect(stockOps[0].expr).toContain('+'); // release
+  });
+
+  it('expireStalePending: excluye pagos PAID (P1) y respeta programados vía COALESCE (P3)', async () => {
+    // Sin BD real, se pinean los predicados del UPDATE condicional (el mock los captura). Sin el
+    // filtro por ESTADO del pago barrería una tarjeta ya PAID (auto-cancelar sin reembolso, P1);
+    // sin el COALESCE mediría el reloj desde created_at y vencería programados antes de su hora.
+    const { service, congestionWhere } = buildService({ overdue: [] });
+    await service.expireStalePending();
+    expect(
+      congestionWhere.some((s) => s.includes('COALESCE(scheduled_for, created_at)')),
+    ).toBe(true);
+    // Filtra por STATUS (no método): NO barre tarjeta PAID, SÍ barre efectivo y tarjeta PENDING.
+    // El token `p.order_id = orders.id` pinea la correlación: si se renombra/aliasa la tabla, cae (P5).
+    expect(
+      congestionWhere.some(
+        (s) =>
+          s.includes('NOT EXISTS') &&
+          s.includes('p.status = :paid') &&
+          s.includes('p.order_id = orders.id'),
+      ),
+    ).toBe(true);
   });
 
   it('cancelOwn re-valida el estado FRESCO: si entre el chequeo y la tx pasó a picked_up → BadRequest, sin liberar stock (TOCTOU)', async () => {

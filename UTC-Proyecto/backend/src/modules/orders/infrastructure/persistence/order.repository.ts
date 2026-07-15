@@ -135,7 +135,6 @@ export class TypeOrmOrderRepository implements IOrderRepository {
           reofferPrice: p.reofferPrice != null ? Number(p.reofferPrice) : null,
           isAvailable: p.isAvailable,
           basePrepTimeSeconds: p.basePrepTimeSeconds,
-          stock: p.stock, // D-052: place() valida cantidad ≤ stock (pre-check amable)
         })),
         avgPrepByProductId,
         scheduledForRaw: input.scheduledFor,
@@ -149,7 +148,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
     // queda SIEMPRE con dueño (la fila orders): si el proceso muere antes de cobrar, no hay stock
     // fantasma sin pedido.
     const orderId = await this.dataSource.transaction(async (manager) => {
-      await this.reserveStockOrThrow(manager, plan.lines);
+      await this.reserveStockOrThrow(manager, plan.lines, byId);
 
       const order = await manager.getRepository(OrderEntity).save(
         manager.getRepository(OrderEntity).create({
@@ -202,6 +201,24 @@ export class TypeOrmOrderRepository implements IOrderRepository {
         throw e;
       }
       await this.dataSource.transaction(async (manager) => {
+        // P2: bajo lock, capturar solo si el pedido sigue "vivo por cobrar" (PENDING o PREPARING),
+        // simétrico con compensateFailedPayment. Si el admin lo ACEPTÓ (PREPARING) mientras se
+        // autorizaba, el cobro autorizado DEBE registrarse igual, o el pedido se cocina y entrega
+        // marcado como "no pagado" (hueco de ingresos). Si el admin/cliente lo CANCELÓ, su transición
+        // ya liberó el stock; marcar PAID dejaría un cobro sobre un cancelado sin reembolso → se salta.
+        // Con pasarela real ese salto iría con un void del cargo; con pagos simulados no hay captura.
+        const orderRepo = manager.getRepository(OrderEntity);
+        const locked = await orderRepo.findOne({
+          where: { id: orderId },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (
+          !locked ||
+          (locked.status !== OrderStatus.PENDING &&
+            locked.status !== OrderStatus.PREPARING)
+        ) {
+          return;
+        }
         const payments = manager.getRepository(PaymentEntity);
         const payment = await payments.findOne({
           where: { order: { id: orderId } },
@@ -217,14 +234,17 @@ export class TypeOrmOrderRepository implements IOrderRepository {
   }
 
   /**
-   * D-052: RESERVA el stock en la creación (revierte D-037 "cocina al momento si no alcanza").
+   * D-052: RESERVA el stock en la creación (revierte D-037 "cocina al momento si no alcanza"). Es el
+   * ÚNICO gate de inventario (P4#6): el dominio ya no pre-valida el agotado sobre un snapshot rancio.
    * UPDATE condicional `stock = stock − qty WHERE id = :id AND stock >= :qty`: si no alcanza,
-   * `affected = 0` → 409, y la tx que la envuelve se revierte entera. Orden estable por productId
-   * (anti-deadlock, igual que applyStockDelta) y bump de `version` (optimistic lock del admin).
+   * `affected = 0` → 409 NOMBRANDO el producto, y la tx que la envuelve se revierte entera. Orden
+   * estable por productId (anti-deadlock, igual que applyStockDelta) y bump de `version` (optimistic
+   * lock del admin). `byId` (traído fuera de la tx) solo se usa para el mensaje del 409.
    */
   private async reserveStockOrThrow(
     manager: EntityManager,
     lines: readonly PlacedLine[],
+    byId: Map<string, ProductEntity>,
   ): Promise<void> {
     const repo = manager.getRepository(ProductEntity);
     const sorted = [...lines].sort((a, b) =>
@@ -241,8 +261,9 @@ export class TypeOrmOrderRepository implements IOrderRepository {
         .setParameter('qty', qty)
         .execute();
       if (!result.affected) {
+        const name = byId.get(line.productId)?.name ?? 'un producto de tu pedido';
         throw new ConflictException(
-          'Ya no queda suficiente inventario de un producto de tu pedido',
+          `Ya no queda suficiente inventario de ${name}`,
         );
       }
     }
@@ -250,21 +271,66 @@ export class TypeOrmOrderRepository implements IOrderRepository {
 
   /**
    * D-052: compensa un pago de tarjeta rechazado. El pedido nació PENDING con la reserva hecha
-   * (Tx1); si la autorización falla, se libera el stock y el pedido pasa a CANCELLED. No emite
-   * notificación: el cliente recibe el error del throw, no un pedido "cancelado" que nunca vio.
+   * (Tx1); si la autorización falla, se libera el stock y el pedido pasa a CANCELLED.
+   * P3/P5: carga bajo lock y solo compensa si el pedido sigue "vivo por cobrar" (PENDING o PREPARING).
+   * Si el admin ya lo CANCELÓ en la ventana de autorización, su transición YA liberó → volver a
+   * liberar sería doble release (stock fantasma): se salta. Si el admin lo ACEPTÓ (PREPARING, que
+   * retiene la reserva), un pago que después truena debe ganar: se cancela y se libera igual (un
+   * pedido con la tarjeta rechazada no se cocina). Estados más avanzados (ready/terminal) no se tocan.
+   * BR-012/P4: AUDITA siempre (observabilidad) pero NOTIFICA (OrderCancelled) solo si venía de PREPARING
+   * — ahí el admin ya cocinaba y la cancelación no puede ser muda. En PENDING el cliente solo vio el 400
+   * del throw; un push "cancelado" de un pedido que para él nunca se confirmó sería un doble-signal.
    */
   private async compensateFailedPayment(orderId: string): Promise<void> {
+    let from: OrderStatus | null = null;
     await this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(OrderEntity);
+      const locked = await repo.findOne({
+        where: { id: orderId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      // ya lo movieron a un estado no-compensable (cancelado → no doble-release; ready/terminal → tarde)
+      if (
+        !locked ||
+        (locked.status !== OrderStatus.PENDING &&
+          locked.status !== OrderStatus.PREPARING)
+      ) {
+        return;
+      }
       const order = await repo.findOne({
         where: { id: orderId },
         relations: ORDER_RELATIONS,
       });
       if (!order) return;
+      from = order.status;
       order.status = OrderStatus.CANCELLED;
       await this.applyStock(manager, order, 'release'); // devuelve la reserva
       await repo.save(order);
+      // BR-012: notifica SOLO si venía de PREPARING (el admin cocinaba → no puede ser muda). En
+      // PENDING el cliente ya recibió el 400 del throw; emitir "cancelado" sería un doble-signal.
+      if (from === OrderStatus.PREPARING) {
+        await this.events.dispatch(
+          [
+            new OrderCancelled(
+              OrderId.of(order.id),
+              order.orderNumber,
+              order.user?.keycloakId ?? '',
+              new Date(),
+            ),
+          ],
+          manager,
+        );
+      }
     });
+    if (from !== null) {
+      this.auditLog.logOrderStateChange(
+        orderId,
+        from,
+        OrderStatus.CANCELLED,
+        'system',
+        'system',
+      );
+    }
   }
 
   // --- Escritura: el adapter envuelve lock + tx + stock; el agregado decide ----------------
@@ -457,6 +523,9 @@ export class TypeOrmOrderRepository implements IOrderRepository {
    * si es inmediato — `COALESCE` lo resuelve en una sola expresión.
    */
   async expireStalePending(): Promise<number> {
+    // ponytail (P4#5): asume BD nacida de migraciones + semilla (sin pedidos previos). Si algún día
+    // se desplegara sobre datos pre-D-052 (PENDING sin reserva), drenar esos PENDING antes del deploy
+    // o el release inflaría stock. No hay flag "tenía reserva"; añadirlo para 0 filas sería especular.
     const now = new Date(); // BR-005: hora del servidor
     const cutoff = new Date(now.getTime() - PENDING_TTL_MIN * 60 * 1000);
     const expiredIds = await this.dataSource.transaction(async (manager) => {
@@ -467,6 +536,16 @@ export class TypeOrmOrderRepository implements IOrderRepository {
         .set({ status: OrderStatus.CANCELLED })
         .where('status = :pending', { pending: OrderStatus.PENDING })
         .andWhere('COALESCE(scheduled_for, created_at) < :cutoff', { cutoff })
+        // P1/P3/P4: NO barrer un pedido con pago YA PAID (tarjeta autorizada cuyo estado mueve el
+        // admin) — auto-cancelarlo sin reembolso sería peor que esperar. SÍ se barre todo lo demás:
+        // efectivo abandonado Y tarjeta con pago PENDING (nunca autorizada, o proceso muerto entre
+        // Tx1 y la captura) → su reserva DEBE liberarse o se fuga. El discriminador es el ESTADO del
+        // pago, NO el método: con pagos simulados un pago PENDING significa "nunca cobrado", así que
+        // liberar es seguro (con pasarela real, aquí iría una conciliación previa del intento).
+        .andWhere(
+          'NOT EXISTS (SELECT 1 FROM payments p WHERE p.order_id = orders.id AND p.status = :paid)',
+          { paid: PaymentStatus.PAID },
+        )
         .returning(['id'])
         .execute();
       const ids = ((flipped.raw as Array<{ id: string }>) ?? []).map(

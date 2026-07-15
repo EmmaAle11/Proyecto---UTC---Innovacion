@@ -4,19 +4,21 @@ Registro canónico de cambios significativos del proyecto, documentados con fech
 
 ---
 
+## 2026-07-15
+
+### `(pendiente de commit)` — Plan 07 CERRADO: bug 3 (reservar en `place()`) a gate §22 = 0 P0-P5
+
+**Cambio:** se **cierra** el **bug 3** del ADR D-052 (*se acepta/paga el pedido antes de reservar*), endurecido por **4 rondas de caza adversaria multi-agente** (§22/§40) que hallaron y cerraron defectos que las propias correcciones introducían. **Sin migración de esquema.** Backend **125 tests verdes**, `tsc` 0 back y front.
+
+- **Dominio (`Order.ts`):** **eliminado el pre-check de stock** (leía un snapshot rancio y daba 400 vs 409 para el mismo "agotado", bug de contrato); `PREPARING → 'none'` (evita **doble reserva**); `cancelByOwner` siempre `'release'` y admin-`CANCELLED → 'release'` (evitan **fuga**).
+- **Adapter (`order.repository.ts`):** **`reserveStockOrThrow`** = **único gate de agotado** (UPDATE condicional `WHERE stock >= qty`, `affected` → **409 nombrando el producto**); **saga simétrica bajo `pessimistic_write`** sobre `{PENDING, PREPARING}` = *"vivo por cobrar"*: la **captura (Tx2)** marca `PAID` solo si el pedido sigue vivo (no captura sobre un cancelado en la ventana; sí captura si el admin aceptó, o quedaría "cocinado sin pagar"); la **compensación** cancela+libera solo si sigue vivo (sin **doble release**), **audita siempre** y **notifica solo si venía de PREPARING** (en PENDING el cliente ya vio el 400); **`expireStalePending`** filtra por **estado del pago** (`NOT EXISTS status='paid'`) → barre efectivo abandonado **y** tarjeta PENDING no cobrada, nunca una tarjeta PAID; `applyStockDelta` release-only (borrado el `GREATEST` muerto).
+- **Frontend:** el 409 "se agotó" **deja de enmascararse** por el fallback demo (solo status 0) y el carrito lo muestra con título accionable — ahora **todo** agotado es 409 (consistente).
+- **Decisiones del usuario:** programados reservan al pedir · reservar **antes** de cobrar (saga lista para pasarela real).
+
+**Decisión:** **D-052** actualizada — bug 3 **IMPLEMENTADO Y CERRADO (0 P0-P5)**; bugs 1-2 (`finished_goods`) → **Plan 08 pendiente**. Revierte **D-037**.
+**Evidencia:** `cd backend && npx tsc --noEmit && npx jest` → **125 passed**; `cd frontend && npx tsc --noEmit` → 0. Caza: rondas 1-4 (`wf_adc03e96` … `wf_b4d0d2a3`) → **ronda 4: 0 CONFIRMED, 0 PLAUSIBLE**.
+
 ## 2026-07-14
-
-### `(pendiente de commit)` — Plan 07: reservar en `place()` (bug 3), primer código de la 2ª vuelta (18:00)
-
-**Cambio:** se cierra el **bug 3** del ADR D-052 (*se acepta/paga el pedido antes de reservar*). **Primer código de producción de la ampliación de alcance** (los planes 01-06 siguen siendo diseño). **Sin migración de esquema.** Backend **123 tests verdes** (117 baseline + 6 nuevos), `tsc` 0 back y front.
-
-- **Dominio (`Order.ts`):** `ProductSnapshot` gana `stock`; `place()` valida cantidad ≤ stock (pre-check que nombra el producto); `PREPARING → 'none'` (evita **doble reserva**); `cancelByOwner` siempre `'release'` y admin-`CANCELLED → 'release'` (evitan **fuga de stock**).
-- **Adapter (`order.repository.ts`):** **`reserveStockOrThrow`** (UPDATE condicional `WHERE stock >= qty`, `affected` → **409**); **saga reservar→cobrar→confirmar/compensar** (si la tarjeta se rechaza, se libera la reserva y se cancela); **`expireStalePending`** vence PENDING abandonados y libera su reserva (programados hasta que pasa su hora); **eliminado el `GREATEST` incondicional** (código muerto), `applyStockDelta` release-only.
-- **Frontend:** el 409 "se agotó" **deja de enmascararse** por el fallback demo (solo aplica a fallos de conectividad, status 0) y el carrito lo muestra con título accionable.
-- **Decisiones del usuario:** programados reservan al pedir · reservar **antes** de cobrar (bien hecho ya, lista para pasarela real).
-
-**Decisión:** **D-052** actualizada — bug 3 **IMPLEMENTADO**; bugs 1-2 (`finished_goods`) → **Plan 08 pendiente**. Revierte **D-037** (*"cocina al momento si no alcanza"*).
-**Evidencia:** `cd backend && npx tsc --noEmit && npx jest` → **123 passed**; `cd frontend && npx tsc --noEmit` → 0.
 
 ### `a12c44f` + `767e226` — Alcance ampliado: roles de cooperativa, motor de costeo, caja y CFDI (13:40)
 

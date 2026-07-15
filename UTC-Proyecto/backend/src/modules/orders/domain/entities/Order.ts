@@ -101,9 +101,6 @@ export interface ProductSnapshot {
   readonly reofferPrice: number | null;
   readonly isAvailable: boolean;
   readonly basePrepTimeSeconds: number;
-  /** Unidades disponibles (D-052). `place()` valida cantidad ≤ stock como pre-check amable;
-   *  el guardia atómico real es el UPDATE condicional del adapter (`reserveStockOrThrow`). */
-  readonly stock: number;
 }
 
 /** Línea CRUDA de entrada (viene del DTO ya validado por class-validator). */
@@ -180,12 +177,10 @@ export class Order extends AggregateRoot<OrderId> {
         throw new DomainError(`Producto no disponible: ${product.name}`);
       }
       const quantity = Quantity.of(it.quantity);
-      // Pre-check amable (D-052): rechaza NOMBRANDO el producto antes de abrir la tx. El guardia
-      // atómico real es el UPDATE condicional del adapter (reserveStockOrThrow): este snapshot se
-      // leyó FUERA de la tx y puede quedar rancio si otro pedido corre en paralelo.
-      if (quantity.value > product.stock) {
-        throw new DomainError(`Solo quedan ${product.stock} de ${product.name}`);
-      }
+      // D-052/P4#6: el AGOTADO no se valida aquí. El stock del snapshot se leyó FUERA de la tx y es
+      // rancio por definición; el ÚNICO gate de inventario es el UPDATE condicional atómico del
+      // adapter (`reserveStockOrThrow` → 409 nombrando el producto). Dos gates = dos códigos HTTP
+      // para el mismo "agotado" (el bug P4#6). El dominio solo valida existencia y disponibilidad.
       // §3.11 "Pon tu precio": si el producto está reofertado (reofferPrice puesto) se cobra
       // ese precio menor; si no, el de catálogo. Precio congelado al momento de compra (BR-015).
       const unitPrice = Money.of(product.reofferPrice ?? product.price);
