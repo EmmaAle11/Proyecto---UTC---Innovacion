@@ -38,7 +38,10 @@ describe('Order.place (BR-015 / spec #4)', () => {
           { productId: 'p1', quantity: 2 },
           { productId: 'p2', quantity: 1 },
         ],
-        products: [snap({ id: 'p1', price: 38 }), snap({ id: 'p2', price: 65 })],
+        products: [
+          snap({ id: 'p1', price: 38 }),
+          snap({ id: 'p2', price: 65 }),
+        ],
       }),
     );
     expect(plan.status).toBe(OrderStatus.PENDING);
@@ -54,7 +57,9 @@ describe('Order.place (BR-015 / spec #4)', () => {
       input({
         items: [{ productId: 'p1', quantity: 2, finishedGoodId: 'fg1' }],
         products: [snap({ price: 38 })],
-        reofferUnits: [{ id: 'fg1', productId: 'p1', reofferPrice: 20, qty: 5 }],
+        reofferUnits: [
+          { id: 'fg1', productId: 'p1', reofferPrice: 20, qty: 5 },
+        ],
       }),
     );
     expect(plan.lines[0].unitPrice.amount).toBe(20); // 20 * 2, precio de la unidad
@@ -68,7 +73,9 @@ describe('Order.place (BR-015 / spec #4)', () => {
       input({
         items: [{ productId: 'p1', quantity: 1 }], // sin finishedGoodId = fresca
         products: [snap({ price: 38 })],
-        reofferUnits: [{ id: 'fg1', productId: 'p1', reofferPrice: 20, qty: 5 }],
+        reofferUnits: [
+          { id: 'fg1', productId: 'p1', reofferPrice: 20, qty: 5 },
+        ],
       }),
     );
     expect(plan.lines[0].unitPrice.amount).toBe(38); // precio de catálogo, NO 20
@@ -80,7 +87,9 @@ describe('Order.place (BR-015 / spec #4)', () => {
       Order.place(
         input({
           items: [{ productId: 'p1', quantity: 1, finishedGoodId: 'fg1' }],
-          reofferUnits: [{ id: 'fg1', productId: 'p1', reofferPrice: null, qty: 5 }],
+          reofferUnits: [
+            { id: 'fg1', productId: 'p1', reofferPrice: null, qty: 5 },
+          ],
         }),
       ),
     ).toThrow(DomainError);
@@ -121,21 +130,23 @@ describe('Order.place (BR-015 / spec #4)', () => {
   });
 
   it('horario: null = inmediato', () => {
-    expect(Order.place(input({ scheduledForRaw: null })).scheduledFor).toBeNull();
+    expect(
+      Order.place(input({ scheduledForRaw: null })).scheduledFor,
+    ).toBeNull();
   });
 
   it('horario: rechaza < 30 min de anticipación', () => {
     const en10min = new Date(NOW.getTime() + 10 * 60 * 1000).toISOString();
-    expect(() =>
-      Order.place(input({ scheduledForRaw: en10min })),
-    ).toThrow(DomainError);
+    expect(() => Order.place(input({ scheduledForRaw: en10min }))).toThrow(
+      DomainError,
+    );
   });
 
   it('horario: rechaza otro día', () => {
     const manana = new Date(NOW.getTime() + 26 * 60 * 60 * 1000).toISOString();
-    expect(() =>
-      Order.place(input({ scheduledForRaw: manana })),
-    ).toThrow(DomainError);
+    expect(() => Order.place(input({ scheduledForRaw: manana }))).toThrow(
+      DomainError,
+    );
   });
 
   it('horario: acepta ≥30 min el mismo día', () => {

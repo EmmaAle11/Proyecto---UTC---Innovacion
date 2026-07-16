@@ -38,7 +38,8 @@ export class OrderExpiryScheduler implements OnModuleInit, OnModuleDestroy {
     // Dos barridos independientes: uno no debe saltarse por el fallo del otro.
     try {
       const n = await this.orders.expireOverdue();
-      if (n > 0) this.logger.log(`Ventana vencida: ${n} pedido(s) → not_picked_up`);
+      if (n > 0)
+        this.logger.log(`Ventana vencida: ${n} pedido(s) → not_picked_up`);
     } catch (e) {
       this.logger.warn(
         `No se pudo barrer recogidas vencidas: ${e instanceof Error ? e.message : e}`,

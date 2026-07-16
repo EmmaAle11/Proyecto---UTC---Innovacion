@@ -15,10 +15,7 @@ import { OrdersService } from '../application/orders.service';
 import { CreateOrderDto } from '../contracts/create-order.dto';
 import { UpdateOrderStatusDto } from '../contracts/update-order-status.dto';
 import type { OrderMetrics } from '../contracts/order-metrics';
-import {
-  OrderResponse,
-  CongestionResponse,
-} from '../contracts/order-response';
+import { OrderResponse, CongestionResponse } from '../contracts/order-response';
 import { Roles } from '../../../presentation/auth/decorators/roles.decorator';
 import type { JwtUser } from '../../../infrastructure/auth/jwt.strategy';
 

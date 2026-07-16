@@ -1,9 +1,5 @@
 import { DomainError } from '../../../../kernel/domain/DomainError';
-import {
-  Order,
-  OrderStatus,
-  OrderSnapshot,
-} from '../../domain/entities/Order';
+import { Order, OrderStatus, OrderSnapshot } from '../../domain/entities/Order';
 import { OrderId, ProductId } from '../../domain/value-objects/ids';
 import { Quantity } from '../../domain/value-objects/quantity';
 import {

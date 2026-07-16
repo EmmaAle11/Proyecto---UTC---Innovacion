@@ -70,7 +70,7 @@ export class OrderMapper {
       items: (entity.items ?? [])
         .filter((it) => it.product?.id)
         .map((it) => ({
-          productId: ProductId.of(it.product!.id),
+          productId: ProductId.of(it.product.id),
           quantity: Quantity.of(it.quantity),
         })),
       acceptedAt: entity.acceptedAt,

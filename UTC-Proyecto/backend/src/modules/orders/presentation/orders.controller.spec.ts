@@ -44,7 +44,11 @@ describe('OrdersController (HTTP)', () => {
     // Los guards no se registran en este test; simulamos el `req.user` que el
     // JwtAuthGuard adjuntaría, para ejercitar los handlers protegidos.
     app.use((req: { user?: unknown }, _res: unknown, next: () => void) => {
-      req.user = { sub: 'kc-admin', email: 'admin@edu.utc.mx', roles: ['admin'] };
+      req.user = {
+        sub: 'kc-admin',
+        email: 'admin@edu.utc.mx',
+        roles: ['admin'],
+      };
       next();
     });
     app.useGlobalPipes(

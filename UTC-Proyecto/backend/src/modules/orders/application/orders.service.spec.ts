@@ -72,7 +72,12 @@ function buildService(opts: {
   // D-037/D-052: registra cada UPDATE de inventario (reserva/release) para asertar el ciclo.
   // `where` (P4#7): guarda el predicado SQL para pinear `stock >= :qty` en la reserva (que un
   // futuro cambio de `>=` a `>` o el borrado del predicado rompa el test aunque no haya BD real).
-  const stockOps: Array<{ id: string; expr: string; qty: number; where: string }> = [];
+  const stockOps: Array<{
+    id: string;
+    expr: string;
+    qty: number;
+    where: string;
+  }> = [];
   const itemSave = jest.fn((x: unknown) => Promise.resolve(x));
   // D-052: la saga guarda el pago PENDING (Tx1) y lo actualiza a PAID (Tx2). El mock recuerda el
   // último pago para que el findOne de la Tx2 lo devuelva y se pueda mutar/re-guardar.
@@ -88,9 +93,18 @@ function buildService(opts: {
   // Predicado del claim atómico del barrido de merma (para pinear `expires_at < :now` sin BD real).
   const fgSweepWhere: string[] = [];
   // Plan 08 bug 2: operaciones sobre finished_goods (reserva `- :q` / devolución `+ :q`) para asertar el rescate.
-  const fgOps: Array<{ kind: string; id: string; expr: string; qty: number; where: string }> = [];
+  const fgOps: Array<{
+    kind: string;
+    id: string;
+    expr: string;
+    qty: number;
+    where: string;
+    params: Record<string, unknown>;
+  }> = [];
   const pushRows = (bag: Array<Record<string, unknown>>) => (rows: unknown) => {
-    bag.push(...(Array.isArray(rows) ? rows : [rows]) as Record<string, unknown>[]);
+    bag.push(
+      ...((Array.isArray(rows) ? rows : [rows]) as Record<string, unknown>[]),
+    );
     return Promise.resolve(rows);
   };
   // Captura las condiciones `andWhere` del QueryBuilder de congestion (para asertar el filtro).
@@ -165,7 +179,9 @@ function buildService(opts: {
           set: jest.fn(() => qb),
           returning: jest.fn(() => qb),
           execute: jest.fn().mockResolvedValue({
-            raw: (opts.overdue ?? []).map((o) => ({ id: (o as { id: string }).id })),
+            raw: (opts.overdue ?? []).map((o) => ({
+              id: (o as { id: string }).id,
+            })),
             affected: (opts.overdue ?? []).length,
           }),
         };
@@ -198,9 +214,11 @@ function buildService(opts: {
     },
     // G2: umbrales del semáforo (fila única). Defaults 5/10 para el test de congestión.
     AppSettingsEntity: {
-      findOne: jest.fn().mockResolvedValue(
-        opts.thresholds ?? { congestionYellow: 5, congestionRed: 10 },
-      ),
+      findOne: jest
+        .fn()
+        .mockResolvedValue(
+          opts.thresholds ?? { congestionYellow: 5, congestionRed: 10 },
+        ),
     },
     // Plan 08 (D-052): producto terminado y merma. El barrido reclama con DELETE...RETURNING (claim
     // atómico, anti doble-merma); el mock devuelve las filas crudas y captura el predicado del WHERE.
@@ -211,7 +229,16 @@ function buildService(opts: {
       find: jest.fn().mockResolvedValue(opts.finishedGoodRows ?? []),
       // Maneja el DELETE...RETURNING del barrido Y el UPDATE de reserva/devolución del rescate.
       createQueryBuilder: jest.fn(() => {
-        const cap = { kind: '', id: '', expr: '', qty: 0, where: '' };
+        const cap = {
+          kind: '',
+          id: '',
+          expr: '',
+          qty: 0,
+          where: '',
+          // Todos los parámetros del QB, sin filtrar: `qty` sola no alcanza para afirmar sobre el
+          // gate de caducidad (raíz D — hay que ver CONTRA QUÉ INSTANTE se compara).
+          params: {} as Record<string, unknown>,
+        };
         const qb: {
           update: jest.Mock;
           delete: jest.Mock;
@@ -239,8 +266,9 @@ function buildService(opts: {
             fgSweepWhere.push(sql);
             return qb;
           }),
-          setParameter: jest.fn((k: string, v: number) => {
-            if (k === 'q' || k === 'qty') cap.qty = v; // ignora `now` (Date) del gate de caducidad
+          setParameter: jest.fn((k: string, v: unknown) => {
+            cap.params[k] = v;
+            if (k === 'q' || k === 'qty') cap.qty = v as number;
             return qb;
           }),
           returning: jest.fn(() => qb),
@@ -262,12 +290,31 @@ function buildService(opts: {
   const getRepository = (e: { name: string }) => repos[e.name];
   // J5: promedio de prep times. Por defecto sin muestras → create usa el tiempo base.
   const query = jest.fn().mockResolvedValue(opts.prepAverages ?? []);
+  // El barrido de merma (expireFinishedGoods) usa SQL CRUDO a propósito (caza wf_97727dfe raíz A:
+  // el `.returning()` del QueryBuilder resolvía product_id a cero columnas en silencio). El manager
+  // de la tx necesita `query`; se CAPTURA el SQL para poder pinear el claim.
+  const managerSql: string[] = [];
+  const managerQuery = jest.fn((sql: string) => {
+    managerSql.push(sql);
+    if (!/delete\s+from\s+finished_goods/i.test(sql)) return Promise.resolve([]);
+    // FORMA REAL del driver, no la cómoda: para un DELETE, TypeORM devuelve la TUPLA
+    // [rows, rowCount] (PostgresQueryRunner: `case "DELETE": result.raw = [raw.rows, raw.rowCount]`).
+    // El mock anterior devolvía el arreglo PLANO de filas — una forma que Postgres JAMÁS produce — y
+    // por eso los tests certificaban en verde un barrido que no escribía una sola merma. Es el MISMO
+    // pecado que el mock que inyectaba `product_id` a mano y escondió el P1 durante 3 rondas: el mock
+    // respondía lo que el SQL real nunca devolvió. Si esta forma se "simplifica", el bug vuelve.
+    const rows = opts.expiredFinishedGoods ?? [];
+    return Promise.resolve([rows, rows.length]);
+  });
   const dataSource = {
     getRepository,
     query,
     transaction: (
-      cb: (m: { getRepository: typeof getRepository }) => unknown,
-    ) => cb({ getRepository }),
+      cb: (m: {
+        getRepository: typeof getRepository;
+        query: typeof managerQuery;
+      }) => unknown,
+    ) => cb({ getRepository, query: managerQuery }),
   } as unknown as DataSource;
   // C4: pasarela de pago simulada. Por defecto aprueba (paid); un test puede
   // inyectar `gatewayAuthorize` para simular rechazo/circuito abierto.
@@ -310,6 +357,7 @@ function buildService(opts: {
     stockMovements,
     fgSweepWhere,
     fgOps,
+    managerSql,
   };
 }
 
@@ -394,7 +442,10 @@ describe('OrdersService.create', () => {
     });
     await expect(
       service.create(
-        { items: [{ productId: 'p1', quantity: 1 }], payMethod: PaymentMethod.TDC },
+        {
+          items: [{ productId: 'p1', quantity: 1 }],
+          payMethod: PaymentMethod.TDC,
+        },
         USER.sub,
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
@@ -486,8 +537,12 @@ describe('OrdersService.create', () => {
     expect(stockOps.every((o) => o.expr.includes('"stock" - :qty'))).toBe(true);
     // P4#6/P4#7: el gate atómico es condicional. Sin `stock >= :qty` la reserva sobregiraría stock.
     expect(stockOps.every((o) => o.where.includes('stock >= :qty'))).toBe(true);
-    expect(stockOps).toContainEqual(expect.objectContaining({ id: 'p1', qty: 2 }));
-    expect(stockOps).toContainEqual(expect.objectContaining({ id: 'p2', qty: 1 }));
+    expect(stockOps).toContainEqual(
+      expect.objectContaining({ id: 'p1', qty: 2 }),
+    );
+    expect(stockOps).toContainEqual(
+      expect.objectContaining({ id: 'p2', qty: 1 }),
+    );
   });
 
   it('D-052: stock insuficiente → 409 (Conflict) y NO se persiste el pedido', async () => {
@@ -525,7 +580,10 @@ describe('OrdersService.create', () => {
     });
     await expect(
       service.create(
-        { items: [{ productId: 'p1', quantity: 2 }], payMethod: PaymentMethod.TDC },
+        {
+          items: [{ productId: 'p1', quantity: 2 }],
+          payMethod: PaymentMethod.TDC,
+        },
         USER.sub,
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
@@ -533,7 +591,9 @@ describe('OrdersService.create', () => {
     expect(stockOps.some((o) => o.expr.includes('"stock" - :qty'))).toBe(true);
     expect(stockOps.some((o) => o.expr.includes('"stock" + :qty'))).toBe(true);
     // PENDING: el cliente recibió el 400; NO se le manda además un push "cancelado" (doble-signal).
-    expect(dispatchedEvents.some((e) => e.eventType === 'order.cancelled')).toBe(false);
+    expect(
+      dispatchedEvents.some((e) => e.eventType === 'order.cancelled'),
+    ).toBe(false);
   });
 
   it('P2: si el admin canceló durante la autorización, la Tx2 NO marca PAID (cobro sobre cancelado)', async () => {
@@ -552,7 +612,10 @@ describe('OrdersService.create', () => {
       },
     });
     await service.create(
-      { items: [{ productId: 'p1', quantity: 1 }], payMethod: PaymentMethod.TDC },
+      {
+        items: [{ productId: 'p1', quantity: 1 }],
+        payMethod: PaymentMethod.TDC,
+      },
       USER.sub,
     );
     expect(paymentSave).toHaveBeenCalledWith(
@@ -579,7 +642,10 @@ describe('OrdersService.create', () => {
       },
     });
     await service.create(
-      { items: [{ productId: 'p1', quantity: 1 }], payMethod: PaymentMethod.TDC },
+      {
+        items: [{ productId: 'p1', quantity: 1 }],
+        payMethod: PaymentMethod.TDC,
+      },
       USER.sub,
     );
     expect(paymentSave).toHaveBeenCalledWith(
@@ -606,14 +672,19 @@ describe('OrdersService.create', () => {
     });
     await expect(
       service.create(
-        { items: [{ productId: 'p1', quantity: 2 }], payMethod: PaymentMethod.TDC },
+        {
+          items: [{ productId: 'p1', quantity: 2 }],
+          payMethod: PaymentMethod.TDC,
+        },
         USER.sub,
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
     // Reservó al pedir y liberó al compensar pese a estar PREPARING: no queda reserva de un pago fallido.
     expect(stockOps.some((o) => o.expr.includes('"stock" + :qty'))).toBe(true);
     // No es un cambio silencioso: la cancelación se despacha al outbox (BR-012).
-    expect(dispatchedEvents.some((e) => e.eventType === 'order.cancelled')).toBe(true);
+    expect(
+      dispatchedEvents.some((e) => e.eventType === 'order.cancelled'),
+    ).toBe(true);
   });
 
   it('D-052 bug 2: compra de RESCATE reserva la unidad reofertada (qty--), cobra su precio, no toca stock', async () => {
@@ -621,7 +692,13 @@ describe('OrdersService.create', () => {
       profile: PROFILE,
       products: [product('p1', '38.00')],
       finishedGoodRows: [
-        { id: 'fg1', product: { id: 'p1' }, reofferPrice: '20.00', qty: 5, isReoffer: true },
+        {
+          id: 'fg1',
+          product: { id: 'p1' },
+          reofferPrice: '20.00',
+          qty: 5,
+          isReoffer: true,
+        },
       ],
     });
     await service.create(
@@ -636,13 +713,58 @@ describe('OrdersService.create', () => {
     const reserve = fgOps.find((o) => o.expr === '"qty" - :q');
     expect(reserve).toMatchObject({ id: 'fg1', qty: 1 });
     // El gate atómico incluye la caducidad: una unidad vencida (aún no barrida) NO se puede comprar.
-    expect(reserve?.where).toContain('expires_at > :now');
+    // RAÍZ D (P2, caza wf_97727dfe): se compara contra el instante de la ENTREGA (`handoverAt` =
+    // scheduledFor ?? now), NO contra el de la compra. Un pedido programado podía comprar a las 10:00
+    // para las 13:00 una unidad que moría a las 10:20 → se entregaba comida vencida.
+    expect(reserve?.where).toContain('expires_at > :handoverAt');
     // Cobra el precio DE LA UNIDAD (20) y persiste el rastro finishedGoodId.
     expect(orderSave).toHaveBeenCalledWith(
       expect.objectContaining({ totalAmount: '20.00' }),
     );
     const items = itemSave.mock.calls[0][0] as Array<Record<string, unknown>>;
-    expect(items[0]).toMatchObject({ finishedGoodId: 'fg1', unitPrice: '20.00' });
+    expect(items[0]).toMatchObject({
+      finishedGoodId: 'fg1',
+      unitPrice: '20.00',
+    });
+  });
+
+  it('D-052 raíz D: un pedido PROGRAMADO gatea la caducidad contra la hora de ENTREGA, no la de compra', async () => {
+    // El defecto (caza wf_97727dfe, P2): el gate usaba `now` = instante de la compra. A las 10:00 se
+    // podía comprar para las 13:00 una unidad que moría a las 10:20 — `validateSchedule` solo exige
+    // >=30 min y mismo día, así que pasaba: se retenía 3 h y se ENTREGABA comida vencida (y esa qty
+    // tampoco entraba a la merma). La pregunta correcta no es "¿está buena ahora?" sino "¿va a estar
+    // buena cuando el alumno venga por ella?".
+    const { service, fgOps } = buildService({
+      profile: PROFILE,
+      products: [product('p1', '38.00')],
+      finishedGoodRows: [
+        {
+          id: 'fg1',
+          product: { id: 'p1' },
+          reofferPrice: '20.00',
+          qty: 5,
+          isReoffer: true,
+        },
+      ],
+    });
+    // Reloj CONGELADO a las 09:00 de Ciudad de México (COOP_TZ). Con `Date.now()` real este test era
+    // una bomba de tiempo (caza wf_23ba1011, P3): corriendo después de las ~21:00 MX, `+3 h` cae al
+    // día siguiente y `validateSchedule` lo rechaza → rojo por la hora de la máquina, no por el código.
+    // Un test que falla según cuándo lo corras entrena a ignorar los rojos.
+    jest.useFakeTimers().setSystemTime(new Date('2026-07-16T15:00:00Z')); // 09:00 MX
+    const pickup = new Date('2026-07-16T18:00:00Z'); // 12:00 MX — mismo día, ≥30 min
+    await service.create(
+      {
+        items: [{ productId: 'p1', quantity: 1, finishedGoodId: 'fg1' }],
+        payMethod: PaymentMethod.EFECTIVO,
+        scheduledFor: pickup.toISOString(),
+      },
+      USER.sub,
+    );
+    const reserve = fgOps.find((o) => o.expr === '"qty" - :q');
+    // El parámetro del gate es la hora de RECOGIDA, no `new Date()` de la compra.
+    expect(reserve?.params.handoverAt).toEqual(pickup);
+    jest.useRealTimers();
   });
 
   it('D-052 bug 2: si la unidad reofertada ya no está (affected 0) → 409, no persiste', async () => {
@@ -650,7 +772,13 @@ describe('OrdersService.create', () => {
       profile: PROFILE,
       products: [product('p1', '38.00')],
       finishedGoodRows: [
-        { id: 'fg1', product: { id: 'p1' }, reofferPrice: '20.00', qty: 1, isReoffer: true },
+        {
+          id: 'fg1',
+          product: { id: 'p1' },
+          reofferPrice: '20.00',
+          qty: 1,
+          isReoffer: true,
+        },
       ],
       fgAffected: 0, // otro cliente se la llevó
     });
@@ -671,7 +799,13 @@ describe('OrdersService.create', () => {
       profile: PROFILE,
       products: [product('p1', '38.00'), product('p2', '50.00')],
       finishedGoodRows: [
-        { id: 'fg1', product: { id: 'p2' }, reofferPrice: '25.00', qty: 3, isReoffer: true },
+        {
+          id: 'fg1',
+          product: { id: 'p2' },
+          reofferPrice: '25.00',
+          qty: 3,
+          isReoffer: true,
+        },
       ],
     });
     await service.create(
@@ -912,6 +1046,37 @@ describe('OrdersService inventario (stock dark kitchen, D-052)', () => {
     });
   });
 
+  it('D-052 raíz B: el barrido lockea las finished_goods en orden GLOBAL del lote, no por-pedido', async () => {
+    // Sin este test, `applyStockBatch` se puede revertir al bucle `for (order of orders)
+    // applyStock(order)` y las 138 pruebas siguen verdes (caza wf_23ba1011, P3: cobertura CERO).
+    // De hecho pasó: el docblock describía el agrupamiento y el cuerpo era el bucle.
+    //
+    // El montaje es el que distingue una cosa de la otra: el pedido que llega PRIMERO trae la unidad
+    // que va SEGUNDA en orden de id. Con el bucle por-pedido los locks salen fg9 → fg1 (orden de
+    // llegada); agrupando salen fg1 → fg9 (orden global de id), que es el de reserveStockOrThrow.
+    const overdue = [
+      {
+        ...withItems(OrderStatus.READY, [
+          { id: 'i1', product: { id: 'p1' }, quantity: 1, finishedGoodId: 'fg9' },
+        ]),
+        id: 'o1',
+      },
+      {
+        ...withItems(OrderStatus.READY, [
+          { id: 'i2', product: { id: 'p2' }, quantity: 1, finishedGoodId: 'fg1' },
+        ]),
+        id: 'o2',
+      },
+    ];
+    const { service, fgOps } = buildService({ overdue });
+    await service.expireOverdue();
+    const returns = fgOps
+      .filter((o) => o.expr === '"qty" + :q')
+      .map((o) => o.id);
+    // Orden GLOBAL por id a través de TODO el lote (no el orden en que llegaron los pedidos).
+    expect(returns).toEqual(['fg1', 'fg9']);
+  });
+
   it('D-052 Plan 08: expireOverdue vence los READY y PRODUCE finished_goods (no toca stock)', async () => {
     const overdue = [
       {
@@ -927,12 +1092,16 @@ describe('OrdersService inventario (stock dark kitchen, D-052)', () => {
         id: 'o2',
       },
     ];
-    const { service, stockOps, finishedGoodsCreated } = buildService({ overdue });
+    const { service, stockOps, finishedGoodsCreated } = buildService({
+      overdue,
+    });
     const n = await service.expireOverdue();
     expect(n).toBe(2); // solo cuenta lo que el UPDATE...RETURNING venció
     expect(stockOps).toHaveLength(0); // la comida vencida NO vuelve a stock (rompe el bucle)
     expect(finishedGoodsCreated).toHaveLength(2);
-    expect(finishedGoodsCreated.every((fg) => fg.isReoffer === true)).toBe(true);
+    expect(finishedGoodsCreated.every((fg) => fg.isReoffer === true)).toBe(
+      true,
+    );
     expect(finishedGoodsCreated).toContainEqual(
       expect.objectContaining({ qty: 1, source: 'no_recogido' }),
     );
@@ -969,10 +1138,18 @@ describe('OrdersService inventario (stock dark kitchen, D-052)', () => {
     await service.updateStatus('o1', OrderStatus.NOT_PICKED_UP, 'admin@test');
     expect(finishedGoodsCreated).toHaveLength(2);
     expect(finishedGoodsCreated).toContainEqual(
-      expect.objectContaining({ qty: 2, source: 'no_recogido', branchId: 'suc-1' }),
+      expect.objectContaining({
+        qty: 2,
+        source: 'no_recogido',
+        branchId: 'suc-1',
+      }),
     );
     expect(finishedGoodsCreated).toContainEqual(
-      expect.objectContaining({ qty: 3, source: 'no_recogido', branchId: 'suc-1' }),
+      expect.objectContaining({
+        qty: 3,
+        source: 'no_recogido',
+        branchId: 'suc-1',
+      }),
     );
   });
 
@@ -1011,7 +1188,9 @@ describe('OrdersService inventario (stock dark kitchen, D-052)', () => {
     const { service, congestionWhere } = buildService({ overdue: [] });
     await service.expireStalePending();
     expect(
-      congestionWhere.some((s) => s.includes('COALESCE(scheduled_for, created_at)')),
+      congestionWhere.some((s) =>
+        s.includes('COALESCE(scheduled_for, created_at)'),
+      ),
     ).toBe(true);
     // Filtra por STATUS (no método): NO barre tarjeta PAID, SÍ barre efectivo y tarjeta PENDING.
     // El token `p.order_id = orders.id` pinea la correlación: si se renombra/aliasa la tabla, cae (P5).
@@ -1033,7 +1212,12 @@ describe('OrdersService inventario (stock dark kitchen, D-052)', () => {
         status: OrderStatus.PENDING,
         createdAt: new Date(),
         items: [
-          { id: 'i1', product: { id: 'p1' }, quantity: 2, finishedGoodId: 'fg1' },
+          {
+            id: 'i1',
+            product: { id: 'p1' },
+            quantity: 2,
+            finishedGoodId: 'fg1',
+          },
         ],
       },
     });
@@ -1062,7 +1246,12 @@ describe('OrdersService inventario (stock dark kitchen, D-052)', () => {
     const stale = [
       {
         ...withItems(OrderStatus.PENDING, [
-          { id: 'i1', product: { id: 'p1' }, quantity: 2, finishedGoodId: 'fg1' },
+          {
+            id: 'i1',
+            product: { id: 'p1' },
+            quantity: 2,
+            finishedGoodId: 'fg1',
+          },
         ]),
         id: 'o1',
       },
@@ -1083,7 +1272,12 @@ describe('OrdersService inventario (stock dark kitchen, D-052)', () => {
         status: OrderStatus.PENDING,
         createdAt: new Date(),
         items: [
-          { id: 'i1', product: { id: 'p1' }, quantity: 2, finishedGoodId: 'fg1' },
+          {
+            id: 'i1',
+            product: { id: 'p1' },
+            quantity: 2,
+            finishedGoodId: 'fg1',
+          },
         ],
       },
       fgAffected: 0, // la unidad caducó y se barrió mientras el pedido la retenía → el UPDATE no afecta
@@ -1102,7 +1296,7 @@ describe('OrdersService inventario (stock dark kitchen, D-052)', () => {
   it('D-052 Plan 08: expireFinishedGoods merma las caducadas (claim atómico DELETE...RETURNING) y las borra', async () => {
     // Filas CRUDAS del RETURNING (id, qty, product_id): el claim atómico evita la doble merma si dos
     // barridos se solapan (mismo patrón que expireOverdue/expireStalePending).
-    const { service, stockMovements, fgSweepWhere } = buildService({
+    const { service, stockMovements, managerSql } = buildService({
       expiredFinishedGoods: [
         { id: 'fg1', qty: 2, product_id: 'p1' },
         { id: 'fg2', qty: 5, product_id: 'p2' },
@@ -1122,15 +1316,33 @@ describe('OrdersService inventario (stock dark kitchen, D-052)', () => {
     expect(stockMovements).toContainEqual(
       expect.objectContaining({ qty: 5, finishedGoodId: 'fg2' }),
     );
-    // Pinea el predicado del claim (`expires_at < :now`, tolerante a `<=`). ponytail: en mock puro
-    // esto solo caza el BORRADO del filtro, no una INVERSIÓN (`>`), que barrería no-vencidas: eso
-    // requiere una prueba de integración contra Postgres real (techo del harness unit, igual que
-    // el predicado `stock >= :qty` del Plan 07). Documentado, no silenciado.
-    expect(fgSweepWhere.some((s) => /expires_at\s*<=?\s*:now/.test(s))).toBe(true);
+
+    const sql = managerSql.find((s) =>
+      /delete\s+from\s+finished_goods/i.test(s),
+    );
+    expect(sql).toBeDefined();
+    // RAÍZ A (P1, caza wf_97727dfe): `product_id` DEBE venir en el RETURNING. El QueryBuilder lo
+    // resolvía a cero columnas en silencio (su property path es `product.id`) → r.product_id
+    // undefined → el filtro tiraba todas las filas → NUNCA se escribía una merma, mientras el DELETE
+    // sí borraba. Sobrevivió 3 rondas de caza porque este test le inyectaba `product_id` a mano al
+    // raw mockeado: el mock respondía lo que el SQL real jamás devolvió. Ahora se afirma el SQL.
+    expect(sql).toMatch(/RETURNING[\s\S]*product_id/i);
+    // RAÍZ C (P3): orden de lock por `id` (mismo criterio que returnReofferUnits). Sin esto el DELETE
+    // recorría el índice de expires_at → dos órdenes distintos sobre finished_goods → deadlock.
+    expect(sql).toMatch(/ORDER\s+BY\s+id/i);
+    expect(sql).toMatch(/FOR\s+UPDATE\s+SKIP\s+LOCKED/i);
+    // Pinea el predicado del claim. ponytail: en mock puro esto caza el BORRADO del filtro, no una
+    // INVERSIÓN (`>`), que barrería no-vencidas: eso requiere integración contra Postgres real (techo
+    // del harness unit, igual que el `stock >= :qty` del Plan 07). Documentado, no silenciado.
+    expect(sql).toMatch(/expires_at\s*<=?\s*\$1/);
   });
 
   it('cancelOwn re-valida el estado FRESCO: si entre el chequeo y la tx pasó a picked_up → BadRequest, sin liberar stock (TOCTOU)', async () => {
-    const owned = { id: 'o1', status: OrderStatus.READY, user: { id: 'prof-1' } };
+    const owned = {
+      id: 'o1',
+      status: OrderStatus.READY,
+      user: { id: 'prof-1' },
+    };
     const fresh = {
       id: 'o1',
       status: OrderStatus.PICKED_UP, // el admin lo entregó entre el guard y la tx
@@ -1157,8 +1369,9 @@ describe('OrdersService inventario (stock dark kitchen, D-052)', () => {
     const getRepository = (e: { name: string }) => repos[e.name];
     const dataSource = {
       getRepository,
-      transaction: (cb: (m: { getRepository: typeof getRepository }) => unknown) =>
-        cb({ getRepository }),
+      transaction: (
+        cb: (m: { getRepository: typeof getRepository }) => unknown,
+      ) => cb({ getRepository }),
     } as unknown as DataSource;
     const repo = new TypeOrmOrderRepository(
       dataSource,
@@ -1178,7 +1391,11 @@ describe('OrdersService inventario (stock dark kitchen, D-052)', () => {
   });
 
   it('extendOwn re-valida el estado FRESCO: si venció (not_picked_up) entre el chequeo y la tx → BadRequest, sin revivir el terminal (TOCTOU)', async () => {
-    const owned = { id: 'o1', status: OrderStatus.READY, user: { id: 'prof-1' } };
+    const owned = {
+      id: 'o1',
+      status: OrderStatus.READY,
+      user: { id: 'prof-1' },
+    };
     const fresh = { id: 'o1', status: OrderStatus.NOT_PICKED_UP }; // venció mientras tanto
     const orderFindOne = jest
       .fn()
@@ -1192,8 +1409,9 @@ describe('OrdersService inventario (stock dark kitchen, D-052)', () => {
     const getRepository = (e: { name: string }) => repos[e.name];
     const dataSource = {
       getRepository,
-      transaction: (cb: (m: { getRepository: typeof getRepository }) => unknown) =>
-        cb({ getRepository }),
+      transaction: (
+        cb: (m: { getRepository: typeof getRepository }) => unknown,
+      ) => cb({ getRepository }),
     } as unknown as DataSource;
     const repo = new TypeOrmOrderRepository(
       dataSource,

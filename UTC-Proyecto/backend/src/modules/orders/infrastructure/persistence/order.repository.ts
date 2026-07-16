@@ -131,7 +131,8 @@ export class TypeOrmOrderRepository implements IOrderRepository {
     const ids = input.items.map((i) => i.productId);
     const avgPrepRows = await this.avgPrepByProduct(ids);
     const avgPrepByProductId: Record<string, number> = {};
-    for (const r of avgPrepRows) avgPrepByProductId[r.product_id] = r.avg_seconds;
+    for (const r of avgPrepRows)
+      avgPrepByProductId[r.product_id] = r.avg_seconds;
 
     // Traer productos y decidir el plan FUERA de la tx (el precio es un snapshot, BR-015).
     const prods = await this.products.findBy({ id: In(ids) });
@@ -176,7 +177,12 @@ export class TypeOrmOrderRepository implements IOrderRepository {
     // queda SIEMPRE con dueño (la fila orders): si el proceso muere antes de cobrar, no hay stock
     // fantasma sin pedido.
     const orderId = await this.dataSource.transaction(async (manager) => {
-      await this.reserveStockOrThrow(manager, plan.lines, byId);
+      await this.reserveStockOrThrow(
+        manager,
+        plan.lines,
+        byId,
+        plan.scheduledFor,
+      );
 
       const order = await manager.getRepository(OrderEntity).save(
         manager.getRepository(OrderEntity).create({
@@ -274,6 +280,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
     manager: EntityManager,
     lines: readonly PlacedLine[],
     byId: Map<string, ProductEntity>,
+    scheduledFor: Date | null,
   ): Promise<void> {
     const repo = manager.getRepository(ProductEntity);
     const fgRepo = manager.getRepository(FinishedGoodEntity);
@@ -281,23 +288,33 @@ export class TypeOrmOrderRepository implements IOrderRepository {
     const nameOf = (l: PlacedLine) =>
       byId.get(l.productId)?.name ?? 'un producto de tu pedido';
 
+    // El gate de caducidad se evalúa contra el instante de la ENTREGA, no el de la compra
+    // (caza wf_97727dfe, raíz D — P2). Un pedido PROGRAMADO pasa `validateSchedule` con solo
+    // exigir ≥30 min y mismo día: a las 10:00 se podía comprar para las 13:00 una unidad que
+    // moría a las 10:20 → se retenía 3 h y se ENTREGABA comida vencida (y esa qty tampoco
+    // entraba a la merma). La pregunta correcta no es "¿está buena ahora?" sino "¿va a estar
+    // buena cuando el alumno venga por ella?".
+    const handoverAt = scheduledFor ?? now;
+
     // RESCATE primero, ordenado por finishedGoodId (MISMO orden de lock que returnReofferUnits →
     // sin deadlock; el sort por productId no basta: dos unidades del mismo producto empatan). El
-    // UPDATE gatea qty>=:q Y `expires_at > now`: una unidad ya CADUCADA pero aún no barrida NO se
-    // vende (el barrido de merma corre ~cada minuto; sin este gate habría una ventana de ~60s).
+    // UPDATE gatea qty>=:q Y `expires_at > handoverAt`: una unidad ya CADUCADA pero aún no barrida NO
+    // se vende (el barrido de merma corre ~cada minuto; sin este gate habría una ventana de ~60s).
     const rescue = lines
       .filter((l) => l.finishedGoodId && l.quantity.value > 0)
-      .sort((a, b) => (a.finishedGoodId ?? '').localeCompare(b.finishedGoodId ?? ''));
+      .sort((a, b) =>
+        (a.finishedGoodId ?? '').localeCompare(b.finishedGoodId ?? ''),
+      );
     for (const line of rescue) {
       const r = await fgRepo
         .createQueryBuilder()
         .update()
         .set({ qty: () => '"qty" - :q' })
-        .where('id = :id AND qty >= :q AND expires_at > :now', {
+        .where('id = :id AND qty >= :q AND expires_at > :handoverAt', {
           id: line.finishedGoodId,
         })
         .setParameter('q', line.quantity.value)
-        .setParameter('now', now)
+        .setParameter('handoverAt', handoverAt)
         .execute();
       if (!r.affected) {
         throw new ConflictException(
@@ -410,7 +427,10 @@ export class TypeOrmOrderRepository implements IOrderRepository {
         lock: { mode: 'pessimistic_write' },
       });
       if (!locked) throw new NotFoundException('Pedido no encontrado');
-      const order = await repo.findOne({ where: { id }, relations: ORDER_RELATIONS });
+      const order = await repo.findOne({
+        where: { id },
+        relations: ORDER_RELATIONS,
+      });
       if (!order) throw new NotFoundException('Pedido no encontrado');
       if (order.status === status) return toOrderResponse(order); // idempotente: mismo estado, no-op
 
@@ -451,7 +471,10 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       });
       if (!locked) throw new NotFoundException('Pedido no encontrado');
       // Relaciones aparte: el `release` necesita las líneas (items+product) para el stock.
-      const order = await repo.findOne({ where: { id }, relations: ORDER_RELATIONS });
+      const order = await repo.findOne({
+        where: { id },
+        relations: ORDER_RELATIONS,
+      });
       if (!order) throw new NotFoundException('Pedido no encontrado');
 
       from = order.status;
@@ -466,7 +489,13 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       return toOrderResponse(order);
     });
     if (from !== null) {
-      this.auditLog.logOrderStateChange(id, from, OrderStatus.CANCELLED, ownerUserId, 'client');
+      this.auditLog.logOrderStateChange(
+        id,
+        from,
+        OrderStatus.CANCELLED,
+        ownerUserId,
+        'client',
+      );
     }
     return res;
   }
@@ -489,14 +518,23 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       from = locked.status;
       const domain = OrderMapper.toDomain(locked);
       this.decide(() => domain.extendByOwner());
-      const order = await repo.findOne({ where: { id }, relations: ORDER_RELATIONS });
+      const order = await repo.findOne({
+        where: { id },
+        relations: ORDER_RELATIONS,
+      });
       if (!order) throw new NotFoundException('Pedido no encontrado');
       OrderMapper.applyToEntity(domain, order);
       await repo.save(order);
       return toOrderResponse(order);
     });
     if (from !== null) {
-      this.auditLog.logOrderStateChange(id, from, OrderStatus.READY_LATER, ownerUserId, 'client');
+      this.auditLog.logOrderStateChange(
+        id,
+        from,
+        OrderStatus.READY_LATER,
+        ownerUserId,
+        'client',
+      );
     }
     return res;
   }
@@ -519,7 +557,9 @@ export class TypeOrmOrderRepository implements IOrderRepository {
         .andWhere('pickup_deadline < :now', { now })
         .returning(['id'])
         .execute();
-      const ids = ((flipped.raw as Array<{ id: string }>) ?? []).map((r) => r.id);
+      const ids = ((flipped.raw as Array<{ id: string }>) ?? []).map(
+        (r) => r.id,
+      );
       if (ids.length) {
         const orders = await repo.find({
           where: { id: In(ids) },
@@ -527,9 +567,8 @@ export class TypeOrmOrderRepository implements IOrderRepository {
         });
         // Cada pedido vencido se asienta como 'to_reoffer' en ESTA tx: líneas frescas → nace una
         // finished_good; líneas de rescate → vuelven a su unidad (Plan 08). No toca products.stock.
-        for (const order of orders) {
-          await this.applyStock(manager, order, 'to_reoffer');
-        }
+        // En LOTE (raíz B): orden de lock global, no por-pedido.
+        await this.applyStockBatch(manager, orders, 'to_reoffer');
         // BR-012: este flip NO pasa por el agregado (es masivo por SQL), así que se construyen
         // los eventos OrderNotPickedUp desde las filas vencidas y se despachan en ESTA tx.
         const events = orders.map(
@@ -561,8 +600,9 @@ export class TypeOrmOrderRepository implements IOrderRepository {
   /**
    * D-052: vence los pedidos PENDING abandonados (nadie los aceptó ni canceló) y LIBERA su
    * reserva — sin esto, "reservar al pedir" fugaría stock por abandono. Simétrico a
-   * `expireOverdue`: flip atómico y condicional, release agregado en orden GLOBAL de productId
-   * (anti-deadlock con las transiciones de un solo pedido), eventos y auditoría. El reloj corre
+   * `expireOverdue`: flip atómico y condicional, release en LOTE con orden de lock GLOBAL
+   * (`applyStockBatch`: finished_goods por id, luego products por id — el mismo orden que
+   * `reserveStockOrThrow`; anti-deadlock), eventos y auditoría. El reloj corre
    * desde `scheduled_for` si el pedido es programado (retiene hasta su hora), o desde `created_at`
    * si es inmediato — `COALESCE` lo resuelve en una sola expresión.
    */
@@ -600,12 +640,11 @@ export class TypeOrmOrderRepository implements IOrderRepository {
           where: { id: In(ids) },
           relations: ORDER_RELATIONS,
         });
-        // P1 (Plan 08 bug 2): liberar la reserva de cada pedido con applyStock('release') — así una
-        // línea de RESCATE vuelve a SU finished_good y no infla products.stock (el byProduct plano
-        // anterior ignoraba finishedGoodId → fuga + sobreventa). Una línea fresca vuelve a stock.
-        for (const order of orders) {
-          await this.applyStock(manager, order, 'release');
-        }
+        // P1 (Plan 08 bug 2): liberar la reserva con 'release' — así una línea de RESCATE vuelve a SU
+        // finished_good y no infla products.stock (el byProduct plano anterior ignoraba finishedGoodId
+        // → fuga + sobreventa). Una línea fresca vuelve a stock. En LOTE (raíz B): el orden de lock es
+        // global a través de todos los pedidos, no por-pedido.
+        await this.applyStockBatch(manager, orders, 'release');
         // BR-012: el flip masivo NO pasa por el agregado → se construyen los OrderCancelled y se
         // despachan en ESTA tx (atómico con el cambio de estado y la liberación de stock).
         const events = orders.map(
@@ -644,39 +683,76 @@ export class TypeOrmOrderRepository implements IOrderRepository {
   async expireFinishedGoods(): Promise<number> {
     const now = new Date(); // BR-005: hora del servidor
     return this.dataSource.transaction(async (manager) => {
-      const fgRepo = manager.getRepository(FinishedGoodEntity);
-      // Claim ATÓMICO: DELETE ... RETURNING (mismo espíritu que el UPDATE...RETURNING de expireOverdue
-      // /expireStalePending). Bajo READ COMMITTED, dos barridos solapados no pueden borrar la MISMA fila:
-      // el segundo re-evalúa el WHERE y borra 0 → sin doble merma en stock_movements (que no tiene UNIQUE).
-      const deleted = await fgRepo
-        .createQueryBuilder()
-        .delete()
-        .where('expires_at < :now', { now })
-        .returning(['id', 'qty', 'product_id'])
-        .execute();
-      const rows =
-        (deleted.raw as Array<{
-          id: string;
-          qty: number;
-          product_id: string;
-        }>) ?? [];
-      if (!rows.length) return 0;
+      // Claim ATÓMICO: DELETE ... RETURNING. Bajo READ COMMITTED, dos barridos solapados no pueden
+      // borrar la MISMA fila: el segundo re-evalúa el WHERE y borra 0 → sin doble merma en
+      // stock_movements (que no tiene UNIQUE).
+      //
+      // SQL CRUDO A PROPÓSITO (caza wf_97727dfe, raíz A — P1). El QueryBuilder resolvía
+      // `.returning(['id','qty','product_id'])` a CERO columnas: TypeORM resuelve RETURNING por
+      // *property path*, y el de esta relación es `product.id`, no `product_id`. No lanzaba error —
+      // emitía `RETURNING "id","qty"` en silencio, `r.product_id` salía undefined, el filtro de abajo
+      // vaciaba el arreglo y NUNCA se escribía una merma... mientras el DELETE sí borraba la fila.
+      // La comida desaparecía de los libros. Nombrando las columnas en SQL no hay path que resolver mal.
+      //
+      // ORDER BY id + FOR UPDATE (raíz C — P3): fija el orden de lock al MISMO criterio que
+      // `returnReofferUnits` (que ordena por finishedGoodId). Sin esto el DELETE recorría el índice de
+      // `expires_at` → dos órdenes distintos sobre finished_goods → deadlock. SKIP LOCKED: si una unidad
+      // está tomada por una reserva en vuelo, se salta y se merma en el barrido siguiente (~1 min);
+      // bloquear al barrido detrás de una compra es peor que llegar un minuto tarde a la baja contable.
+      // TypeORM devuelve la TUPLA [rows, rowCount] para un DELETE, NO las filas
+      // (PostgresQueryRunner: `case "DELETE": result.raw = [raw.rows, raw.rowCount]`). Tomar el
+      // resultado como si fuera `rows[]` fue el P0 de la caza wf_23ba1011 — el MISMO síntoma que la
+      // raíz A original (cero mermas escritas), por otra puerta.
+      const raw: unknown = await manager.query(
+        `DELETE FROM finished_goods
+            WHERE id IN (
+              SELECT id FROM finished_goods
+               WHERE expires_at < $1
+               ORDER BY id
+                 FOR UPDATE SKIP LOCKED
+            )
+         RETURNING id, qty, product_id`,
+        [now],
+      );
+      // FALLA RUIDOSO si la forma no es la esperada. Este defecto ya se coló DOS veces porque
+      // degradaba en silencio a "0 mermas": el filtro se vaciaba, nadie lanzaba, y el scheduler
+      // felicitaba. Un barrido contable que no puede leer sus filas debe TRONAR, no reportar cero.
+      const rows = Array.isArray(raw) ? (raw[0] as unknown) : null;
+      if (!Array.isArray(rows)) {
+        throw new Error(
+          `expireFinishedGoods: forma inesperada del DELETE...RETURNING (${typeof raw}) — la merma NO se registró`,
+        );
+      }
+      const claimed = rows as Array<{
+        id: string;
+        qty: number | string;
+        product_id: string;
+      }>;
+      if (!claimed.length) return 0;
       const movRepo = manager.getRepository(StockMovementEntity);
-      const movements = rows
-        .filter((r) => r.product_id && r.qty > 0)
+      // `Number(r.qty)`: pg devuelve numeric como STRING; sin esto el reduce CONCATENARÍA ("2"+"5"="25").
+      const movements = claimed
+        .filter((r) => r.product_id && Number(r.qty) > 0)
         .map((r) =>
           movRepo.create({
             // La finished_good ya se borró en el mismo statement; el movimiento conserva su id suelto.
             product: { id: r.product_id } as ProductEntity,
-            qty: r.qty,
+            qty: Number(r.qty),
             type: StockMovementType.MERMA,
             reason: StockMovementReason.CADUCADO,
             finishedGoodId: r.id,
           }),
         );
-      if (movements.length) await movRepo.save(movements);
+      // Invariante 8: si se borró comida, DEBE quedar su asiento. Si el DELETE devolvió filas pero
+      // ninguna produjo movimiento, algo se perdió de los libros → tronar antes que commitear.
+      if (movements.length !== claimed.length) {
+        throw new Error(
+          `expireFinishedGoods: ${claimed.length} unidad(es) borradas pero ${movements.length} asiento(s) de merma — se perdería el rastro contable`,
+        );
+      }
+      await movRepo.save(movements);
       // Devuelve UNIDADES mermadas (Σ qty), no filas: el scheduler lo loguea como "N unidad(es)".
-      return rows.reduce((sum, r) => sum + (r.qty > 0 ? r.qty : 0), 0);
+      return movements.reduce((sum, m) => sum + m.qty, 0);
     });
   }
 
@@ -751,7 +827,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
    * (hora LOCAL de la cooperativa). Excluye cancelados.
    */
   async metrics(): Promise<OrderMetrics> {
-    const topProducts = (await this.dataSource.query(
+    const topProducts = await this.dataSource.query(
       `SELECT p.id AS "productId", p.name AS "name", SUM(oi.quantity)::int AS "qty"
          FROM order_items oi
          JOIN orders o   ON o.id = oi.order_id
@@ -760,9 +836,9 @@ export class TypeOrmOrderRepository implements IOrderRepository {
         GROUP BY p.id, p.name
         ORDER BY "qty" DESC
         LIMIT 5`,
-    )) as TopProduct[];
+    );
 
-    const peaks = (await this.dataSource.query(
+    const peaks = await this.dataSource.query(
       `SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Mexico_City')::int AS "hour",
               COUNT(*)::int AS "count"
          FROM orders
@@ -770,7 +846,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
         GROUP BY "hour"
         ORDER BY "count" DESC, "hour" ASC
         LIMIT 1`,
-    )) as PeakHour[];
+    );
 
     return { topProducts, peakHour: peaks[0] ?? null };
   }
@@ -783,7 +859,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
     productIds: string[],
   ): Promise<Array<{ product_id: string; avg_seconds: number }>> {
     if (productIds.length === 0) return [];
-    const rows = (await this.dataSource.query(
+    const rows = await this.dataSource.query(
       `SELECT product_id AS "productId", AVG(duration_seconds)::float AS "avg"
          FROM (
            SELECT product_id, duration_seconds,
@@ -795,7 +871,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
         GROUP BY product_id
        HAVING COUNT(*) >= ${MIN_PREP_SAMPLES}`,
       [productIds],
-    )) as { productId: string; avg: number }[];
+    );
     return rows.map((r) => ({
       product_id: r.productId,
       avg_seconds: Math.round(r.avg),
@@ -843,6 +919,52 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       await this.applyStockDelta(manager, fresh);
     } else {
       await this.produceFinishedGoods(manager, order, fresh);
+    }
+  }
+
+  /**
+   * Aplica un efecto de stock a un LOTE de pedidos con orden de lock GLOBAL a través de todo el lote.
+   *
+   * Existe por la caza wf_97727dfe (raíz B — P1), y el defecto fue MÍO: al arreglar un P1 anterior
+   * (el `byProduct` plano ignoraba `finishedGoodId` → fuga + sobreventa) lo sustituí por un bucle
+   * `for (const order of orders) applyStock(order)`. Eso arregló la fuga pero ROMPIÓ el orden global
+   * de locks: `returnReofferUnits`/`applyStockDelta` ordenan solo DENTRO del pedido que reciben, y el
+   * `find({ where: { id: In(ids) } })` que alimenta el bucle no lleva `order:` → entre pedidos los
+   * recursos se lockeaban en orden arbitrario → deadlock contra `reserveStockOrThrow`, que sí ordena.
+   *
+   * El arreglo no es ordenar los PEDIDOS (los recursos seguirían intercalándose), sino agrupar los
+   * ítems de TODO el lote y dejar que las mismas funciones ordenen sobre la lista completa. Respeta el
+   * orden canónico del sistema: PRIMERO finished_goods (por id), DESPUÉS products (por id) — el mismo
+   * que `reserveStockOrThrow`. `produceFinishedGoods` va por pedido porque necesita su `status` y su
+   * `branchId`, y es INSERT puro: no toma locks de filas existentes, así que no participa del orden.
+   */
+  private async applyStockBatch(
+    manager: EntityManager,
+    orders: OrderEntity[],
+    effect: 'release' | 'to_reoffer',
+  ): Promise<void> {
+    // PRIMERO todos los rescates del LOTE COMPLETO (returnReofferUnits ordena por finishedGoodId
+    // sobre la lista entera), DESPUÉS todas las frescas (applyStockDelta ordena por productId).
+    // Ese es el orden canónico de reserveStockOrThrow. Agrupar es el punto: pasarle un pedido a la
+    // vez las hacía ordenar dentro de cada pedido y entre pedidos el orden era arbitrario.
+    const all = orders.flatMap((o) => o.items ?? []);
+    await this.returnReofferUnits(
+      manager,
+      all.filter((it) => it.finishedGoodId),
+    );
+    const fresh = all.filter((it) => !it.finishedGoodId);
+    if (effect === 'release') {
+      await this.applyStockDelta(manager, fresh);
+      return;
+    }
+    // INSERT puro: no lockea filas existentes → no participa del orden. Va por pedido porque
+    // necesita su `status` (provenance) y su `branchId`.
+    for (const order of orders) {
+      await this.produceFinishedGoods(
+        manager,
+        order,
+        (order.items ?? []).filter((it) => !it.finishedGoodId),
+      );
     }
   }
 
