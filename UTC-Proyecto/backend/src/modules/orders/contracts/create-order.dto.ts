@@ -14,7 +14,8 @@ import {
 } from 'class-validator';
 import { PaymentMethod } from '../../../domain/enums';
 
-/** Una línea del pedido: SOLO producto + cantidad (el precio lo pone el backend, BR-015). */
+/** Una línea del pedido: producto + cantidad (el precio lo pone el backend, BR-015). Si es una
+ *  compra de RESCATE de una unidad reofertada (D-052 Plan 08 bug 2), trae su `finishedGoodId`. */
 export class CreateOrderItemDto {
   @IsUUID('4', { message: 'productId inválido' })
   productId: string;
@@ -22,6 +23,11 @@ export class CreateOrderItemDto {
   @IsInt()
   @Min(1, { message: 'La cantidad debe ser mayor a 0' })
   quantity: number;
+
+  /** Unidad reofertada concreta que se compra (opcional; null/omitido = línea fresca del catálogo). */
+  @IsOptional()
+  @IsUUID('4', { message: 'finishedGoodId inválido' })
+  finishedGoodId?: string;
 }
 
 /**

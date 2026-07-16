@@ -59,8 +59,12 @@ function buildService(opts: {
   gatewayAuthorize?: jest.Mock;
   overdue?: unknown[];
   stockAffected?: number;
-  /** Plan 08: finished_goods vencidas que `expireFinishedGoods().find` devolverá. */
+  /** Plan 08: finished_goods vencidas que el DELETE...RETURNING del barrido devolverá (filas crudas). */
   expiredFinishedGoods?: unknown[];
+  /** Plan 08 bug 2: filas (entidad) que el fetch de la creación devuelve para las líneas de rescate. */
+  finishedGoodRows?: unknown[];
+  /** Plan 08 bug 2: `affected` del UPDATE de reserva de la unidad reofertada (0 = agotada → 409). */
+  fgAffected?: number;
 }) {
   const orderSave = jest.fn((o: unknown) =>
     Promise.resolve({ ...(o as object), id: 'order-1' }),
@@ -83,6 +87,8 @@ function buildService(opts: {
   const stockMovements: Array<Record<string, unknown>> = [];
   // Predicado del claim atómico del barrido de merma (para pinear `expires_at < :now` sin BD real).
   const fgSweepWhere: string[] = [];
+  // Plan 08 bug 2: operaciones sobre finished_goods (reserva `- :q` / devolución `+ :q`) para asertar el rescate.
+  const fgOps: Array<{ kind: string; id: string; expr: string; qty: number; where: string }> = [];
   const pushRows = (bag: Array<Record<string, unknown>>) => (rows: unknown) => {
     bag.push(...(Array.isArray(rows) ? rows : [rows]) as Record<string, unknown>[]);
     return Promise.resolve(rows);
@@ -201,22 +207,49 @@ function buildService(opts: {
     FinishedGoodEntity: {
       create: jest.fn((x: unknown) => x),
       save: jest.fn(pushRows(finishedGoodsCreated)),
+      // Fetch de la creación: unidades reofertadas referenciadas por las líneas de rescate (entidades).
+      find: jest.fn().mockResolvedValue(opts.finishedGoodRows ?? []),
+      // Maneja el DELETE...RETURNING del barrido Y el UPDATE de reserva/devolución del rescate.
       createQueryBuilder: jest.fn(() => {
+        const cap = { kind: '', id: '', expr: '', qty: 0, where: '' };
         const qb: {
+          update: jest.Mock;
           delete: jest.Mock;
+          set: jest.Mock;
           where: jest.Mock;
+          setParameter: jest.Mock;
           returning: jest.Mock;
           execute: jest.Mock;
         } = {
-          delete: jest.fn(() => qb),
-          where: jest.fn((sql: string) => {
+          update: jest.fn(() => {
+            cap.kind = 'update';
+            return qb;
+          }),
+          delete: jest.fn(() => {
+            cap.kind = 'delete';
+            return qb;
+          }),
+          set: jest.fn((obj: { qty: () => string }) => {
+            cap.expr = obj.qty();
+            return qb;
+          }),
+          where: jest.fn((sql: string, params?: { id: string }) => {
+            cap.where = sql;
+            if (params?.id) cap.id = params.id;
             fgSweepWhere.push(sql);
             return qb;
           }),
+          setParameter: jest.fn((k: string, v: number) => {
+            if (k === 'q' || k === 'qty') cap.qty = v; // ignora `now` (Date) del gate de caducidad
+            return qb;
+          }),
           returning: jest.fn(() => qb),
-          execute: jest
-            .fn()
-            .mockResolvedValue({ raw: opts.expiredFinishedGoods ?? [] }),
+          execute: jest.fn(() => {
+            fgOps.push({ ...cap });
+            if (cap.kind === 'delete')
+              return Promise.resolve({ raw: opts.expiredFinishedGoods ?? [] });
+            return Promise.resolve({ affected: opts.fgAffected ?? 1 });
+          }),
         };
         return qb;
       }),
@@ -276,6 +309,7 @@ function buildService(opts: {
     finishedGoodsCreated,
     stockMovements,
     fgSweepWhere,
+    fgOps,
   };
 }
 
@@ -580,6 +614,82 @@ describe('OrdersService.create', () => {
     expect(stockOps.some((o) => o.expr.includes('"stock" + :qty'))).toBe(true);
     // No es un cambio silencioso: la cancelación se despacha al outbox (BR-012).
     expect(dispatchedEvents.some((e) => e.eventType === 'order.cancelled')).toBe(true);
+  });
+
+  it('D-052 bug 2: compra de RESCATE reserva la unidad reofertada (qty--), cobra su precio, no toca stock', async () => {
+    const { service, orderSave, itemSave, fgOps, stockOps } = buildService({
+      profile: PROFILE,
+      products: [product('p1', '38.00')],
+      finishedGoodRows: [
+        { id: 'fg1', product: { id: 'p1' }, reofferPrice: '20.00', qty: 5, isReoffer: true },
+      ],
+    });
+    await service.create(
+      {
+        items: [{ productId: 'p1', quantity: 1, finishedGoodId: 'fg1' }],
+        payMethod: PaymentMethod.EFECTIVO,
+      },
+      USER.sub,
+    );
+    // Reserva atómica sobre la finished_good (qty - :q), NO sobre products.stock.
+    expect(stockOps).toHaveLength(0);
+    const reserve = fgOps.find((o) => o.expr === '"qty" - :q');
+    expect(reserve).toMatchObject({ id: 'fg1', qty: 1 });
+    // El gate atómico incluye la caducidad: una unidad vencida (aún no barrida) NO se puede comprar.
+    expect(reserve?.where).toContain('expires_at > :now');
+    // Cobra el precio DE LA UNIDAD (20) y persiste el rastro finishedGoodId.
+    expect(orderSave).toHaveBeenCalledWith(
+      expect.objectContaining({ totalAmount: '20.00' }),
+    );
+    const items = itemSave.mock.calls[0][0] as Array<Record<string, unknown>>;
+    expect(items[0]).toMatchObject({ finishedGoodId: 'fg1', unitPrice: '20.00' });
+  });
+
+  it('D-052 bug 2: si la unidad reofertada ya no está (affected 0) → 409, no persiste', async () => {
+    const { service, orderSave } = buildService({
+      profile: PROFILE,
+      products: [product('p1', '38.00')],
+      finishedGoodRows: [
+        { id: 'fg1', product: { id: 'p1' }, reofferPrice: '20.00', qty: 1, isReoffer: true },
+      ],
+      fgAffected: 0, // otro cliente se la llevó
+    });
+    await expect(
+      service.create(
+        {
+          items: [{ productId: 'p1', quantity: 1, finishedGoodId: 'fg1' }],
+          payMethod: PaymentMethod.EFECTIVO,
+        },
+        USER.sub,
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(orderSave).not.toHaveBeenCalled();
+  });
+
+  it('D-052 bug 2: pedido MIXTO reserva la línea fresca en stock y la de rescate en su unidad', async () => {
+    const { service, fgOps, stockOps } = buildService({
+      profile: PROFILE,
+      products: [product('p1', '38.00'), product('p2', '50.00')],
+      finishedGoodRows: [
+        { id: 'fg1', product: { id: 'p2' }, reofferPrice: '25.00', qty: 3, isReoffer: true },
+      ],
+    });
+    await service.create(
+      {
+        items: [
+          { productId: 'p1', quantity: 1 }, // fresca
+          { productId: 'p2', quantity: 1, finishedGoodId: 'fg1' }, // rescate
+        ],
+        payMethod: PaymentMethod.EFECTIVO,
+      },
+      USER.sub,
+    );
+    expect(stockOps).toContainEqual(
+      expect.objectContaining({ id: 'p1', qty: 1, expr: '"stock" - :qty' }),
+    );
+    expect(fgOps).toContainEqual(
+      expect.objectContaining({ id: 'fg1', qty: 1, expr: '"qty" - :q' }),
+    );
   });
 });
 
@@ -913,6 +1023,80 @@ describe('OrdersService inventario (stock dark kitchen, D-052)', () => {
           s.includes('p.order_id = orders.id'),
       ),
     ).toBe(true);
+  });
+
+  it('D-052 bug 2: cancelOwn de una compra de RESCATE devuelve la qty a SU finished_good (no a stock)', async () => {
+    const { service, fgOps, stockOps } = buildService({
+      profile: PROFILE,
+      order: {
+        id: 'o1',
+        status: OrderStatus.PENDING,
+        createdAt: new Date(),
+        items: [
+          { id: 'i1', product: { id: 'p1' }, quantity: 2, finishedGoodId: 'fg1' },
+        ],
+      },
+    });
+    await service.cancelOwn('o1', USER.sub);
+    expect(stockOps).toHaveLength(0); // NO vuelve a products.stock
+    expect(fgOps).toContainEqual(
+      expect.objectContaining({ id: 'fg1', qty: 2, expr: '"qty" + :q' }),
+    );
+  });
+
+  it('D-052 bug 2: not_picked_up de una línea de RESCATE vuelve a SU unidad, NO crea una nueva', async () => {
+    const { service, fgOps, finishedGoodsCreated } = buildService({
+      order: withItems(OrderStatus.READY, [
+        { id: 'i1', product: { id: 'p1' }, quantity: 2, finishedGoodId: 'fg1' },
+      ]),
+    });
+    await service.updateStatus('o1', OrderStatus.NOT_PICKED_UP, 'admin@test');
+    // Vuelve a su unidad (conserva expires_at) → NO reinicia el reloj con una finished_good nueva.
+    expect(fgOps).toContainEqual(
+      expect.objectContaining({ id: 'fg1', qty: 2, expr: '"qty" + :q' }),
+    );
+    expect(finishedGoodsCreated).toHaveLength(0);
+  });
+
+  it('D-052 bug 2 (P1): expireStalePending de un rescate devuelve a SU unidad, NO infla products.stock', async () => {
+    const stale = [
+      {
+        ...withItems(OrderStatus.PENDING, [
+          { id: 'i1', product: { id: 'p1' }, quantity: 2, finishedGoodId: 'fg1' },
+        ]),
+        id: 'o1',
+      },
+    ];
+    const { service, fgOps, stockOps } = buildService({ overdue: stale });
+    await service.expireStalePending();
+    expect(stockOps).toHaveLength(0); // el byProduct plano infl aba stock; ahora va a la unidad
+    expect(fgOps).toContainEqual(
+      expect.objectContaining({ id: 'fg1', qty: 2, expr: '"qty" + :q' }),
+    );
+  });
+
+  it('D-052 bug 2 (P5): cancelar un rescate cuya unidad ya se mermó registra la merma (no se pierde del libro)', async () => {
+    const { service, stockMovements } = buildService({
+      profile: PROFILE,
+      order: {
+        id: 'o1',
+        status: OrderStatus.PENDING,
+        createdAt: new Date(),
+        items: [
+          { id: 'i1', product: { id: 'p1' }, quantity: 2, finishedGoodId: 'fg1' },
+        ],
+      },
+      fgAffected: 0, // la unidad caducó y se barrió mientras el pedido la retenía → el UPDATE no afecta
+    });
+    await service.cancelOwn('o1', USER.sub);
+    expect(stockMovements).toContainEqual(
+      expect.objectContaining({
+        qty: 2,
+        type: 'merma',
+        reason: 'caducado',
+        finishedGoodId: 'fg1',
+      }),
+    );
   });
 
   it('D-052 Plan 08: expireFinishedGoods merma las caducadas (claim atómico DELETE...RETURNING) y las borra', async () => {

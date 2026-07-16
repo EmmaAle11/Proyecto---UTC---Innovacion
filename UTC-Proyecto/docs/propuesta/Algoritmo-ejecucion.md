@@ -319,26 +319,172 @@ cooperativa cocine con orden. Esta ampliación resuelve una pregunta distinta y 
 
 El detalle de cada frente vive en `docs/superpowers/`. Aquí va el algoritmo, en el orden en que se ejecuta.
 
-### 20.1 Las cuatro personas de la cooperativa
+### 20.1 Las cinco personas — lista de tareas por rol
 
 Hasta ahora había **dos** roles (`user`, `admin`). Una cooperativa real la operan **tres personas más el
-administrador**, y **cada una ve solo lo suyo**:
+administrador**, más el alumno que pide. Son **cinco**.
 
-| Rol | Mueve el pedido | Ve el dinero | Ve al cliente | Ve los costos |
-|---|---|---|---|---|
-| 🍳 **cocina** | ✅ acepta y marca listo | ❌ | ❌ *(solo el código `#U-00042`)* | ❌ |
-| 📦 **inventario** | ❌ | ❌ | ❌ | ✅ **es su trabajo** |
-| 💵 **mostrador** | ✅ entrega | ✅ **cobra y da cambio** | ✅ | ❌ |
-| 🛡️ **admin** | ✅ | ✅ | ✅ | ✅ *(de **su** cooperativa)* |
+> **Formato (decisión 2026-07-16):** esta sección es la **lista vertical y completa de tareas de cada
+> rol**. No se lista lo que un rol *no* hace: lo que no le toca **aparece en el perfil de quien sí lo
+> tiene**, y repetirlo aquí solo crea dos listas que se contradicen con el tiempo.
+>
+> Cada tarea tiene **ID** (`T-COC-03`) para poder rastrearla hasta el endpoint, la pantalla y el plan.
+> **`[hoy]`** = ya existe en código · **`[plan NN]`** = la construye ese plan · **`[?]`** = sin decidir.
 
-**El principio:** *cada transición la dispara quien tiene la información.* El cocinero es el único que sabe
-que la hamburguesa ya salió; el de mostrador es el único que sabe que el cliente ya está enfrente con el
-dinero.
+**Nombres (2026-07-16, decisión del usuario).** Se renombran para que digan la persona, no el mueble:
 
-**Y la regla dura:** cada persona está **anclada a UNA cooperativa**, y esa pertenencia **viaja dentro de
-su credencial**. El servidor **jamás** le pregunta al dispositivo de qué sucursal viene.
-*(Hoy sí lo hace — y eso permite que el mostrador de una sucursal lea los pedidos de otra. Es el primer
-defecto que cierra esta ampliación.)*
+```txt
+cliente         (antes `user`)        el alumno que pide
+cocinero        (antes `cocina`)      el que prepara
+inventarista    (antes `inventario`)  el que lleva materia prima, costos y mermas
+atencion        (antes `mostrador`)   el que atiende, cobra y entrega
+admin           (igual)               el responsable de SU cooperativa
+```
+
+---
+
+#### 👤 CLIENTE — el alumno que pide
+
+```txt
+T-CLI-01  Registrarse con su correo @edu.utc.mx                            [hoy]
+T-CLI-02  Iniciar y cerrar sesión                                          [hoy]
+T-CLI-03  Que se le asigne la cooperativa más cercana (o cambiarla)        [hoy]
+T-CLI-04  Ver el menú con disponibilidad y tiempo de espera                [hoy]
+T-CLI-05  Ver el semáforo de saturación de la cooperativa                  [hoy]
+T-CLI-06  Personalizar su comida (quitar/agregar ingredientes + nota)      [hoy]
+T-CLI-07  Armar su carrito                                                 [hoy]
+T-CLI-08  Comprar una unidad en REOFERTA a su precio de rescate            [plan 08]
+T-CLI-09  Elegir método de pago (Mercado Pago, PayPal, TDC, TDD, efectivo) [hoy]
+T-CLI-10  Declarar con qué billetes y monedas pagará, y ver su cambio      [plan 05]
+T-CLI-11  Programar su pedido (mínimo 30 min de anticipación)              [hoy]
+T-CLI-12  Confirmar el pedido y recibir su código #U-00042                 [hoy]
+T-CLI-13  Seguir el estado de su pedido en vivo                            [hoy]
+T-CLI-14  Cancelar su pedido mientras la regla lo permita                  [hoy]
+T-CLI-15  Extender su ventana de recogida (llegaré más tarde)              [hoy]
+T-CLI-16  Recibir avisos: aceptado · listo · cancelado · no recogido       [hoy]
+T-CLI-17  Ver su historial de pedidos                                      [hoy]
+T-CLI-18  Recoger mostrando su código                                      [hoy]
+T-CLI-19  Pedir factura y llenar sus datos fiscales UNA vez en su perfil   [plan 05]
+T-CLI-20  Editar su perfil y sus opciones de accesibilidad                 [hoy]
+```
+
+> El cliente es de la **plataforma**, no de una cooperativa: es el único rol sin `branch_id` fijo.
+
+---
+
+#### 🍳 COCINERO — el que prepara
+
+```txt
+T-COC-01  Ver la cola de pedidos de SU cooperativa                         [hoy]
+T-COC-02  Ver qué preparar de cada pedido, con personalizaciones y notas   [hoy]
+T-COC-03  ACEPTAR el pedido (pendiente → en preparación)                   [hoy]
+T-COC-04  Marcar el pedido LISTO (en preparación → listo)                  [hoy]
+T-COC-05  Identificar al pedido SOLO por su código #U-00042                [hoy]
+T-COC-06  Ver el tiempo estimado y el real de preparación                  [hoy]
+T-COC-07  Registrar producción extra hecha a propósito (no por un pedido)  [plan 08]
+T-COC-08  Ver la alerta de insumo faltante ("quedan 4: te falta pan")      [plan 06]
+```
+
+> **El principio: la transición la dispara quien tiene la información.** El cocinero es el único que sabe
+> que la hamburguesa ya salió. Por eso `pendiente → en preparación → listo` es **suyo**.
+>
+> **Tarea que NO existe, y es una decisión (2026-07-16):** *"el cocinero marca un producto como no
+> disponible cuando se le acaba"*. **Se rechazó.** No porque invada el menú, sino porque **es un síntoma**:
+> si hay que marcar a mano que no hay hamburguesas, es que el sistema no sabe que se acabó el pan. En el
+> **Plan 04** la disponibilidad se **deriva** de los insumos y la receta — la hamburguesa sale del menú
+> sola, diciendo qué falta. Una tarea manual que el dato correcto vuelve innecesaria no se construye: se
+> espera. *(Si el Plan 04 se retrasara y esto doliera en operación, se reabre.)*
+
+---
+
+#### 📦 INVENTARISTA — materia prima, costos y merma
+
+```txt
+T-INV-01  Dar de alta insumos con su unidad y su RENDIMIENTO (yield)       [plan 04]
+T-INV-02  Registrar compras con su costo real ("3 kg de carne, $150")      [plan 04]
+T-INV-03  Ver el costo por gramo/unidad derivado de esas compras           [plan 04]
+T-INV-04  Definir y editar la RECETA de cada producto (gramaje bruto)      [plan 06]
+T-INV-05  Ver el food cost y el margen por producto (semáforo del 45%)     [plan 04]
+T-INV-06  Ver la ganancia real de la cooperativa                           [plan 04]
+T-INV-07  Hacer el conteo físico y registrar la diferencia                 [plan 04]
+T-INV-08  Recibir la ALERTA DE CIERRE: "estas unidades no se vendieron"    [plan 08]
+T-INV-09  Confirmar la MERMA de una unidad que ya no se venderá            [plan 08]
+T-INV-10  Recibir el AVISO de la merma automática de las 24 h              [plan 08]
+T-INV-11  Marcar merma ANTICIPADA (se echó a perder, se cayó, se rompió)   [plan 08]
+T-INV-12  Ver el histórico de mermas y su costo                            [plan 08]
+T-INV-13  Ver alertas de stock mínimo e insumo agotado                     [plan 06]
+```
+
+> **Aquí aterriza la merma** (respuesta a "¿quién marca lo vencido?"): es del **inventarista**, porque la
+> merma es una **pérdida contable**, no una acción de venta — y él es quien lleva los costos.
+> `T-INV-09` **no** es el único freno: si no la confirma, la merma se ejecuta sola a las 24 h (`T-INV-10`).
+> Depender de que un humano se acuerde es exactamente lo que causó el bucle infinito de reoferta.
+
+---
+
+#### 💵 ATENCIÓN A CLIENTE — atiende, cobra y entrega
+
+```txt
+T-ATN-01  Ver los pedidos LISTOS esperando en el mostrador                 [hoy]
+T-ATN-02  Entregar el pedido validando su código (listo → recogido)        [hoy]
+T-ATN-03  Marcar un pedido como NO RECOGIDO                                [hoy]
+T-ATN-04  Cobrar en efectivo al momento de entregar                        [plan 05]
+T-ATN-05  Ver el desglose que el cliente declaró y dar el cambio exacto    [plan 05]
+T-ATN-06  Abrir la caja con su fondo inicial                               [plan 05]
+T-ATN-07  Registrar entradas y salidas de caja                             [plan 05]
+T-ATN-08  Hacer el CORTE: lo contado contra lo esperado, con responsable   [plan 05]
+T-ATN-09  Ponerle PRECIO DE REOFERTA a una unidad ya hecha                 [plan 08]
+T-ATN-10  Ver las unidades en reoferta y su antigüedad exacta              [plan 08]
+T-ATN-11  Ver en GRIS las unidades que ya no se pueden vender              [plan 08]
+T-ATN-12  Emitir el ticket del pedido                                      [plan 05]
+T-ATN-13  Generar el layout para timbrar el CFDI 4.0                       [plan 05]
+T-ATN-14  Ver el nombre del cliente (lo tiene enfrente)                    [hoy]
+```
+
+> Es el único rol de la cooperativa que **ve al cliente**: no puede pedirle su nombre a un código.
+> `listo → recogido` es **suyo** porque es el único que sabe que el alumno ya está enfrente con el dinero.
+> **`T-ATN-09` pone el precio, `T-INV-09` da la baja.** Vender la unidad y perderla son dos oficios: quien
+> tiene el incentivo de recuperar el dinero **no** debe ser quien decide que ya no se recuperó.
+
+---
+
+#### 🛡️ ADMIN — responsable de SU cooperativa
+
+```txt
+T-ADM-01  Todo lo de cocinero, inventarista y atención — en SU cooperativa [hoy/parcial]
+T-ADM-02  Editar el menú: alta, baja y edición de productos                [hoy]
+T-ADM-03  Fijar los precios de lista                                       [hoy]
+T-ADM-04  Dar de alta al personal de su cooperativa y su rol               [plan 01]
+T-ADM-05  Configurar el HORARIO de apertura y cierre                       [plan 08 global → plan 01 por-coop]
+T-ADM-06  Configurar los umbrales del semáforo (amarillo / rojo)           [hoy]
+T-ADM-07  Configurar la ventana de recogida (hoy 20 min)                   [hoy]
+T-ADM-08  Configurar el TOPE DURO de vida de lo preparado (hoy 24 h)       [plan 08 global → plan 01 por-coop]
+T-ADM-09  Ver todas las métricas de su cooperativa                         [hoy]
+T-ADM-10  Personalizar la app de su cooperativa                            [hoy]
+```
+
+> **T-ADM-05 y T-ADM-08 son nuevas y son los dos relojes del ciclo de lo preparado** (§20.7). Entran por
+> **puerto**, no como constantes: cambiarlas no debe tocar la lógica.
+>
+> **Deuda declarada (2026-07-16).** Hoy **no existe tabla de cooperativas**: son un array en el código del
+> frontend, y `app_settings` es **una sola fila global**. Así que en el Plan 08 el admin **sí captura** las
+> dos horas (`T-ADM-05`, `T-ADM-08`) pero rigen **para todas** las cooperativas por igual. Cuando el Plan 01
+> cree la tabla `branches`, el adaptador pasa a leerlas **por cooperativa**: cambia **el cableado, no la
+> lógica ni la pantalla**. Se dice aquí para que nadie lea "cada cooperativa" y crea que ya es verdad.
+>
+> Ingresa MFA obligatoria. **No existe un `super-admin`**: dar de alta cooperativas y administradores se
+> hace en la consola de Keycloak, **fuera** de la aplicación. Un rol que lo vea todo es superficie de
+> ataque que el proyecto no necesita.
+
+---
+
+#### La regla dura que esto impone
+
+Cada persona (salvo el cliente) está **anclada a UNA cooperativa**, y esa pertenencia **viaja dentro de su
+credencial**. El servidor **jamás** le pregunta al dispositivo de qué sucursal viene.
+
+*(Hoy sí lo hace — y eso permite que el de atención de una sucursal lea los pedidos de otra. Es el primer
+defecto que cierra esta ampliación: Plan 01.)*
 
 ### 20.2 Fuente única de la verdad (backend ↔ app)
 
@@ -384,9 +530,60 @@ entra y sale, y **al cerrar hace el corte**: lo contado contra lo esperado, con 
 Quien quiera factura lo indica **en su perfil** y llena una sola vez sus datos fiscales; el sistema produce
 el **layout para timbrar un CFDI 4.0** (no lo timbra: eso lo hace un proveedor autorizado).
 
-### 20.6 Orden de ejecución
+### 20.7 El ciclo de vida de lo preparado (los dos relojes)
+
+Una unidad ya hecha **no es un número en el inventario: es un objeto que nace, envejece y muere.** Y la
+hora **completa** de su nacimiento es dato de negocio, no un detalle: es lo que se le muestra a la gente.
 
 ```txt
+16/07 9:53:16       18:00                                    17/07 9:53:16
+    │                 │                                            │
+    NACE ── vendible ─┤── gris: NO se vende, espera baja ──────────┤── MERMA (automática)
+                      │                                            │
+                  CIERRE de ESA                              TOPE DURO: 24 h
+                  cooperativa                                desde que NACIÓ
+                      │                                            │
+                 alerta al                                    aviso al
+                 inventarista:                                inventarista:
+                 "confírmala"  (T-INV-08)                     "ya se dio de baja" (T-INV-10)
+```
+
+**Los tres tramos:**
+
+```txt
+1. NACE → CIERRE       Vendible. Tiene todas las horas del día para venderse.
+                       Atención le pone precio de reoferta (T-ATN-09); el cliente la compra (T-CLI-08).
+
+2. CIERRE → 24 h       YA NO se vende. Al abrir al otro día aparece en GRIS (T-ATN-11), con el
+                       tiempo que lleva desde que se hizo. El inventarista puede confirmar su
+                       baja (T-INV-09). Es una unidad muerta esperando su acta, no un producto.
+
+3. A LAS 24 h EXACTAS  Merma automática: sale de los libros como pérdida, con su costo y su razón.
+                       El humano NO es el único freno — si no la confirmó, el reloj lo hace por él.
+```
+
+**Por qué dos relojes y no uno.** El **cierre** es la regla del negocio ("hoy ya no se vende"); las **24 h**
+son la red de seguridad contable ("esto ya no existe, aunque nadie haya venido"). Si solo hubiera cierre,
+alguien tendría que estar ahí para dar la baja; si solo hubiera 24 h, la comida de ayer se vendería en la
+mañana. **Ese último caso es exactamente el bucle infinito que este trabajo vino a matar.**
+
+**Y por qué van por puerto, no como constantes.** Las dos horas las pone el negocio y **van a cambiar**:
+una cooperativa cierra a las 18:00 y otra a las 15:30; el tope de 24 h puede volverse 12 h para lo frío.
+El horario (`T-ADM-05`) y el tope (`T-ADM-08`) entran **como puerto con su adaptador**: se cambian en
+cualquier momento **sin tocar la lógica del ciclo**. La lógica no sabe qué hora es — pregunta.
+
+### 20.6 Orden de ejecución
+
+> **Corregido el 2026-07-16.** Este orden decía `1→6` y **no mencionaba los planes 07 y 08**, que ya se
+> ejecutaron. No era una lista de planes: era una lista incompleta que hacía ver el trabajo hecho como
+> trabajo saltado. Los bugs se atendieron **antes** que los cimientos por una razón explícita: **están en
+> producción y sangran dinero**. Un cimiento no le sirve a un edificio que se está desangrando.
+
+```txt
+0. LOS 3 BUGS  producto terminado: reserva + reoferta + merma   ← D-052. En producción.
+   ├─ Plan 07  reservar al hacer el pedido, no al cobrar        ✅ CERRADO (0 P0-P5)
+   └─ Plan 08  la unidad hecha como objeto: nace, caduca, muere 🔄 EN CURSO
+
 1. CIMIENTOS   roles + alcance por cooperativa   ← cierra el defecto de autorización.
                                                     Vale aunque nada más se construya.
 2. SSOT        matar las 25 duplicaciones        ← en buena parte, BORRA código
@@ -396,5 +593,10 @@ el **layout para timbrar un CFDI 4.0** (no lo timbra: eso lo hace un proveedor a
 6. RECETAS     el panel por alimento + las alertas de inventario
 ```
 
-**El paso 1 no se puede saltar:** el efectivo lo cobra *mostrador* y los costos los lleva *inventario*.
-Sin los roles, los pasos 4 y 5 no tienen dueño y habría que construirlos dos veces.
+**El paso 1 no se puede saltar:** el efectivo lo cobra *atención a cliente* y los costos los lleva el
+*inventarista*. Sin los roles, los pasos 4 y 5 no tienen dueño y habría que construirlos dos veces.
+
+**Y el paso 0 le deja una deuda al paso 1, dicha en voz alta:** el ciclo de la merma necesita avisarle al
+**inventarista**, que **todavía no existe** como rol. Se construye pidiendo el rol correcto y se cablea
+hoy al `admin`; cuando el Plan 01 cree al inventarista, **cambia el cableado, no la lógica**. Es la misma
+disciplina de puerto/adaptador que las dos horas.

@@ -35,16 +35,58 @@ precios) haría que el total dependa del estado de inventario en el instante →
 el total y **divergiría de lo cobrado** (el propio `priceToPay` advierte de eso). Ítem distinto = precio
 exacto, cambio localizado, y la reoferta no toca jamás el precio fresco (bug 2 muerto por construcción).
 
-## StockEffect y ciclo de la unidad
+## StockEffect y ciclo de la unidad — **REDISEÑADO 2026-07-16 (decisión del usuario)**
+
+> **Lo que había (`REOFFER_TTL_HOURS = 4`) era una constante que yo inventé, sin base en el negocio.**
+> El usuario la sustituyó por un ciclo anclado a dos hechos reales: **el cierre de la cooperativa** y un
+> **tope duro**. El humano decide; el reloj es la red de seguridad si no decide. Autocrítica (#40): mi 4 h
+> ni siquiera dejaba vender la comida el mismo día que se hizo.
 
 ```
-ready → not_picked_up:  NO vuelve a products.stock. Crea finished_goods(source='no_recogido',
-                        is_reoffer=true, expires_at=now+REOFFER_TTL, reoffer_price=NULL).
-finished_good reoffer:  ├─ admin pone precio (rewire del panel) → reoffer_price
-                        ├─ cliente la compra → qty--, si 0 se elimina. Recuperada. ✅
-                        └─ vence (barrido) → stock_movements(merma,'caducado') + se elimina. FIN DEL CICLO ✅
+16/07 9:53:16       [cierre]                                 17/07 9:53:16
+    │                  │                                           │
+   NACE ── vendible ───┤── GRIS: no se vende, espera su baja ──────┤── MERMA (automática)
+                       │                                           │
+                  alerta T-INV-08                             aviso T-INV-10
+                  "confírmala"                                "ya se dio de baja"
 ```
-`REOFFER_TTL` = knob (ponytail), **4 h** por defecto (comida del día; no cruza al día siguiente).
+
+**Los tres tramos y sus reglas:**
+
+```txt
+1. NACE → CIERRE       VENDIBLE. Tiene todas las horas del día para venderse.
+                       T-ATN-09 le pone reoffer_price · T-CLI-08 la compra.
+                       La hora COMPLETA de nacimiento es dato de UX ("hecho hace 3 h 12 min").
+
+2. CIERRE → +24 h      NO VENDIBLE. Al abrir aparece en GRIS (T-ATN-11) con su antigüedad.
+                       T-INV-09 puede confirmar la baja. Es una unidad muerta esperando su acta.
+                       ⚠️ Este tramo es lo que mantiene MUERTO el bug 1: la comida de ayer
+                          JAMÁS se vende hoy, aunque el barrido no haya pasado.
+
+3. +24 h EXACTAS       MERMA automática desde producedAt (9:53:16 → 9:53:16). El humano NO es
+                       el único freno. stock_movements(merma,'caducado') + delete atómico.
+```
+
+**Los dos relojes van por PUERTO, no como constantes** (requisito explícito del usuario: *"para poder
+cambiar estas horas en cualquier momento, pero la arquitectura y proceso permanezcan de la misma forma"*):
+
+```txt
+FinishedGoodLifecyclePort         (domain/ports/) — la lógica PREGUNTA la hora, no la sabe
+├─ sellableUntil(producedAt)  →   el cierre de la cooperativa de ese día
+└─ expiresAt(producedAt)      →   producedAt + hardTtlHours
+
+Adapter HOY:      lee closing_time + hard_ttl_hours de app_settings (fila ÚNICA GLOBAL)
+Adapter Plan 01:  los lee de branches, POR COOPERATIVA → cambia el CABLEADO, no la lógica
+```
+
+> **Deuda declarada (evidencia 2026-07-16):** **no existe tabla `branches`** (array hardcodeado en el
+> frontend, D-041) y `app_settings` es `@Check("id"=1)` — **fila única global**. Por eso el horario del
+> Plan 08 rige para TODAS las cooperativas hasta el Plan 01. Decisión del usuario, dicha en voz alta para
+> que nadie lea "cada cooperativa" y crea que ya es verdad.
+
+**El dueño de la merma es el `inventarista`** (`T-INV-08..12`), **no** quien pone el precio (`T-ATN-09`):
+quien tiene el incentivo de recuperar el dinero no debe ser quien decide que ya no se recuperó. Como el rol
+**no existe todavía** (Plan 01), se construye pidiendo `inventarista` y se **cablea a `admin`** hoy.
 
 ## Estado (2026-07-15)
 
@@ -58,11 +100,31 @@ finished_good reoffer:  ├─ admin pone precio (rewire del panel) → reoffer_
   el claim no-atómico (doble-merma) → arreglado; R2 halló provenance/unidades/multi-línea → arreglados; R3:
   **0 defectos de producto** (solo 2 de calidad-de-test: branchId cubierto; predicado = techo unit documentado).
   **127 verdes, tsc 0.**
-- **F2b ⏳** bug 2 (compra de rescate): order-line `finishedGoodId`, reserva sobre finished_goods, precio
-  por unidad, quitar `product.reofferPrice`. Migración sobre `order_items`.
-- **F4 ⏳** disponibilidad + catálogo (stock + Σqty; exponer reofertas).
-- **F5 ⏳** frontend (panel admin de reoferta → unidad; cliente compra la unidad).
-- **F6 ⏳** ADR/CHANGELOG/memoria + caza total a 0 P0-P5.
+- **F2b.1 ✅** esquema `order_items.finished_good_id` (migración `1782942000000`, id suelto).
+- **F2b.2/3 ✅ (core)** compra de rescate: `Order.place` cobra precio de la UNIDAD (line `finishedGoodId` →
+  `FinishedGoodSnapshot`), valida (inexistente/otro-producto/sin-precio → DomainError); línea fresca → catálogo
+  (quitado `product.reofferPrice` del pricing — **contaminación muerta**); `reserveStockOrThrow` reserva por tipo
+  (rescate → `finished_goods.qty>=:q`, 409; fresca → stock); `applyStock` devuelve por tipo (rescate → a su misma
+  unidad, conserva expires_at; fresca → stock/nueva unidad); `expireOverdue` usa `applyStock('to_reoffer')`.
+  **133 verdes, tsc 0.** Caza F2b: `wf_fa8aa554` (en curso).
+- **F2b.4 ⏳** quitar `product.reofferPrice` de raíz (columna/DTO/policy/response + migración drop).
+- **F3b ⏳ NUEVA — los dos relojes** (rediseño 2026-07-16). Sustituye `REOFFER_TTL_HOURS = 4`:
+  - `app_settings`: + `closing_time` (time) + `hard_ttl_hours` (int, default 24). Migración + CHECK.
+  - `FinishedGoodLifecyclePort` en `orders/domain/ports/` + adapter que lee `app_settings`.
+  - `finished_goods`: + `sellable_until` (además de `expires_at`). La reserva exige `sellable_until > now`
+    (**no** `expires_at`): ese es el tramo gris.
+  - Barrido partido en dos: `alertClosedFinishedGoods` (cierre → notifica, NO borra) y
+    `expireFinishedGoods` (24 h → merma + delete atómico, ya existe).
+  - Notificaciones al `inventarista` (cableado a `admin` hoy) vía el outbox de `notifications`.
+- **F3c ⏳ NUEVA — merma manual** `POST /finished-goods/:id/merma` `@Roles(inventarista→admin)`:
+  `T-INV-09` (confirmar la baja en el tramo gris) y `T-INV-11` (merma anticipada). Claim atómico, misma
+  ruta contable que el barrido. **Adición, jamás reemplazo del auto-vencimiento.**
+- **F4 ⏳** disponibilidad + catálogo (stock + Σqty **de las vendibles**; exponer reofertas como ítems).
+- **F5 ⏳** frontend: panel de reoferta → la unidad, con su **antigüedad exacta** y **gris** cuando
+  `sellable_until` pasó (`T-ATN-10/11`) · cliente compra la unidad (`T-CLI-08`) · `priceToPay` deja de usar
+  `product.reofferPrice` · **UX del admin para capturar cierre + tope** (`T-ADM-05`, `T-ADM-08`) en
+  Personalización · panel de merma del inventarista (`T-INV-08/09/12`).
+- **F6 ⏳** ADR/CHANGELOG/memoria + caza TOTAL a 0 P0-P5 (Plan 07 + Plan 08 juntos, >10 lentes).
 
 > ⚠️ Gap temporal F2a→F4: una unidad no recogida ya NO infla stock fresco (bug 1 roto ✓) pero aún no se
 > muestra ni se puede comprar (F4/F2b) → hoy expira a merma sin rescate. Es estrictamente mejor que el bug

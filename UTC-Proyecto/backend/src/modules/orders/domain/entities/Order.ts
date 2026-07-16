@@ -96,27 +96,41 @@ function coopDay(d: Date): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: COOP_TZ }).format(d);
 }
 
-/** Snapshot del producto que el adapter trae de la BD para que el dominio decida (BR-015). */
+/** Snapshot del producto que el adapter trae de la BD para que el dominio decida (BR-015).
+ *  D-052/Plan 08 bug 2: ya NO trae `reofferPrice` — el precio de reoferta es DE LA UNIDAD
+ *  (`FinishedGoodSnapshot`), no del producto (poner un precio en el producto contaminaba las frescas). */
 export interface ProductSnapshot {
   readonly id: string;
   readonly name: string;
   readonly price: number;
-  /** Precio de reoferta (§3.11 "Pon tu precio"); si está puesto, es el que se cobra. */
-  readonly reofferPrice: number | null;
   readonly isAvailable: boolean;
   readonly basePrepTimeSeconds: number;
+}
+
+/** Snapshot de una unidad reofertada (D-052 Plan 08 bug 2). El adapter la trae para que el dominio
+ *  cobre el precio DE ESTA unidad, y para validar que la compra de rescate es legítima. */
+export interface FinishedGoodSnapshot {
+  readonly id: string;
+  readonly productId: string;
+  /** Precio de reoferta de ESTA unidad; null = el admin no le puso precio → no vendible aún. */
+  readonly reofferPrice: number | null;
+  readonly qty: number;
 }
 
 /** Línea CRUDA de entrada (viene del DTO ya validado por class-validator). */
 export interface RawOrderLine {
   readonly productId: string;
   readonly quantity: number;
+  /** Si esta línea compra una unidad reofertada concreta (D-052 Plan 08 bug 2). */
+  readonly finishedGoodId?: string | null;
 }
 
-/** Entrada de creación: el adapter provee productos + promedios; el dominio valida y calcula. */
+/** Entrada de creación: el adapter provee productos + reofertas + promedios; el dominio valida y calcula. */
 export interface PlaceOrderInput {
   readonly items: readonly RawOrderLine[];
   readonly products: readonly ProductSnapshot[];
+  /** Unidades reofertadas referenciadas por las líneas de rescate (para cobrar su precio de unidad). */
+  readonly reofferUnits?: readonly FinishedGoodSnapshot[];
   readonly avgPrepByProductId: Readonly<Record<string, number>>;
   readonly scheduledForRaw?: string | null;
   readonly now: Date;
@@ -129,6 +143,8 @@ export interface PlacedLine {
   readonly unitPrice: Money;
   readonly subtotal: Money;
   readonly prepTimeSeconds: number;
+  /** Id de la `finished_good` comprada (rescate), o null si es una línea fresca. */
+  readonly finishedGoodId: string | null;
 }
 
 /** Plan de un pedido nuevo, ya validado y calculado por el dominio. Sin id (lo asigna la BD). */
@@ -171,6 +187,9 @@ export class Order extends AggregateRoot<OrderId> {
    */
   static place(input: PlaceOrderInput): OrderPlan {
     const byId = new Map(input.products.map((p) => [p.id, p]));
+    const reofferById = new Map(
+      (input.reofferUnits ?? []).map((u) => [u.id, u]),
+    );
     let total = Money.zero();
     const lines = input.items.map((it) => {
       const product = byId.get(it.productId);
@@ -181,13 +200,27 @@ export class Order extends AggregateRoot<OrderId> {
         throw new DomainError(`Producto no disponible: ${product.name}`);
       }
       const quantity = Quantity.of(it.quantity);
-      // D-052/P4#6: el AGOTADO no se valida aquí. El stock del snapshot se leyó FUERA de la tx y es
-      // rancio por definición; el ÚNICO gate de inventario es el UPDATE condicional atómico del
-      // adapter (`reserveStockOrThrow` → 409 nombrando el producto). Dos gates = dos códigos HTTP
-      // para el mismo "agotado" (el bug P4#6). El dominio solo valida existencia y disponibilidad.
-      // §3.11 "Pon tu precio": si el producto está reofertado (reofferPrice puesto) se cobra
-      // ese precio menor; si no, el de catálogo. Precio congelado al momento de compra (BR-015).
-      const unitPrice = Money.of(product.reofferPrice ?? product.price);
+      // Precio congelado (BR-015). D-052/P4#6: el AGOTADO/insuficiente NO se valida aquí (el snapshot
+      // es rancio); el ÚNICO gate de inventario es el UPDATE condicional atómico del adapter
+      // (`reserveStockOrThrow` → 409). El dominio solo valida existencia, disponibilidad y la reoferta.
+      let unitPrice: Money;
+      let finishedGoodId: string | null = null;
+      if (it.finishedGoodId) {
+        // §3.11 ARREGLADO (bug 2): compra de RESCATE → se cobra el precio DE LA UNIDAD reofertada,
+        // no del producto (poner el precio en el producto contaminaba TODAS las ventas frescas).
+        const unit = reofferById.get(it.finishedGoodId);
+        if (!unit || unit.productId !== product.id) {
+          throw new DomainError('La unidad en reoferta ya no está disponible');
+        }
+        if (unit.reofferPrice == null) {
+          throw new DomainError('Esa unidad aún no tiene precio de reoferta');
+        }
+        unitPrice = Money.of(unit.reofferPrice);
+        finishedGoodId = unit.id;
+      } else {
+        // Línea FRESCA: precio de catálogo. Ya NO se lee `product.reofferPrice` (bug 2 muerto).
+        unitPrice = Money.of(product.price);
+      }
       const subtotal = unitPrice.times(quantity);
       total = total.add(subtotal);
       return {
@@ -198,6 +231,7 @@ export class Order extends AggregateRoot<OrderId> {
         // J5: promedio real si hay muestras suficientes; si no, el tiempo base del producto.
         prepTimeSeconds:
           input.avgPrepByProductId[product.id] ?? product.basePrepTimeSeconds,
+        finishedGoodId,
       };
     });
     return {

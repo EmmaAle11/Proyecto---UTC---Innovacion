@@ -43,4 +43,12 @@ export class OrderItemEntity {
 
   @Column('int', { name: 'prep_time_seconds', nullable: true })
   prepTimeSeconds: number | null;
+
+  /**
+   * D-052/Plan 08 (bug 2): si esta línea COMPRÓ una unidad reofertada, el id de esa `finished_good`.
+   * Id suelto (SIN FK): la `finished_good` puede consumirse/mermarse y la línea del pedido debe
+   * conservar el rastro histórico. Null = línea fresca (se sirve de `products.stock`).
+   */
+  @Column('uuid', { name: 'finished_good_id', nullable: true })
+  finishedGoodId: string | null;
 }

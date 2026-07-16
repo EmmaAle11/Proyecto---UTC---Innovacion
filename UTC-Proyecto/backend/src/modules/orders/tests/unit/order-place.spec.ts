@@ -13,7 +13,6 @@ function snap(over: Partial<ProductSnapshot> = {}): ProductSnapshot {
     id: 'p1',
     name: 'Torta',
     price: 38,
-    reofferPrice: null,
     isAvailable: true,
     basePrepTimeSeconds: 600,
     ...over,
@@ -50,13 +49,52 @@ describe('Order.place (BR-015 / spec #4)', () => {
     expect(plan.total.amount).toBe(141); // 38*2 + 65*1
   });
 
-  it('§3.11: cobra el precio de REOFERTA cuando está puesto (no el de catálogo)', () => {
+  it('§3.11 (bug 2): una línea de RESCATE cobra el precio DE LA UNIDAD, no el del producto', () => {
     const plan = Order.place(
-      input({ products: [snap({ price: 38, reofferPrice: 20 })] }),
+      input({
+        items: [{ productId: 'p1', quantity: 2, finishedGoodId: 'fg1' }],
+        products: [snap({ price: 38 })],
+        reofferUnits: [{ id: 'fg1', productId: 'p1', reofferPrice: 20, qty: 5 }],
+      }),
     );
-    expect(plan.lines[0].unitPrice.amount).toBe(20); // 20 * 2
+    expect(plan.lines[0].unitPrice.amount).toBe(20); // 20 * 2, precio de la unidad
     expect(plan.lines[0].subtotal.amount).toBe(40);
-    expect(plan.total.amount).toBe(40);
+    expect(plan.lines[0].finishedGoodId).toBe('fg1');
+  });
+
+  it('bug 2: una línea FRESCA NO se descuenta aunque exista una reoferta del producto', () => {
+    // Antes `product.reofferPrice` contaminaba TODA venta; ahora la reoferta es de la unidad.
+    const plan = Order.place(
+      input({
+        items: [{ productId: 'p1', quantity: 1 }], // sin finishedGoodId = fresca
+        products: [snap({ price: 38 })],
+        reofferUnits: [{ id: 'fg1', productId: 'p1', reofferPrice: 20, qty: 5 }],
+      }),
+    );
+    expect(plan.lines[0].unitPrice.amount).toBe(38); // precio de catálogo, NO 20
+    expect(plan.lines[0].finishedGoodId).toBeNull();
+  });
+
+  it('bug 2: rescate de una unidad SIN precio de reoferta → DomainError', () => {
+    expect(() =>
+      Order.place(
+        input({
+          items: [{ productId: 'p1', quantity: 1, finishedGoodId: 'fg1' }],
+          reofferUnits: [{ id: 'fg1', productId: 'p1', reofferPrice: null, qty: 5 }],
+        }),
+      ),
+    ).toThrow(DomainError);
+  });
+
+  it('bug 2: rescate de una unidad inexistente / de otro producto → DomainError', () => {
+    expect(() =>
+      Order.place(
+        input({
+          items: [{ productId: 'p1', quantity: 1, finishedGoodId: 'fantasma' }],
+          reofferUnits: [],
+        }),
+      ),
+    ).toThrow(DomainError);
   });
 
   it('rechaza producto inexistente', () => {

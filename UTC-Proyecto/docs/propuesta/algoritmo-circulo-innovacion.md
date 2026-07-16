@@ -367,12 +367,60 @@ Hasta esta versión solo existían **dos** roles: `user` y `admin`. Pero una coo
 **tres personas más el administrador**, y cada una necesita **cosas distintas** — y, sobre todo, **no debe
 ver las demás**.
 
-| Rol | Qué hace | Qué **nunca** ve |
-|---|---|---|
-| 🍳 **cocina** | **Acepta** el pedido y lo **marca listo**. Ve qué preparar, con las personalizaciones y las notas. | Dinero, precios, costos, márgenes, **ni el nombre o correo del cliente** (BR-014). Solo el código `#U-00042`. |
-| 📦 **inventario** | Materia prima, **compras con costo**, recetas, mermas, conteo físico, **márgenes y ganancia**. | No cambia estados, no cobra, **no fija el precio de venta**. |
-| 💵 **mostrador** | Cobra, **da cambio**, lleva **la caja**, entrega, **re-oferta**, **factura** y registra la ganancia. | No edita el menú ni fija precios de lista; no ve costos ni márgenes. |
-| 🛡️ **admin** | Todo lo de **su** cooperativa: menú, precios, reoferta, métricas, personalización y **alta de personal**. | **Otra cooperativa.** |
+**Cada quien abre la app y ve SU lista de pendientes** — no un menú lleno de botones apagados. Esto es lo
+que le toca a cada uno:
+
+**👤 El alumno (cliente)**
+
+```txt
+Se registra con su correo de la UTC · elige (o le detectamos) su cooperativa · ve el menú con lo que hay
+y cuánto tarda · ve el semáforo de qué tan saturados están · le quita la lechuga y deja su nota ·
+arma su carrito · aprovecha una REOFERTA a precio de rescate · elige cómo paga · dice con qué billetes
+va a pagar y ve su cambio · lo programa para más tarde si quiere · confirma y recibe su código #U-00042 ·
+sigue su pedido en vivo · lo cancela si aún puede · avisa que llegará tarde · recibe sus avisos ·
+ve su historial · recoge mostrando el código · pide factura llenando sus datos UNA sola vez.
+```
+
+**🍳 El cocinero**
+
+```txt
+Ve la cola de SU cooperativa · ve qué preparar con las personalizaciones y las notas · ACEPTA el pedido ·
+lo marca LISTO · lo identifica solo por el código #U-00042 · ve cuánto debería tardar y cuánto tardó ·
+registra lo que cocinó de más a propósito · ve la alerta de "te falta pan".
+```
+
+**📦 El inventarista**
+
+```txt
+Da de alta los insumos con su rendimiento · registra las compras con su costo real ("3 kg, $150") ·
+ve el costo por gramo · escribe la receta de cada platillo · ve el food cost y el margen con su semáforo ·
+ve la ganancia · hace el conteo físico · recibe el aviso de "esto no se vendió hoy" · CONFIRMA la merma ·
+recibe el aviso de la merma automática de las 24 h · da de baja lo que se echó a perder antes de tiempo ·
+ve el histórico de lo que se perdió y cuánto costó · ve las alertas de que algo se está acabando.
+```
+
+**💵 El de atención a cliente**
+
+```txt
+Ve los pedidos listos esperando · entrega validando el código · marca los que nadie recogió ·
+COBRA en efectivo al entregar · ve con qué le van a pagar y da el cambio exacto · abre la caja con su
+fondo · registra lo que entra y sale · hace el CORTE al cerrar · le pone PRECIO DE RESCATE a lo que
+quedó hecho · ve las unidades en reoferta y cuánto llevan · ve en GRIS lo que ya no puede vender ·
+imprime el ticket · genera la factura · y sí ve el nombre del alumno, porque lo tiene enfrente.
+```
+
+**🛡️ El admin de la cooperativa**
+
+```txt
+Todo lo anterior, en SU cooperativa · edita el menú · pone los precios · da de alta a su personal ·
+configura A QUÉ HORA ABRE Y CIERRA · ajusta el semáforo · ajusta la ventana de recogida ·
+decide CUÁNTO VIVE lo ya preparado · ve todas las métricas · personaliza su app. Entra con doble factor.
+```
+
+> **¿Y lo que NO le toca a cada quien?** No lo listamos aquí a propósito: **aparece en el perfil de quien
+> sí lo tiene**. Si escribiéramos las dos listas, tarde o temprano una diría una cosa y la otra, otra.
+> La versión larga —con cada tarea numerada para poder rastrearla hasta el código— vive en
+> `Algoritmo-ejecucion.md §20.1`.
 
 **Dos reglas duras que esto impone:**
 

@@ -136,6 +136,23 @@ export class TypeOrmOrderRepository implements IOrderRepository {
     // Traer productos y decidir el plan FUERA de la tx (el precio es un snapshot, BR-015).
     const prods = await this.products.findBy({ id: In(ids) });
     const byId = new Map(prods.map((p) => [p.id, p]));
+    // D-052 Plan 08 (bug 2): las líneas de RESCATE traen `finishedGoodId` → traer esas unidades para
+    // cobrar su precio DE LA UNIDAD (no del producto). Snapshot fuera de la tx; la reserva atómica gatea.
+    const fgIds = input.items
+      .map((i) => i.finishedGoodId)
+      .filter((x): x is string => Boolean(x));
+    const fgRows = fgIds.length
+      ? await this.dataSource.getRepository(FinishedGoodEntity).find({
+          where: { id: In(fgIds), isReoffer: true },
+          relations: { product: true },
+        })
+      : [];
+    const reofferUnits = fgRows.map((fg) => ({
+      id: fg.id,
+      productId: fg.product?.id ?? '',
+      reofferPrice: fg.reofferPrice != null ? Number(fg.reofferPrice) : null,
+      qty: fg.qty,
+    }));
     const plan = this.decide(() =>
       Order.place({
         items: input.items,
@@ -143,10 +160,10 @@ export class TypeOrmOrderRepository implements IOrderRepository {
           id: p.id,
           name: p.name,
           price: Number(p.price),
-          reofferPrice: p.reofferPrice != null ? Number(p.reofferPrice) : null,
           isAvailable: p.isAvailable,
           basePrepTimeSeconds: p.basePrepTimeSeconds,
         })),
+        reofferUnits,
         avgPrepByProductId,
         scheduledForRaw: input.scheduledFor,
         now: new Date(), // BR-005: hora del servidor
@@ -182,6 +199,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
             unitPrice: l.unitPrice.toString(),
             subtotal: l.subtotal.toString(),
             prepTimeSeconds: l.prepTimeSeconds,
+            finishedGoodId: l.finishedGoodId, // Plan 08 bug 2: rastro de la compra de rescate
           }),
         ),
       );
@@ -258,23 +276,51 @@ export class TypeOrmOrderRepository implements IOrderRepository {
     byId: Map<string, ProductEntity>,
   ): Promise<void> {
     const repo = manager.getRepository(ProductEntity);
-    const sorted = [...lines].sort((a, b) =>
-      a.productId.localeCompare(b.productId),
-    );
-    for (const line of sorted) {
-      const qty = line.quantity.value;
-      if (qty <= 0) continue;
+    const fgRepo = manager.getRepository(FinishedGoodEntity);
+    const now = new Date(); // BR-005: hora del servidor (gate de caducidad del rescate)
+    const nameOf = (l: PlacedLine) =>
+      byId.get(l.productId)?.name ?? 'un producto de tu pedido';
+
+    // RESCATE primero, ordenado por finishedGoodId (MISMO orden de lock que returnReofferUnits →
+    // sin deadlock; el sort por productId no basta: dos unidades del mismo producto empatan). El
+    // UPDATE gatea qty>=:q Y `expires_at > now`: una unidad ya CADUCADA pero aún no barrida NO se
+    // vende (el barrido de merma corre ~cada minuto; sin este gate habría una ventana de ~60s).
+    const rescue = lines
+      .filter((l) => l.finishedGoodId && l.quantity.value > 0)
+      .sort((a, b) => (a.finishedGoodId ?? '').localeCompare(b.finishedGoodId ?? ''));
+    for (const line of rescue) {
+      const r = await fgRepo
+        .createQueryBuilder()
+        .update()
+        .set({ qty: () => '"qty" - :q' })
+        .where('id = :id AND qty >= :q AND expires_at > :now', {
+          id: line.finishedGoodId,
+        })
+        .setParameter('q', line.quantity.value)
+        .setParameter('now', now)
+        .execute();
+      if (!r.affected) {
+        throw new ConflictException(
+          `La unidad en reoferta de ${nameOf(line)} ya no está disponible`,
+        );
+      }
+    }
+
+    // FRESCAS después, ordenadas por productId (bump de version por el optimistic lock del admin).
+    const fresh = lines
+      .filter((l) => !l.finishedGoodId && l.quantity.value > 0)
+      .sort((a, b) => a.productId.localeCompare(b.productId));
+    for (const line of fresh) {
       const result = await repo
         .createQueryBuilder()
         .update()
         .set({ stock: () => '"stock" - :qty', version: () => '"version" + 1' })
         .where('id = :id AND stock >= :qty', { id: line.productId })
-        .setParameter('qty', qty)
+        .setParameter('qty', line.quantity.value)
         .execute();
       if (!result.affected) {
-        const name = byId.get(line.productId)?.name ?? 'un producto de tu pedido';
         throw new ConflictException(
-          `Ya no queda suficiente inventario de ${name}`,
+          `Ya no queda suficiente inventario de ${nameOf(line)}`,
         );
       }
     }
@@ -479,9 +525,10 @@ export class TypeOrmOrderRepository implements IOrderRepository {
           where: { id: In(ids) },
           relations: ORDER_RELATIONS,
         });
-        // Cada pedido vencido produce sus finished_goods (reoferta) en ESTA tx. No toca stock.
+        // Cada pedido vencido se asienta como 'to_reoffer' en ESTA tx: líneas frescas → nace una
+        // finished_good; líneas de rescate → vuelven a su unidad (Plan 08). No toca products.stock.
         for (const order of orders) {
-          await this.produceFinishedGoods(manager, order);
+          await this.applyStock(manager, order, 'to_reoffer');
         }
         // BR-012: este flip NO pasa por el agregado (es masivo por SQL), así que se construyen
         // los eventos OrderNotPickedUp desde las filas vencidas y se despachan en ESTA tx.
@@ -553,26 +600,11 @@ export class TypeOrmOrderRepository implements IOrderRepository {
           where: { id: In(ids) },
           relations: ORDER_RELATIONS,
         });
-        // Devolver la reserva de cada pedido vencido, agregada por producto en orden GLOBAL.
-        const byProduct = new Map<string, number>();
+        // P1 (Plan 08 bug 2): liberar la reserva de cada pedido con applyStock('release') — así una
+        // línea de RESCATE vuelve a SU finished_good y no infla products.stock (el byProduct plano
+        // anterior ignoraba finishedGoodId → fuga + sobreventa). Una línea fresca vuelve a stock.
         for (const order of orders) {
-          for (const it of order.items ?? []) {
-            const pid = it.product?.id;
-            if (!pid || it.quantity <= 0) continue;
-            byProduct.set(pid, (byProduct.get(pid) ?? 0) + it.quantity);
-          }
-        }
-        const productRepo = manager.getRepository(ProductEntity);
-        for (const pid of [...byProduct.keys()].sort((a, b) =>
-          a.localeCompare(b),
-        )) {
-          await productRepo
-            .createQueryBuilder()
-            .update()
-            .set({ stock: () => '"stock" + :qty', version: () => '"version" + 1' })
-            .where('id = :id', { id: pid })
-            .setParameter('qty', byProduct.get(pid))
-            .execute();
+          await this.applyStock(manager, order, 'release');
         }
         // BR-012: el flip masivo NO pasa por el agregado → se construyen los OrderCancelled y se
         // despachan en ESTA tx (atómico con el cambio de estado y la liberación de stock).
@@ -782,14 +814,17 @@ export class TypeOrmOrderRepository implements IOrderRepository {
     }
   }
 
-  /** Aplica el efecto de stock que decidió el agregado (D-037/D-052/Plan 08). */
-  private applyStock(
+  /**
+   * Aplica el efecto de stock que decidió el agregado (D-037/D-052/Plan 08). 'release' y 'to_reoffer'
+   * DEVUELVEN inventario, pero por TIPO de línea: las de RESCATE (finishedGoodId) vuelven SIEMPRE a su
+   * misma `finished_good` (conserva su `expires_at` → sin nuevo bucle); las FRESCAS difieren — 'release'
+   * → `products.stock`, 'to_reoffer' (comida hecha no entregada) → nace una `finished_good` nueva.
+   */
+  private async applyStock(
     manager: EntityManager,
     order: OrderEntity,
     effect: StockEffect,
   ): Promise<void> {
-    if (effect === 'release') return this.applyStockDelta(manager, order);
-    if (effect === 'to_reoffer') return this.produceFinishedGoods(manager, order);
     if (effect === 'reserve') {
       // D-052: la reserva ocurre SOLO en la creación (reserveStockOrThrow). Ninguna transición
       // debe pedir 'reserve'; si llega aquí es una regresión → fallar ruidoso, no fugar stock.
@@ -797,19 +832,74 @@ export class TypeOrmOrderRepository implements IOrderRepository {
         'StockEffect "reserve" inesperado en transición (regresión D-052)',
       );
     }
-    return Promise.resolve(); // 'none'
+    if (effect === 'none') return;
+    const items = order.items ?? [];
+    await this.returnReofferUnits(
+      manager,
+      items.filter((it) => it.finishedGoodId),
+    );
+    const fresh = items.filter((it) => !it.finishedGoodId);
+    if (effect === 'release') {
+      await this.applyStockDelta(manager, fresh);
+    } else {
+      await this.produceFinishedGoods(manager, order, fresh);
+    }
   }
 
   /**
-   * D-052/Plan 08 ('to_reoffer'): la comida SE HIZO y no se entregó (no recogida o cancelada ya
+   * D-052 Plan 08 (bug 2): al cancelar / no recoger una compra de RESCATE, devuelve la qty a SU MISMA
+   * `finished_good` (conserva su `expires_at` original → NO reinicia el reloj, el bucle sigue roto).
+   * P5: si la unidad ya se mermó (caducó) mientras el pedido la retenía, el UPDATE no afecta filas —
+   * la comida ya no existe y NO debe revivir; se registra la MERMA de esa qty retenida para que el
+   * ledger de costeo (Plan 04) no la subcuente. Orden estable por finishedGoodId (anti-deadlock).
+   */
+  private async returnReofferUnits(
+    manager: EntityManager,
+    items: OrderItemEntity[],
+  ): Promise<void> {
+    const fgRepo = manager.getRepository(FinishedGoodEntity);
+    const movRepo = manager.getRepository(StockMovementEntity);
+    const sorted = [...items]
+      .filter((it) => it.finishedGoodId && it.quantity > 0)
+      .sort((a, b) =>
+        (a.finishedGoodId ?? '').localeCompare(b.finishedGoodId ?? ''),
+      );
+    for (const it of sorted) {
+      const r = await fgRepo
+        .createQueryBuilder()
+        .update()
+        .set({ qty: () => '"qty" + :q' })
+        .where('id = :id', { id: it.finishedGoodId })
+        .setParameter('q', it.quantity)
+        .execute();
+      if (!r.affected && it.product?.id) {
+        // La unidad caducó y ya se barrió mientras el pedido la retenía: no revive → se merma la qty
+        // retenida (si no, esa comida perdida no queda en ningún libro, P5).
+        await movRepo.save(
+          movRepo.create({
+            product: { id: it.product.id } as ProductEntity,
+            qty: it.quantity,
+            type: StockMovementType.MERMA,
+            reason: StockMovementReason.CADUCADO,
+            finishedGoodId: it.finishedGoodId,
+          }),
+        );
+      }
+    }
+  }
+
+  /**
+   * D-052/Plan 08 ('to_reoffer'): la comida FRESCA se hizo y no se entregó (no recogida o cancelada ya
    * lista) → NACE una `finished_good` por línea (reoferta con caducidad `now + REOFFER_TTL_HOURS`,
    * `reoffer_price` = null hasta que el admin lo ponga). NO toca `products.stock`: el stock ya se
-   * consumió al reservar en `place()`; devolverlo como fresco es justo el bucle infinito (bug 1).
-   * Al caducar, `expireFinishedGoods` la merma y el ciclo TERMINA.
+   * consumió al reservar en `place()`; devolverlo como fresco es justo el bucle infinito (bug 1). Al
+   * caducar, `expireFinishedGoods` la merma y el ciclo TERMINA. `items` es el SUBCONJUNTO fresco (las
+   * líneas de rescate ya volvieron a su unidad en `returnReofferUnits`).
    */
   private async produceFinishedGoods(
     manager: EntityManager,
     order: OrderEntity,
+    items: OrderItemEntity[],
   ): Promise<void> {
     const repo = manager.getRepository(FinishedGoodEntity);
     const expiresAt = new Date(Date.now() + REOFFER_TTL_HOURS * 60 * 60 * 1000);
@@ -819,7 +909,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       order.status === OrderStatus.CANCELLED
         ? FinishedGoodSource.CANCELADO
         : FinishedGoodSource.NO_RECOGIDO;
-    const rows = (order.items ?? [])
+    const rows = items
       .filter((it) => it.product?.id && it.quantity > 0)
       .map((it) =>
         repo.create({
@@ -836,21 +926,20 @@ export class TypeOrmOrderRepository implements IOrderRepository {
   }
 
   /**
-   * DEVUELVE inventario al catálogo (release, D-037/D-052): `stock = stock + cantidad`.
-   * Lo usan not_picked_up, la cancelación (cliente/admin) y la compensación de pago. La RESERVA
-   * ya NO vive aquí: se hace en la creación con `reserveStockOrThrow` (UPDATE condicional).
-   * Orden estable por productId → dos operaciones concurrentes lockean filas en el MISMO orden
-   * (sin deadlock).
+   * DEVUELVE inventario FRESCO al catálogo (release, D-037/D-052): `stock = stock + cantidad`. Lo usan
+   * la cancelación desde pending (cliente/admin) y la compensación de pago. La RESERVA ya NO vive aquí:
+   * se hace en la creación con `reserveStockOrThrow`. `items` es el subconjunto fresco (sin rescate).
+   * Orden estable por productId → dos operaciones concurrentes lockean filas en el MISMO orden (sin deadlock).
    */
   private async applyStockDelta(
     manager: EntityManager,
-    order: OrderEntity,
+    items: OrderItemEntity[],
   ): Promise<void> {
     const repo = manager.getRepository(ProductEntity);
-    const items = [...(order.items ?? [])].sort((a, b) =>
+    const sorted = [...items].sort((a, b) =>
       (a.product?.id ?? '').localeCompare(b.product?.id ?? ''),
     );
-    for (const it of items) {
+    for (const it of sorted) {
       const productId = it.product?.id;
       if (!productId || it.quantity <= 0) continue;
       await repo
