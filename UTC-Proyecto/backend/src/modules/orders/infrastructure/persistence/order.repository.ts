@@ -730,27 +730,32 @@ export class TypeOrmOrderRepository implements IOrderRepository {
       }>;
       if (!claimed.length) return 0;
       const movRepo = manager.getRepository(StockMovementEntity);
+      // Una unidad AGOTADA persiste con qty=0 (la venta hace `qty - 1` y NO borra la fila; el CHECK es
+      // `qty >= 0`). Cuando esa fila caduca, el DELETE la reclama igual que una con comida: es LIMPIEZA
+      // legítima, 0 unidades perdidas, NADA que asentar. Por eso "mermable" = solo qty>0.
+      // (caza R4 / sospecha del autor: un guard `length !== claimed.length` tronaba con estas filas y
+      // PARALIZABA el barrido para siempre en cuanto alguien compraba la última unidad — el camino feliz.)
       // `Number(r.qty)`: pg devuelve numeric como STRING; sin esto el reduce CONCATENARÍA ("2"+"5"="25").
-      const movements = claimed
-        .filter((r) => r.product_id && Number(r.qty) > 0)
-        .map((r) =>
-          movRepo.create({
-            // La finished_good ya se borró en el mismo statement; el movimiento conserva su id suelto.
-            product: { id: r.product_id } as ProductEntity,
-            qty: Number(r.qty),
-            type: StockMovementType.MERMA,
-            reason: StockMovementReason.CADUCADO,
-            finishedGoodId: r.id,
-          }),
-        );
-      // Invariante 8: si se borró comida, DEBE quedar su asiento. Si el DELETE devolvió filas pero
-      // ninguna produjo movimiento, algo se perdió de los libros → tronar antes que commitear.
-      if (movements.length !== claimed.length) {
+      const mermable = claimed.filter((r) => Number(r.qty) > 0);
+      const movements = mermable.map((r) =>
+        movRepo.create({
+          // La finished_good ya se borró en el mismo statement; el movimiento conserva su id suelto.
+          product: { id: r.product_id } as ProductEntity,
+          qty: Number(r.qty),
+          type: StockMovementType.MERMA,
+          reason: StockMovementReason.CADUCADO,
+          finishedGoodId: r.id,
+        }),
+      );
+      // Invariante 8: CADA unidad con comida (qty>0) DEBE dejar su asiento. Si una fila qty>0 no produjo
+      // movimiento, le faltó product_id → la forma del RETURNING está mal (el bug que se coló 2 veces):
+      // tronar antes que commitear. Las qty=0 NO cuentan aquí: se limpiaron, no se perdió nada.
+      if (movements.length !== mermable.length) {
         throw new Error(
-          `expireFinishedGoods: ${claimed.length} unidad(es) borradas pero ${movements.length} asiento(s) de merma — se perdería el rastro contable`,
+          `expireFinishedGoods: ${mermable.length} unidad(es) con comida pero ${movements.length} asiento(s) — falta product_id, se perdería el rastro contable`,
         );
       }
-      await movRepo.save(movements);
+      if (movements.length) await movRepo.save(movements);
       // Devuelve UNIDADES mermadas (Σ qty), no filas: el scheduler lo loguea como "N unidad(es)".
       return movements.reduce((sum, m) => sum + m.qty, 0);
     });

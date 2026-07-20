@@ -1300,11 +1300,18 @@ describe('OrdersService inventario (stock dark kitchen, D-052)', () => {
       expiredFinishedGoods: [
         { id: 'fg1', qty: 2, product_id: 'p1' },
         { id: 'fg2', qty: 5, product_id: 'p2' },
+        // Unidad AGOTADA que caducó (la venta dejó qty=0 y NO borró la fila; CHECK es qty>=0). El
+        // barrido la reclama pero son 0 unidades: se limpia SIN asiento y SIN tronar. Sin este caso,
+        // el guard `!== claimed.length` paralizaba el barrido en cuanto se vendía la última unidad.
+        { id: 'fg3', qty: 0, product_id: 'p3' },
       ],
     });
     const n = await service.expireFinishedGoods();
-    expect(n).toBe(7); // UNIDADES mermadas (2 + 5), no filas (el log dice "N unidades")
-    expect(stockMovements).toHaveLength(2);
+    expect(n).toBe(7); // UNIDADES mermadas (2 + 5); la fila qty=0 NO suma
+    expect(stockMovements).toHaveLength(2); // fg1 y fg2; fg3 (qty=0) no deja asiento
+    expect(
+      stockMovements.some((m) => m.finishedGoodId === 'fg3'),
+    ).toBe(false);
     expect(stockMovements).toContainEqual(
       expect.objectContaining({
         qty: 2,
