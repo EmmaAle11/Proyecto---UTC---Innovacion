@@ -1,7 +1,7 @@
 # Architecture Manual — UTC Pick Sazón
 
 **Versión:** 1.0 (migración Hexagonal + DDD + Vertical Slice **COMPLETADA**)  
-**Última actualización:** 2026-07-10  
+**Última actualización:** 2026-07-16 (D-047 roles objetivo · D-052 producto terminado · §2.5 corregida)  
 **Objetivo:** Manual de referencia para arquitecto de software, agentes de IA, y revisores de código.  
 **Scope:** Backend NestJS + Frontend React Native (Expo) + PostgreSQL + Keycloak.  
 **Estado:** migración incremental a Vertical Slice **cerrada** (D-038…D-046). Backend con slices `orders` (DDD táctico completo), `notifications` (outbox + eventos) y `products` (pragmático), + capas clásicas para `auth`/`settings`/`payments`. Verdad viva (gana si contradice): ADRs en `docs/arquitectura/decisiones.md` + `docs/roadmap/PROMPT_CONTEXTO_ARQUITECTURA.md`.
@@ -135,14 +135,34 @@ La regla mental que lo une todo: **si borro toda la carpeta `infrastructure/` de
 
 ---
 
-### 2.5 Stock como Domain Concept (D-037, en prod)
+### 2.5 Stock como Domain Concept (D-037) + Producto Terminado (D-052)
 
-**Decisión:** Stock son unidades físicas, el ciclo del pedido lo mueve. `0` no bloquea vender (se cocina al momento).
+**Decisión:** `products.stock` son unidades físicas **frescas / por hacer**. `0` no bloquea vender (dark
+kitchen: se cocina al momento). Locks pesimistas (FOR UPDATE) + orden global de locks en las transiciones.
 
-**Justificación:**
-- Dark kitchen: no prepara sin orden → puede vender aunque stock=0.
-- Excedente: si no se recoge → vuelve a stock (+1) como reoferta.
-- Locks pesimistas (FOR UPDATE) en transiciones concurrentes.
+**Corrección D-052 (Plan 07 `f126127` + Plan 08 `3b171a6`).** La versión anterior de esta sección decía
+*"si no se recoge → vuelve a stock (+1) como reoferta"*. **Eso era el bug 1**, no la decisión: devolver la
+comida de ayer a `products.stock` la vuelve fresca y sin caducidad → se vende para siempre.
+
+Modelo vigente — **la comida hecha es un OBJETO, no un contador**:
+
+| Concepto | Vive en | Semántica |
+|---|---|---|
+| `products.stock` | tabla `products` | fresco / "se puede hacer". Reserva atómica condicional → 409 si se agota. |
+| `finished_goods` | tabla propia (D-052) | **una unidad ya hecha**: nace (`produced_at`), **caduca** (`expires_at`), tiene **su** `reoffer_price`. |
+| `stock_movements` | tabla propia (D-052) | auditoría de la **merma** (`type='merma'`, `reason='caducado'`). |
+
+`StockEffect` (decidido por el agregado `Order`, ejecutado por el adapter):
+`reserve` · `release` (reserva no hecha → vuelve a stock) · **`to_reoffer`** (comida HECHA no entregada →
+nace un `finished_good`, **NO** vuelve a stock) · `none`.
+
+**Lo que cierra el ciclo:** el barrido `expireFinishedGoods` (claim atómico `DELETE … RETURNING`) manda a
+merma lo vencido. La caducidad es **automática por tiempo**, a propósito: depender de que una persona la
+marque es exactamente lo que causó el bug 1. Ver `docs/superpowers/plans/2026-07-15-08-*`.
+
+**Bug 2 (en curso, F2b):** el `reoffer_price` deja de vivir en `products` (contaminaba TODA venta con
+descuento) y pasa a ser de **la unidad**; el pedido referencia el `finished_good` concreto
+(`order_items.finished_good_id`) → precio exacto, sin divergencia de carrito.
 
 ---
 
@@ -553,9 +573,16 @@ NestJS Backend
 - `mobile-app` (public, dirección grant)
 - `backend-svc` (confidential, service account)
 
-**Roles:**
+**Roles — HOY en código (verificado):**
 - `user` (estudiante)
 - `admin` (administrador de cooperativa)
+
+**Roles — OBJETIVO (BR-003 modificada / D-047, 2026-07-14). Diseñado, `0` líneas de código:**
+`user` (plataforma) · `cocina` (acepta+termina) · `inventario` (materia prima, costos, **mermas**,
+ganancia) · `mostrador` (cobra, caja, entrega, **reoferta**, CFDI) · `admin` (superconjunto de **su**
+cooperativa). Sin `super-admin`. Cada rol ≠ `user` anclado a **una** cooperativa vía claim `branch_id`
+del JWT — **jamás** del request (BR-016). Lo implementa el **Plan 01**; hasta entonces esta brecha
+(`GET /orders/all?branchId=X` autoriza con dato del cliente) sigue **abierta** en producción.
 
 **Usuarios sembrados:**
 - `coop-admin` / `admin@picksazon.app` → rol `admin`, MFA TOTP requerido
@@ -617,6 +644,8 @@ NestJS Backend
 - `quantity`: int > 0
 - `unitPrice`: numeric (snapshop, BR-015)
 - `subtotal`: computed
+- `finishedGoodId`: uuid nullable (D-052) — si viene, la línea es una **compra de rescate**: se cobra el
+  precio de **esa** unidad y se reserva sobre `finished_goods`, no sobre `products.stock`.
 
 #### Product (Agregado)
 - `id`: UUID PK
@@ -631,7 +660,23 @@ NestJS Backend
 - `imageUrl`: text nullable
 - `status`: enum (POR_PREPARAR, PREPARADO, SIN_TIEMPO_ESPERA, CALENTANDO, NO_DISPONIBLE)
 - `isAvailable`: bool (candado de venta, no es el stock)
-- `reofferPrice`: numeric nullable > 0 (descuento para excedente)
+- ~~`reofferPrice`~~: **EN RETIRO (D-052 bug 2).** Ya no se lee en el pricing; la columna sale en F2b.4.
+  Un precio de reoferta en el *producto* descuenta TODA venta, no solo la unidad rescatada.
+
+#### FinishedGood (D-052 — la unidad ya hecha, es un objeto, no un contador)
+- `id`: UUID PK · `branchId` nullable · `productId`: FK Product
+- `qty`: int >= 0 (CHECK) · `producedAt` · **`expiresAt`** (`producedAt` + `REOFFER_TTL_HOURS`, hoy 4 h)
+- `isReoffer`: bool · `reofferPrice`: numeric nullable (**de esta unidad**)
+- `source`: `produccion` | `no_recogido` | `cancelado` (provenance)
+
+**Invariantes:** `qty >= 0`; una unidad vencida **no es vendible** (`expires_at > now` en la reserva);
+el barrido la reclama con `DELETE … RETURNING` (anti doble-merma).
+
+#### StockMovement (D-052 — auditoría de merma)
+- `id` · `productId`: FK · `qty`: int · `type`: `merma` · `reason`: `caducado` | `no_recogido`
+- `finishedGoodId`: uuid **suelto, sin FK** (la auditoría sobrevive al borrado de la unidad) · `createdAt`
+
+> `text` + CHECK en vez de enums de PG: el Plan 04 agrega razones sin `ALTER TYPE`.
 
 **Invariantes:**
 - `price > 0`, `basePrepTimeSeconds > 0`, `stock >= 0`
@@ -646,12 +691,25 @@ NestJS Backend
 - `branchId`: FK Branch (D-035: geo-asignada)
 - `createdAt`: timestamptz
 
-#### Branch
-- `id`: UUID PK
-- `name`: text
-- `location`: point (lat/lon para geo)
-- `operatingHours`: jsonb ({ dayOfWeek, open, close })
-- `cooperativeName`: text
+#### Branch — ⚠️ **NO EXISTE EN LA BD** (verificado 2026-07-16)
+
+> Esta sección describía una tabla con `location: point` y `operatingHours: jsonb`. **Nada de eso existe.**
+> `ls entities/ | grep -i branch` → vacío; `grep -rni "operatingHours" backend/src` → vacío.
+
+**Lo que hay de verdad (D-041):** las cooperativas son un **array hardcodeado en el frontend**
+(`frontend/src/entities/branch/branches.ts`: 3 sucursales con `id`/`name`/`address`/`lat`/`lng`). El
+backend guarda `orders.branch_id` como **texto suelto, sin FK a ninguna tabla** y sin catálogo contra el
+cual validarlo.
+
+**Consecuencias reales, no teóricas:**
+- Es la raíz del hueco de **BR-016**: no hay catálogo contra el cual rechazar un `branchId` ajeno.
+- **No hay dónde guardar el horario de apertura/cierre** por cooperativa (lo necesita el ciclo de
+  `finished_goods`, D-052 §20.7) → el Plan 08 lo pone **global** en `app_settings` y el **Plan 01** lo
+  vuelve por-cooperativa al crear `branches`.
+
+#### AppSettings — fila **ÚNICA GLOBAL**, no por sucursal
+`@Check("id" = 1)`. El ER de §7.2 dibuja `APP_SETTINGS ||--|| BRANCH : "1:N override"` — **eso tampoco
+existe**: hoy un solo ajuste rige para todas las cooperativas.
 
 #### AppSettings (Singleton)
 - `id`: PK = 1
