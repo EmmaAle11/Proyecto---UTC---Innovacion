@@ -74,9 +74,14 @@ export class OrdersController {
     return this.orders.metrics();
   }
 
-  /** PATCH /orders/:id/status → transición de estado (admin, BR-004). */
+  /**
+   * PATCH /orders/:id/status → transición de estado (BR-003/BR-004).
+   * Roles operativos: cocina mueve pending→preparing→ready; mostrador entrega/no-recogido;
+   * admin conserva sus tres funciones. El agregado `Order` valida qué transición es legal;
+   * aquí se controla QUIÉN puede pedir una transición (un `user` cliente no, rules §5).
+   */
   @Patch(':id/status')
-  @Roles('admin')
+  @Roles('admin', 'cocina', 'mostrador')
   async updateStatus(
     @Req() req: Request & { user?: JwtUser },
     @Param('id', ParseUUIDPipe) id: string,
