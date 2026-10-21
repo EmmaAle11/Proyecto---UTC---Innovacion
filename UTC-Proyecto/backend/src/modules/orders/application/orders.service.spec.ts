@@ -332,8 +332,9 @@ function buildService(opts: {
   // para poder afirmar sobre ellos; no ejecuta handlers (eso vive en el slice notifications).
   const dispatchedEvents: DomainEvent[] = [];
   const events = {
-    dispatch: jest.fn(async (evs: readonly DomainEvent[]) => {
+    dispatch: jest.fn((evs: readonly DomainEvent[]) => {
       dispatchedEvents.push(...evs);
+      return Promise.resolve();
     }),
   } as unknown as DomainEventDispatcher;
   const repo = new TypeOrmOrderRepository(
@@ -1370,7 +1371,7 @@ describe('OrdersService inventario (stock dark kitchen, D-052)', () => {
       .mockResolvedValueOnce(fresh) // lock FOR UPDATE
       .mockResolvedValueOnce(fresh); // carga con relaciones (ya PICKED_UP)
     const orderSave = jest.fn();
-    const stockQb = {
+    const stockQb: Record<string, jest.Mock> = {
       update: jest.fn(() => stockQb),
       set: jest.fn(() => stockQb),
       where: jest.fn(() => stockQb),

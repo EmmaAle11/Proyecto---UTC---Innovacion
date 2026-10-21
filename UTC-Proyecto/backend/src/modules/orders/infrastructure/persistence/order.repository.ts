@@ -832,7 +832,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
    * (hora LOCAL de la cooperativa). Excluye cancelados.
    */
   async metrics(): Promise<OrderMetrics> {
-    const topProducts = await this.dataSource.query(
+    const topProducts = await this.dataSource.query<TopProduct[]>(
       `SELECT p.id AS "productId", p.name AS "name", SUM(oi.quantity)::int AS "qty"
          FROM order_items oi
          JOIN orders o   ON o.id = oi.order_id
@@ -843,7 +843,7 @@ export class TypeOrmOrderRepository implements IOrderRepository {
         LIMIT 5`,
     );
 
-    const peaks = await this.dataSource.query(
+    const peaks = await this.dataSource.query<PeakHour[]>(
       `SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Mexico_City')::int AS "hour",
               COUNT(*)::int AS "count"
          FROM orders
@@ -864,7 +864,9 @@ export class TypeOrmOrderRepository implements IOrderRepository {
     productIds: string[],
   ): Promise<Array<{ product_id: string; avg_seconds: number }>> {
     if (productIds.length === 0) return [];
-    const rows = await this.dataSource.query(
+    const rows = await this.dataSource.query<
+      Array<{ productId: string; avg: number }>
+    >(
       `SELECT product_id AS "productId", AVG(duration_seconds)::float AS "avg"
          FROM (
            SELECT product_id, duration_seconds,
