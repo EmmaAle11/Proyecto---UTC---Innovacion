@@ -14,15 +14,22 @@ describe('RolesGuard', () => {
   const setup = (userRoles: string[], required: string[] | undefined) => {
     const reflector = new Reflector();
     jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(required);
-    const guard = new RolesGuard(reflector);
+    const logUnauthorizedAccess = jest.fn();
+    const auditLog = {
+      logUnauthorizedAccess,
+    } as unknown as import('../../../shared/logging/audit-log.service').AuditLogService;
+    const guard = new RolesGuard(reflector, auditLog);
     const ctx = {
       getHandler: () => undefined,
       getClass: () => undefined,
       switchToHttp: () => ({
-        getRequest: () => ({ user: { roles: userRoles } }),
+        getRequest: () => ({
+          user: { roles: userRoles, email: 'actor@edu.utc.mx' },
+          url: '/orders/x/status',
+        }),
       }),
     } as unknown as ExecutionContext;
-    return { guard, ctx };
+    return { guard, ctx, logUnauthorizedAccess };
   };
 
   // Puerta de PATCH /orders/:id/status: @Roles('admin','cocina','mostrador').
@@ -37,10 +44,16 @@ describe('RolesGuard', () => {
   );
 
   it.each(['user', 'inventario'])(
-    'niega a %s el cambio de estado (403)',
+    'niega a %s el cambio de estado (403) y registra el intento',
     (role) => {
-      const { guard, ctx } = setup([role], STATUS_ROLES);
+      const { guard, ctx, logUnauthorizedAccess } = setup([role], STATUS_ROLES);
       expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
+      // V4 ASVS: el acceso denegado se audita (detección de escalada de privilegios).
+      expect(logUnauthorizedAccess).toHaveBeenCalledWith(
+        'actor@edu.utc.mx',
+        '/orders/x/status',
+        'insufficient_role',
+      );
     },
   );
 
