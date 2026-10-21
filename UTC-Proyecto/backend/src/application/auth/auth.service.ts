@@ -71,7 +71,12 @@ export class AuthService {
       this.auditLog.logLogin(dto.email, true, 'user');
       return tokens;
     } catch (err) {
-      this.auditLog.logLogin(dto.email, false, 'user', err.message);
+      this.auditLog.logLogin(
+        dto.email,
+        false,
+        'user',
+        err instanceof Error ? err.message : String(err),
+      );
       throw err;
     }
   }
@@ -87,7 +92,12 @@ export class AuthService {
       this.auditLog.logLogin(dto.email, true, 'admin');
       return tokens;
     } catch (err) {
-      this.auditLog.logLogin(dto.email, false, 'admin', err.message);
+      this.auditLog.logLogin(
+        dto.email,
+        false,
+        'admin',
+        err instanceof Error ? err.message : String(err),
+      );
       throw err;
     }
   }

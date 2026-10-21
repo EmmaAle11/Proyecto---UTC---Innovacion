@@ -1,5 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import type { HttpsOptions } from '@nestjs/common/interfaces/external/https-options.interface';
+import type { Express } from 'express';
 import helmet from 'helmet';
 import * as fs from 'fs';
 import { AppModule } from './app.module';
@@ -7,7 +9,7 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   // HTTPS: condicional vía HTTPS_ENABLED env var (regla V7 ASVS).
   // ponytail: loadSync solo si enabled, error temprano si archivos no existen.
-  let httpsOptions: any = undefined;
+  let httpsOptions: HttpsOptions | undefined = undefined;
   if (process.env.HTTPS_ENABLED === 'true') {
     const certPath = process.env.HTTPS_CERT_PATH || './cert.pem';
     const keyPath = process.env.HTTPS_KEY_PATH || './key.pem';
@@ -22,7 +24,7 @@ async function bootstrap() {
           `  cert: ${certPath}\n` +
           `  key: ${keyPath}\n` +
           `Genera con: openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 365\n` +
-          `Error: ${err.message}`,
+          `Error: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
@@ -36,7 +38,8 @@ async function bootstrap() {
   // otro valor (o ausente) se ignora — no se pasa una cadena arbitraria a Express.
   const hops = Number(process.env.TRUST_PROXY);
   if (Number.isInteger(hops) && hops >= 0) {
-    app.getHttpAdapter().getInstance().set('trust proxy', hops);
+    const expressApp = app.getHttpAdapter().getInstance() as Express;
+    expressApp.set('trust proxy', hops);
   }
 
   // Input validation (regla #5 — whitelist mode).
