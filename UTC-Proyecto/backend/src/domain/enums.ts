@@ -10,6 +10,9 @@
 export enum UserRole {
   ADMIN = 'admin',
   USER = 'user',
+  COCINA = 'cocina',
+  INVENTARIO = 'inventario',
+  MOSTRADOR = 'mostrador',
 }
 
 export enum ProductStatus {
