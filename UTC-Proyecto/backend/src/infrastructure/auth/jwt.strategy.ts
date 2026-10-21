@@ -9,6 +9,12 @@ export interface JwtUser {
   sub: string;
   email?: string;
   roles: string[];
+  /**
+   * Cooperativa/sucursal del actor, derivada del claim `branch_id` del token (nunca del request).
+   * `undefined` mientras Keycloak no emita el claim → alcance single-tenant actual (no rompe nada).
+   * Cuando el claim exista, los endpoints admin filtran por esta sucursal y no por un valor del cliente.
+   */
+  branchId?: string;
 }
 
 interface KeycloakJwtPayload {
@@ -16,6 +22,7 @@ interface KeycloakJwtPayload {
   email?: string;
   azp?: string; // authorized party = client al que se emitió el token
   realm_access?: { roles?: string[] };
+  branch_id?: string; // claim de cooperativa/sucursal (opt-in en Keycloak)
 }
 
 /**
@@ -64,6 +71,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       sub: payload.sub,
       email: payload.email,
       roles: payload.realm_access?.roles ?? [],
+      branchId: payload.branch_id,
     };
   }
 }

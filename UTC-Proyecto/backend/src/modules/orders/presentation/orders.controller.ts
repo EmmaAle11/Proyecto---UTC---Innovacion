@@ -6,7 +6,6 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
-  Query,
   Req,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -45,13 +44,18 @@ export class OrdersController {
     return this.orders.findMine(this.requireUser(req).sub);
   }
 
-  /** GET /orders/all → pedidos para el admin. Con `?branchId=` filtra por cooperativa (§3.12). */
+  /**
+   * GET /orders/all → pedidos para el admin, acotados a SU cooperativa (BR-003/§3.12).
+   * El alcance sale del JWT (`branchId`), nunca de un parámetro del request: un admin no puede
+   * pedir pedidos de otra cooperativa inyectando `?branchId=`. Mientras Keycloak no emita el claim,
+   * `branchId` es undefined → alcance actual (todas), sin romper el single-tenant vigente.
+   */
   @Get('all')
   @Roles('admin')
   async findAll(
-    @Query('branchId') branchId?: string,
+    @Req() req: Request & { user?: JwtUser },
   ): Promise<OrderResponse[]> {
-    return this.orders.findAll(branchId);
+    return this.orders.findAll(this.requireUser(req).branchId);
   }
 
   /**

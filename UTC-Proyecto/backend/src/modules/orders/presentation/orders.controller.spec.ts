@@ -48,6 +48,7 @@ describe('OrdersController (HTTP)', () => {
         sub: 'kc-admin',
         email: 'admin@edu.utc.mx',
         roles: ['admin'],
+        branchId: 'coop-1',
       };
       next();
     });
@@ -123,5 +124,22 @@ describe('OrdersController (HTTP)', () => {
       .send({ status: 'preparing' })
       .expect(200);
     expect(service.updateStatus).toHaveBeenCalledTimes(1);
+  });
+
+  // UTC-F0-002: el alcance de cooperativa sale del JWT, NUNCA del request.
+  it('GET /orders/all usa branchId del JWT (no del query)', async () => {
+    await request(app.getHttpServer() as Server)
+      .get('/orders/all')
+      .expect(200);
+    expect(service.findAll).toHaveBeenCalledWith('coop-1');
+  });
+
+  it('GET /orders/all IGNORA ?branchId= inyectado por el cliente (no hay escalada entre cooperativas)', async () => {
+    await request(app.getHttpServer() as Server)
+      .get('/orders/all?branchId=coop-999')
+      .expect(200);
+    // Debe seguir usando el del token (coop-1), nunca el inyectado (coop-999).
+    expect(service.findAll).toHaveBeenCalledWith('coop-1');
+    expect(service.findAll).not.toHaveBeenCalledWith('coop-999');
   });
 });
