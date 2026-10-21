@@ -118,12 +118,18 @@ describe('OrdersController (HTTP)', () => {
     expect(service.updateStatus).not.toHaveBeenCalled();
   });
 
-  it('PATCH /orders/:id/status válido → delega en el service', async () => {
+  it('PATCH /orders/:id/status válido → delega en el service con actor+rol (F1 trazabilidad)', async () => {
     await request(app.getHttpServer() as Server)
       .patch('/orders/a0000000-0000-4000-8000-000000000001/status')
       .send({ status: 'preparing' })
       .expect(200);
     expect(service.updateStatus).toHaveBeenCalledTimes(1);
+    // El actor registrado identifica el rol operativo (aquí admin), no solo el email.
+    expect(service.updateStatus).toHaveBeenCalledWith(
+      'a0000000-0000-4000-8000-000000000001',
+      'preparing',
+      'admin@edu.utc.mx (admin)',
+    );
   });
 
   // UTC-F0-002: el alcance de cooperativa sale del JWT, NUNCA del request.

@@ -89,8 +89,16 @@ export class OrdersController {
   ): Promise<OrderResponse> {
     const user = this.requireUser(req);
     // La auditoría (estado viejo→nuevo, capturado bajo lock dentro de la tx) la hace el
-    // adapter: aquí solo pasamos QUIÉN la ejecuta. Antes se hacía aquí y registraba from==to.
-    return this.orders.updateStatus(id, dto.status, user.email ?? 'unknown');
+    // adapter: aquí solo pasamos QUIÉN la ejecuta. El actor incluye el rol operativo que
+    // autorizó la acción (BR-003: cocina/mostrador/admin), para no registrar a un cocinero
+    // como 'admin' y conservar la trazabilidad de rol que exige F1.
+    const opRole = ['cocina', 'mostrador', 'admin'].find((r) =>
+      user.roles.includes(r),
+    );
+    const actor = opRole
+      ? `${user.email ?? 'unknown'} (${opRole})`
+      : (user.email ?? 'unknown');
+    return this.orders.updateStatus(id, dto.status, actor);
   }
 
   /** PATCH /orders/:id/cancel → el cliente cancela SU pedido (§3.8, solo si `pending`). */
