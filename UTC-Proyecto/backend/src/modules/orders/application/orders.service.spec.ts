@@ -296,7 +296,8 @@ function buildService(opts: {
   const managerSql: string[] = [];
   const managerQuery = jest.fn((sql: string) => {
     managerSql.push(sql);
-    if (!/delete\s+from\s+finished_goods/i.test(sql)) return Promise.resolve([]);
+    if (!/delete\s+from\s+finished_goods/i.test(sql))
+      return Promise.resolve([]);
     // FORMA REAL del driver, no la cómoda: para un DELETE, TypeORM devuelve la TUPLA
     // [rows, rowCount] (PostgresQueryRunner: `case "DELETE": result.raw = [raw.rows, raw.rowCount]`).
     // El mock anterior devolvía el arreglo PLANO de filas — una forma que Postgres JAMÁS produce — y
@@ -1057,13 +1058,23 @@ describe('OrdersService inventario (stock dark kitchen, D-052)', () => {
     const overdue = [
       {
         ...withItems(OrderStatus.READY, [
-          { id: 'i1', product: { id: 'p1' }, quantity: 1, finishedGoodId: 'fg9' },
+          {
+            id: 'i1',
+            product: { id: 'p1' },
+            quantity: 1,
+            finishedGoodId: 'fg9',
+          },
         ]),
         id: 'o1',
       },
       {
         ...withItems(OrderStatus.READY, [
-          { id: 'i2', product: { id: 'p2' }, quantity: 1, finishedGoodId: 'fg1' },
+          {
+            id: 'i2',
+            product: { id: 'p2' },
+            quantity: 1,
+            finishedGoodId: 'fg1',
+          },
         ]),
         id: 'o2',
       },
@@ -1309,9 +1320,7 @@ describe('OrdersService inventario (stock dark kitchen, D-052)', () => {
     const n = await service.expireFinishedGoods();
     expect(n).toBe(7); // UNIDADES mermadas (2 + 5); la fila qty=0 NO suma
     expect(stockMovements).toHaveLength(2); // fg1 y fg2; fg3 (qty=0) no deja asiento
-    expect(
-      stockMovements.some((m) => m.finishedGoodId === 'fg3'),
-    ).toBe(false);
+    expect(stockMovements.some((m) => m.finishedGoodId === 'fg3')).toBe(false);
     expect(stockMovements).toContainEqual(
       expect.objectContaining({
         qty: 2,

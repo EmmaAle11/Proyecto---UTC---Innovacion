@@ -1,9 +1,4 @@
-import {
-  Controller,
-  Get,
-  Req,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Controller, Get, Req, UnauthorizedException } from '@nestjs/common';
 import type { Request } from 'express';
 import { NotificationsService } from '../application/notifications.service';
 import type { NotificationResponse } from '../contracts/notification-response';
