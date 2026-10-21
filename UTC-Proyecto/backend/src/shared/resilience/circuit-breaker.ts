@@ -15,7 +15,9 @@
 export type CircuitState = 'closed' | 'open' | 'half_open';
 
 export class CircuitOpenError extends Error {
-  constructor(message = 'Servicio de pago no disponible, intenta en un momento') {
+  constructor(
+    message = 'Servicio de pago no disponible, intenta en un momento',
+  ) {
     super(message);
     this.name = 'CircuitOpenError';
   }
@@ -42,7 +44,10 @@ export class CircuitBreaker {
 
   /** Estado actual (recalcula el paso a half-open si ya pasó el enfriamiento). */
   get currentState(): CircuitState {
-    if (this.state === 'open' && this.now() - this.openedAt >= this.opts.cooldownMs) {
+    if (
+      this.state === 'open' &&
+      this.now() - this.openedAt >= this.opts.cooldownMs
+    ) {
       return 'half_open';
     }
     return this.state;
@@ -74,7 +79,10 @@ export class CircuitBreaker {
   private onFailure(): void {
     this.failures += 1;
     // En half-open cualquier fallo reabre; en closed, al llegar al umbral.
-    if (this.state === 'half_open' || this.failures >= this.opts.failureThreshold) {
+    if (
+      this.state === 'half_open' ||
+      this.failures >= this.opts.failureThreshold
+    ) {
       this.state = 'open';
       this.openedAt = this.now();
     }

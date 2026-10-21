@@ -19,10 +19,10 @@ async function bootstrap() {
     } catch (err) {
       throw new Error(
         `[HTTPS] No se pueden cargar certificados:\n` +
-        `  cert: ${certPath}\n` +
-        `  key: ${keyPath}\n` +
-        `Genera con: openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 365\n` +
-        `Error: ${err.message}`,
+          `  cert: ${certPath}\n` +
+          `  key: ${keyPath}\n` +
+          `Genera con: openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 365\n` +
+          `Error: ${err.message}`,
       );
     }
   }

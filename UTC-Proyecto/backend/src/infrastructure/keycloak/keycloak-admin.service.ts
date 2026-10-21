@@ -251,7 +251,9 @@ export class KeycloakAdminService {
       }),
     });
     if (!res.ok) {
-      throw new UnauthorizedException('Sesión expirada, inicia sesión de nuevo');
+      throw new UnauthorizedException(
+        'Sesión expirada, inicia sesión de nuevo',
+      );
     }
     const data = (await res.json()) as TokenResponse;
     return {
@@ -288,7 +290,9 @@ export class KeycloakAdminService {
       const body = (await res.json().catch(() => ({}))) as {
         error_description?: string;
       };
-      if (/not fully set up|CONFIGURE_TOTP/i.test(body.error_description ?? '')) {
+      if (
+        /not fully set up|CONFIGURE_TOTP/i.test(body.error_description ?? '')
+      ) {
         throw new UnauthorizedException(
           'Tu cuenta de administrador requiere segundo factor (MFA). Configura el TOTP en la consola de cuenta de Keycloak y vuelve a iniciar sesión.',
         );

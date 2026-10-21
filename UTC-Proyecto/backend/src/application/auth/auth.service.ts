@@ -79,7 +79,11 @@ export class AuthService {
   /** Login del administrador: credenciales + MFA contra Keycloak, exige rol admin (ver D-014, rules §6). */
   async loginAdmin(dto: AdminLoginDto): Promise<Tokens> {
     try {
-      const tokens = await this.keycloak.loginAdmin(dto.email, dto.password, dto.totp);
+      const tokens = await this.keycloak.loginAdmin(
+        dto.email,
+        dto.password,
+        dto.totp,
+      );
       this.auditLog.logLogin(dto.email, true, 'admin');
       return tokens;
     } catch (err) {

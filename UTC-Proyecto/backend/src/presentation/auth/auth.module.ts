@@ -14,7 +14,10 @@ import { TypeOrmUserProfileRepository } from '../../infrastructure/database/repo
   providers: [
     AuthService,
     KeycloakAdminService,
-    { provide: USER_PROFILE_REPOSITORY, useClass: TypeOrmUserProfileRepository },
+    {
+      provide: USER_PROFILE_REPOSITORY,
+      useClass: TypeOrmUserProfileRepository,
+    },
   ],
 })
 export class AuthModule {}

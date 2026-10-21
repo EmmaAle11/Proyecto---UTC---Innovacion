@@ -13,7 +13,12 @@ export class AuditLogService {
    * Login exitoso o fallido (regla V2 ASVS — autenticación).
    * NO incluye password ni token en el log.
    */
-  logLogin(email: string, success: boolean, method: 'user' | 'admin', reason?: string) {
+  logLogin(
+    email: string,
+    success: boolean,
+    method: 'user' | 'admin',
+    reason?: string,
+  ) {
     this.logger.log(
       JSON.stringify({
         action: 'login',
@@ -54,7 +59,11 @@ export class AuditLogService {
    * Acceso denegado: user intentó ruta que requiere permisos (regla V4 ASVS — access control).
    * Útil para detectar intentos de escalada de privilegios.
    */
-  logUnauthorizedAccess(email: string, route: string, reason: 'insufficient_role' | 'mfa_required') {
+  logUnauthorizedAccess(
+    email: string,
+    route: string,
+    reason: 'insufficient_role' | 'mfa_required',
+  ) {
     this.logger.warn(
       JSON.stringify({
         action: 'unauthorized_access',
