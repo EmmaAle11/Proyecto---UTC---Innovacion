@@ -6,6 +6,13 @@ import {
 import type { DataSource } from 'typeorm';
 import { OrdersService } from './orders.service';
 import { TypeOrmOrderRepository } from '../infrastructure/persistence/order.repository';
+import type { IOrderRepository } from '../domain/ports/order.repository.port';
+import type { OrderResponse } from '../contracts/order-response';
+import type { CreateOrderDto } from '../contracts/create-order.dto';
+import type {
+  BranchResolution,
+  ICooperativaCatalog,
+} from '../../organization/domain/ports/cooperativa.catalog.port';
 import { AuditLogService } from '../../../shared/logging/audit-log.service';
 import { DomainEventDispatcher } from '../../../shared/events/domain-event-dispatcher';
 import type { DomainEvent } from '../../../kernel/domain/DomainEvent';
@@ -1535,5 +1542,72 @@ describe('OrdersService.cancelOwn / extendOwn (cliente)', () => {
     await expect(service.extendOwn('o1', USER.sub)).rejects.toBeInstanceOf(
       BadRequestException,
     );
+  });
+});
+
+/**
+ * UTC-F1-002 (Zero Trust, fail-closed): la sucursal de recogida elegida por el cliente se valida
+ * contra el catálogo de cooperativas. Repo de pedidos mínimo + catálogo fake → prueba las 3 ramas.
+ */
+describe('OrdersService.create · validación de sucursal (UTC-F1-002)', () => {
+  const okResponse = { id: 'order-1' } as unknown as OrderResponse;
+
+  const makeService = (
+    resolve?: jest.Mock<Promise<BranchResolution>, [string]>,
+  ) => {
+    const create = jest.fn().mockResolvedValue(okResponse);
+    const repo = {
+      createWithItemsAndPayment: create,
+    } as unknown as IOrderRepository;
+    const catalog = resolve
+      ? ({ resolveBranch: resolve } as unknown as ICooperativaCatalog)
+      : undefined;
+    return {
+      service: new OrdersService(repo, catalog),
+      create,
+    };
+  };
+  const dto = (branchId?: string): CreateOrderDto => ({
+    items: [{ productId: 'p1', quantity: 1 }],
+    payMethod: PaymentMethod.EFECTIVO,
+    branchId,
+  });
+
+  it('sucursal activa → crea el pedido', async () => {
+    const resolve = jest.fn().mockResolvedValue('active');
+    const { service, create } = makeService(resolve);
+    await service.create(dto('coop-1'), USER.sub);
+    expect(resolve).toHaveBeenCalledWith('coop-1');
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it('sucursal inexistente/inactiva → BadRequest y NO crea (fail-closed)', async () => {
+    const resolve = jest.fn().mockResolvedValue('not_found');
+    const { service, create } = makeService(resolve);
+    await expect(
+      service.create(dto('coop-x'), USER.sub),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('catálogo vacío (bootstrap) → crea sin bloquear', async () => {
+    const resolve = jest.fn().mockResolvedValue('catalog_empty');
+    const { service, create } = makeService(resolve);
+    await service.create(dto('coop-1'), USER.sub);
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it('sin catálogo cableado (single-tenant) → no valida, crea', async () => {
+    const { service, create } = makeService(undefined);
+    await service.create(dto('coop-1'), USER.sub);
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it('sin branchId → no consulta el catálogo', async () => {
+    const resolve = jest.fn().mockResolvedValue('not_found');
+    const { service, create } = makeService(resolve);
+    await service.create(dto(undefined), USER.sub);
+    expect(resolve).not.toHaveBeenCalled();
+    expect(create).toHaveBeenCalledTimes(1);
   });
 });

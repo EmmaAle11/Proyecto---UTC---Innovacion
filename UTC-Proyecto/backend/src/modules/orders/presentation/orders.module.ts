@@ -15,6 +15,7 @@ import { PaymentGatewayService } from '../../../application/payments/payment-gat
 import { OrdersController } from './orders.controller';
 import { ORDER_REPOSITORY } from '../domain/ports/order.repository.port';
 import { TypeOrmOrderRepository } from '../infrastructure/persistence/order.repository';
+import { OrganizationModule } from '../../organization/organization.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { TypeOrmOrderRepository } from '../infrastructure/persistence/order.repo
       FinishedGoodEntity,
       StockMovementEntity,
     ]),
+    OrganizationModule,
   ],
   controllers: [OrdersController],
   providers: [
