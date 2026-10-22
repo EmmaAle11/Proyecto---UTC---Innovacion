@@ -1,6 +1,6 @@
 import { Pressable, Text } from 'react-native';
 import type { ReactNode } from 'react';
-import { colors, border, text, fonts } from '../theme';
+import { colors, border, text, fonts, radius } from '../theme';
 
 type Props = {
   selected?: boolean;
@@ -20,14 +20,14 @@ export function Chip({ selected, icon, children, onPress }: Props) {
         gap: 6,
         height: 38,
         paddingHorizontal: 15,
-        borderRadius: 999,
+        borderRadius: radius.pill,
         borderWidth: 1,
         borderColor: selected ? colors.naranja[500] : border.default,
-        backgroundColor: selected ? colors.naranja[500] : '#fff',
+        backgroundColor: selected ? colors.naranja[500] : colors.blanco,
       }}
     >
       {icon}
-      <Text style={{ fontFamily: fonts.bodySemi, fontSize: 14, color: selected ? '#fff' : text.heading }}>{children}</Text>
+      <Text style={{ fontFamily: fonts.bodySemi, fontSize: 14, color: selected ? colors.blanco : text.heading }}>{children}</Text>
     </Pressable>
   );
 }

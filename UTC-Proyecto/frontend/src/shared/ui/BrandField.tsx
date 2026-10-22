@@ -1,6 +1,6 @@
 import { View, Text, TextInput, Platform, type StyleProp, type ViewStyle, type TextStyle, type TextInputProps } from 'react-native';
 import type { ReactNode } from 'react';
-import { fonts } from '../theme';
+import { border, colors, fonts, text } from '../theme';
 
 // En react-native-web el TextInput se renderiza como <input> y el navegador le
 // pinta su anillo de foco (el "margen" azul que aparece al llegar con Tab). Lo
@@ -25,8 +25,8 @@ type Props = {
   containerStyle?: StyleProp<ViewStyle>;
 };
 
-const ACCENT = '#0A2E7A'; // foco: navy sutil (antes naranja fuerte)
-const IDLE = '#DEE2EA';
+const ACCENT = colors.azul[600];
+const IDLE = border.subtle;
 
 /**
  * Campo de formulario de marca (compartido por las pantallas de auth).
@@ -69,15 +69,15 @@ export function BrandField({
           onFocus={onFocus}
           onBlur={onBlur}
           placeholder={placeholder}
-          placeholderTextColor="#9BA4B5"
+          placeholderTextColor={colors.gris[400]}
           secureTextEntry={secure}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
-          style={[{ flex: 1, fontSize: 15, color: '#021E5E', fontFamily: fonts.bodyMedium }, WEB_NO_OUTLINE]}
+          style={[{ flex: 1, fontSize: 15, color: text.heading, fontFamily: fonts.bodyMedium }, WEB_NO_OUTLINE]}
         />
         {rightSlot}
       </View>
-      {hint ? <Text style={{ fontSize: 12, color: '#6C7689', marginTop: 4, fontFamily: fonts.body }}>{hint}</Text> : null}
+      {hint ? <Text style={{ fontSize: 12, color: text.muted, marginTop: 4, fontFamily: fonts.body }}>{hint}</Text> : null}
     </View>
   );
 }

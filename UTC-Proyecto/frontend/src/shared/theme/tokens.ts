@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 export const colors = {
   naranja: { 50: '#FFF1EB', 100: '#FFDDCF', 200: '#FFB89E', 300: '#FB8D63', 400: '#F26336', 500: '#E34100', 600: '#C23500', 700: '#9C2B00', 800: '#762200', 900: '#511800' },
   azul: { 50: '#EDF1FA', 100: '#D4DCF1', 200: '#A6B6E0', 300: '#6982C9', 400: '#3358B8', 500: '#1A4099', 600: '#0A2E7A', 700: '#021E5E', 800: '#021642', 900: '#010E2E' },
@@ -12,21 +14,35 @@ export const colors = {
 
 export const radius = { xs: 6, sm: 10, md: 14, lg: 18, xl: 24, card: 20, pill: 999 } as const;
 export const space = { 1: 4, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 8: 32, 10: 40, 12: 48 } as const;
-// Familias reales cargadas en App.tsx con expo-font (@expo-google-fonts/*).
-// El nombre = clave exacta registrada en useFonts() = nombre del módulo de la fuente.
+const helvetica = Platform.select({
+  ios: 'Helvetica',
+  android: 'sans-serif',
+  web: 'Helvetica, Arial, sans-serif',
+  default: 'sans-serif',
+})!;
+const helveticaMedium = Platform.select({
+  ios: 'HelveticaNeue-Medium',
+  android: 'sans-serif-medium',
+  web: 'Helvetica, Arial, sans-serif',
+  default: 'sans-serif-medium',
+})!;
+const helveticaBold = Platform.select({
+  ios: 'Helvetica-Bold',
+  android: 'sans-serif-bold',
+  web: 'Helvetica, Arial, sans-serif',
+  default: 'sans-serif-bold',
+})!;
+
 export const fonts = {
-  // Display / titulares — Bricolage Grotesque (editorial, con carácter)
-  display: 'BricolageGrotesque_700Bold',
-  displayBlack: 'BricolageGrotesque_800ExtraBold',
-  displaySemi: 'BricolageGrotesque_600SemiBold',
-  // Cuerpo — Plus Jakarta Sans (limpia, legible)
-  body: 'PlusJakartaSans_400Regular',
-  bodyMedium: 'PlusJakartaSans_500Medium',
-  bodySemi: 'PlusJakartaSans_600SemiBold',
-  bodyBold: 'PlusJakartaSans_700Bold',
-  // Números / turnos / códigos / semáforo — Space Mono (aire de "ticket")
-  mono: 'SpaceMono_400Regular',
-  monoBold: 'SpaceMono_700Bold',
+  display: helveticaBold,
+  displayBlack: helveticaBold,
+  displaySemi: helveticaMedium,
+  body: helvetica,
+  bodyMedium: helveticaMedium,
+  bodySemi: helveticaMedium,
+  bodyBold: helveticaBold,
+  mono: helvetica,
+  monoBold: helveticaBold,
 } as const;
 
 // Tokens semánticos: aliases legibles sobre las rampas de color.
