@@ -58,3 +58,22 @@ export enum StockMovementType {
 export enum StockMovementReason {
   CADUCADO = 'caducado',
 }
+
+/** Unidad BASE de un insumo (plan 04 §4-bis / motor-de-costeo): la "báscula única de la cocina".
+ *  Solo tres: g (se pesa), ml (se vierte), pza (se cuenta). kg/L son unidades de COMPRA, no de
+ *  medida — viven en la línea de compra con su `factor_to_base`. Columna `text` + CHECK. */
+export enum IngredientBaseUnit {
+  G = 'g',
+  ML = 'ml',
+  PZA = 'pza',
+}
+
+/** Tipo de movimiento del LIBRO MAYOR de insumos (plan 04 D4, append-only). El signo lo da
+ *  `qty_delta`; el tipo es el motivo/operación. Columna `text` + CHECK (no enum pg). */
+export enum IngredientMovementType {
+  COMPRA = 'compra',
+  CONSUMO_VENTA = 'consumo_venta',
+  MERMA = 'merma',
+  AJUSTE_CONTEO = 'ajuste_conteo',
+  DEVOLUCION_PROVEEDOR = 'devolucion_proveedor',
+}

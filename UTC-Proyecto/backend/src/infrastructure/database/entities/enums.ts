@@ -13,4 +13,6 @@ export {
   FinishedGoodSource,
   StockMovementType,
   StockMovementReason,
+  IngredientBaseUnit,
+  IngredientMovementType,
 } from '../../../domain/enums';
