@@ -82,7 +82,7 @@ Estado de puertas (al 2026-10-21): lint 0, build 0, test 151/151, SAST 0, SBOM o
 
 - **Comisión escalonada 8/6/4%** acumulada/mes, por tramo como impuestos (1–500=8%, 501–1000=6%, >1000=4%). `specs/2026-10-21-BR-COM-001`.
 - **Organización:** `Grupo 1:N Cooperativa`. **Cooperativa = sucursal independiente**; pedidos aislados por cooperativa (estilo McDonald's). El grupo (Grupo UTC, Grupo Lotus) agrupa pero no comparte pedidos.
-- **Costeo (F2): FIFO.** **Facturación (F4): solo ticket NO-fiscal + exportación; SIN CFDI/PAC** salvo aprobación.
+- **Costeo (F2): CPP (costo promedio ponderado)** — cambiado de FIFO el 2026-10-21 para alinear con el diseño `motor-de-costeo-design.md` (CPP es O(1) y no desbarata capas de costo al cancelar pedidos; FEFO sigue siendo la práctica de almacén por caducidad, es independiente del costeo). **Facturación (F4): solo ticket NO-fiscal + exportación; SIN CFDI/PAC** salvo aprobación.
 - **Planes B2B:** Básico ($0) / Almacén ($499) / Gestión Total ($899), por cooperativa. `specs/2026-10-21-BR-PLANES-001`.
 
 ## 9. Estado y siguiente paso (al 2026-10-21, fin de jornada)
