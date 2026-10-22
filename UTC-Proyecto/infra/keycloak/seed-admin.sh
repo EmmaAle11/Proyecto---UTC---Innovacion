@@ -58,6 +58,44 @@ echo "→ Fijando contraseña (permanente)…"
 kc set-password -r "$REALM" --username "$ADMIN_SEED_USERNAME" \
   --new-password "$ADMIN_SEED_PASSWORD" >/dev/null
 
+# Atributo branch_id → claim branch_id (UTC-F1-001). El protocolMapper del client la emite;
+# aquí se fija el ATRIBUTO en el usuario para que el JWT lo lleve. Idempotente.
+# NOTA: se usa la API REST (curl) y no `kcadm -s attributes...` porque el Realm tiene User
+# Profile (exige firstName/lastName) y kcadm serializa el atributo como string, no como lista
+# JSON → Keycloak lo descarta. GET→merge→PUT preserva los campos obligatorios.
+ADMIN_SEED_BRANCH_ID="${ADMIN_SEED_BRANCH_ID:-}"
+if [ -n "$ADMIN_SEED_BRANCH_ID" ]; then
+  echo "→ Fijando atributo branch_id=$ADMIN_SEED_BRANCH_ID…"
+  KC_HOST="${KEYCLOAK_HOST_URL:-http://localhost:8082}"
+  ADMIN_TOKEN="$(curl -s -X POST "$KC_HOST/realms/master/protocol/openid-connect/token" \
+    -H 'Content-Type: application/x-www-form-urlencoded' \
+    --data-urlencode "grant_type=password" \
+    --data-urlencode "client_id=admin-cli" \
+    --data-urlencode "username=$KEYCLOAK_ADMIN" \
+    --data-urlencode "password=$KEYCLOAK_ADMIN_PASSWORD" \
+    | python3 -c 'import sys,json;print(json.load(sys.stdin).get("access_token",""))')"
+  if [ -n "$ADMIN_TOKEN" ]; then
+    USER_ID="$(kc get users -r "$REALM" -q username="$ADMIN_SEED_USERNAME" --fields id --format csv --noquotes 2>/dev/null | tr -d '\r' | head -n1 || true)"
+    if [ -n "$USER_ID" ]; then
+      curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+        "$KC_HOST/admin/realms/$REALM/users/$USER_ID" \
+        | python3 -c "
+import sys, json
+u = json.load(sys.stdin)
+u.setdefault('attributes', {})['branch_id'] = ['$ADMIN_SEED_BRANCH_ID']
+json.dump(u, sys.stdout)
+" > /tmp/utc-user-attr.json
+      curl -s -o /dev/null -X PUT \
+        -H "Authorization: Bearer $ADMIN_TOKEN" \
+        -H 'Content-Type: application/json' \
+        "$KC_HOST/admin/realms/$REALM/users/$USER_ID" \
+        -d @/tmp/utc-user-attr.json
+    fi
+  else
+    echo "  ⚠ No se pudo obtener token admin para fijar branch_id (claim ausente en el JWT)."
+  fi
+fi
+
 echo "→ Asignando rol realm 'admin'…"
 kc add-roles -r "$REALM" --uusername "$ADMIN_SEED_USERNAME" --rolename admin >/dev/null
 
