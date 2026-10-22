@@ -16,6 +16,7 @@ import { PreparationTimeEntity } from '../../../../infrastructure/database/entit
 import { AppSettingsEntity } from '../../../../infrastructure/database/entities/app-settings.entity';
 import { FinishedGoodEntity } from '../../../../infrastructure/database/entities/finished-good.entity';
 import { StockMovementEntity } from '../../../../infrastructure/database/entities/stock-movement.entity';
+import { asCooperativaId } from './cooperativa-id';
 import {
   FinishedGoodSource,
   StockMovementReason,
@@ -192,6 +193,8 @@ export class TypeOrmOrderRepository implements IOrderRepository {
           scheduledFor: plan.scheduledFor,
           branchId: input.branchId ?? null,
           branchName: input.branchName ?? null,
+          // UTC-F1-003 dual-write: además del branch_id legacy, la FK a cooperativa cuando es uuid.
+          cooperativaId: asCooperativaId(input.branchId),
         }),
       );
 

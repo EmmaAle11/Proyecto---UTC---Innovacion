@@ -59,6 +59,12 @@ export class OrderEntity {
   @Column('text', { name: 'branch_name', nullable: true })
   branchName: string | null;
 
+  // UTC-F1-003: FK a la fuente de verdad `cooperativa`. Convive con `branch_id` legacy (texto)
+  // durante el dual-write; nullable mientras el histórico no esté backfilleado. Sin relación ORM
+  // explícita (se escribe/lee como id) para no acoplar el agregado Order al contexto organization.
+  @Column('uuid', { name: 'cooperativa_id', nullable: true })
+  cooperativaId: string | null;
+
   @Column('timestamptz', { name: 'accepted_at', nullable: true })
   acceptedAt: Date | null;
 
